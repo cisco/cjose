@@ -5,6 +5,8 @@
  * Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
  */
 
+#include "include/util_int.h"
+
 #include <cjose/util.h>
 
 #include <jansson.h>
@@ -59,5 +61,31 @@ int cjose_const_memcmp(
     {
         result |= a[i] ^ b[i];
     }
+
+    return result;
+}
+
+char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err)
+{
+    if (NULL == str)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    if (0 > len)
+    {
+        len = strlen(str);
+    }
+
+    char *result = cjose_get_alloc()(sizeof(char) * (len + 1));
+    if (!result)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+    memcpy(result, str, len);
+    result[len] = 0;
+
     return result;
 }

@@ -14,4 +14,5 @@ libcjose_la_SOURCES=version.c \
 					include/header_int.h \
 					include/jwk_int.h \
 					include/jwe_int.h \
-					include/jws_int.h
+					include/jws_int.h \
+					include/util_int.h

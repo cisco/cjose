@@ -22,6 +22,7 @@
 #include "include/header_int.h"
 #include "include/jwk_int.h"
 #include "include/jwe_int.h"
+#include "include/util_int.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,14 +152,16 @@ static bool _cjose_jwe_build_hdr(
     }
 
     // copy the serialized header to JWE (hdr_str is owned by header object)
-    jwe->part[0].raw = (uint8_t *)strdup(hdr_str);
-    if (NULL == jwe->part[0].raw)
+    size_t  len = strlen(hdr_str);
+    uint8_t *data = (uint8_t *)_cjose_strndup(hdr_str, len, err);
+    if (!data)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         cjose_get_dealloc()(hdr_str);
         return false;
     }
-    jwe->part[0].raw_len = strlen(hdr_str);
+
+    jwe->part[0].raw = data;
+    jwe->part[0].raw_len = len;
     cjose_get_dealloc()(hdr_str);
     
     return true;
@@ -1284,12 +1287,7 @@ bool _cjose_jwe_import_part(
     }
 
     // copy the b64u part to the jwe
-    jwe->part[p].b64u = strdup(b64u);
-    if (NULL == jwe->part[p].b64u)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        return false;
-    }
+    jwe->part[p].b64u = _cjose_strndup(b64u, b64u_len, err);
     jwe->part[p].b64u_len = b64u_len;
 
     // b64u decode the part

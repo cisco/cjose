@@ -6,6 +6,7 @@
  */
 
 #include "include/jwk_int.h"
+#include "include/util_int.h"
 
 #include <cjose/base64.h>
 #include <cjose/util.h>
@@ -233,7 +234,12 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto to_json_cleanup;
     }
-    result = strdup(str_jwk);
+    result = _cjose_strndup(str_jwk, -1, err);
+    if (!result)
+    {
+        cjose_get_dealloc()(str_jwk);
+        goto to_json_cleanup;
+    }
     cjose_get_dealloc()(str_jwk);
     
     to_json_cleanup:
@@ -1599,8 +1605,14 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
             _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KID_STR, err);
     if (kid_str != NULL)
     {
-        jwk->kid = strdup(kid_str);
-    } 
+        jwk->kid = _cjose_strndup(kid_str, -1, err);
+        if (!jwk->kid)
+        {
+            cjose_jwk_release(jwk);
+            jwk = NULL;
+            goto import_cleanup;
+        }
+    }
 
     // poor man's "finally"
     import_cleanup:
