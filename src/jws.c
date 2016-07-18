@@ -25,12 +25,12 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_build_dig_sha256(
+static bool _cjose_jws_build_dig_sha(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err);
 
-static bool _cjose_jws_build_sig_ps256(
+static bool _cjose_jws_build_sig_ps(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err);
@@ -40,17 +40,17 @@ static bool _cjose_jws_build_dig_hmac_sha(
         const cjose_jwk_t *jwk,
         cjose_err *err);
 
-static bool _cjose_jws_verify_sig_ps256(
+static bool _cjose_jws_verify_sig_ps(
         cjose_jws_t *jws, 
         const cjose_jwk_t *jwk, 
         cjose_err *err);
 
-static bool _cjose_jws_build_sig_rs256(
+static bool _cjose_jws_build_sig_rs(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err);
 
-static bool _cjose_jws_verify_sig_rs256(
+static bool _cjose_jws_verify_sig_rs(
         cjose_jws_t *jws, 
         const cjose_jwk_t *jwk, 
         cjose_err *err);
@@ -108,19 +108,19 @@ static bool _cjose_jws_validate_hdr(
     }
     const char *alg = json_string_value(alg_obj);
 
-    if (strcmp(alg, CJOSE_HDR_ALG_PS256) == 0)
+    if ((strcmp(alg, CJOSE_HDR_ALG_PS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS512) == 0))
     {
-        jws->fns.digest = _cjose_jws_build_dig_sha256;
-        jws->fns.sign = _cjose_jws_build_sig_ps256;
-        jws->fns.verify = _cjose_jws_verify_sig_ps256;
+        jws->fns.digest = _cjose_jws_build_dig_sha;
+        jws->fns.sign = _cjose_jws_build_sig_ps;
+        jws->fns.verify = _cjose_jws_verify_sig_ps;
     }
-    else if (strcmp(alg, CJOSE_HDR_ALG_RS256) == 0)
+    else if ((strcmp(alg, CJOSE_HDR_ALG_RS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_RS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_RS512) == 0))
     {
-        jws->fns.digest = _cjose_jws_build_dig_sha256;
-        jws->fns.sign = _cjose_jws_build_sig_rs256;
-        jws->fns.verify = _cjose_jws_verify_sig_rs256;
+        jws->fns.digest = _cjose_jws_build_dig_sha;
+        jws->fns.sign = _cjose_jws_build_sig_rs;
+        jws->fns.verify = _cjose_jws_verify_sig_rs;
     }
-    else if ( (strcmp(alg, CJOSE_HDR_ALG_HS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS512) == 0))
+    else if ((strcmp(alg, CJOSE_HDR_ALG_HS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS512) == 0))
     {
         jws->fns.digest = _cjose_jws_build_dig_hmac_sha;
         jws->fns.sign = _cjose_jws_build_sig_hmac_sha;
@@ -165,7 +165,7 @@ static bool _cjose_jws_build_dat(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_build_dig_sha256(
+static bool _cjose_jws_build_dig_sha(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err)
@@ -173,12 +173,28 @@ static bool _cjose_jws_build_dig_sha256(
     bool retval = false;
     EVP_MD_CTX *ctx = NULL;
 
-    // build digest using SHA-256 digest algorithm
-    const EVP_MD *digest_alg = EVP_sha256();
+    // make sure we have an alg header
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *alg = json_string_value(alg_obj);
+
+    // build digest using SHA-256/384/512 digest algorithm
+    const EVP_MD *digest_alg = NULL;
+    if ((strcmp(alg, CJOSE_HDR_ALG_RS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS256) == 0))
+    	digest_alg = EVP_sha256();
+    else if ((strcmp(alg, CJOSE_HDR_ALG_RS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS384) == 0))
+    	digest_alg = EVP_sha384();
+    else if ((strcmp(alg, CJOSE_HDR_ALG_RS512) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS512) == 0))
+    	digest_alg = EVP_sha512();
+
     if (NULL == digest_alg)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
 
     // allocate buffer for digest
@@ -187,7 +203,7 @@ static bool _cjose_jws_build_dig_sha256(
     if (NULL == jws->dig)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
 
     // instantiate and initialize a new mac digest context
@@ -195,7 +211,7 @@ static bool _cjose_jws_build_dig_sha256(
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
     EVP_MD_CTX_init(ctx);
 
@@ -203,33 +219,33 @@ static bool _cjose_jws_build_dig_sha256(
     if (EVP_DigestInit_ex(ctx, digest_alg, NULL) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
     if (EVP_DigestUpdate(ctx, jws->hdr_b64u, jws->hdr_b64u_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
     if (EVP_DigestUpdate(ctx, ".", 1) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
     if (EVP_DigestUpdate(ctx, jws->dat_b64u, jws->dat_b64u_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
     if (EVP_DigestFinal_ex(ctx, jws->dig, NULL) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_dig_sha256_cleanup;
+        goto _cjose_jws_build_dig_sha_cleanup;
     }
 
     // if we got this far - success
     retval = true;
 
-    _cjose_jws_build_dig_sha256_cleanup:
+    _cjose_jws_build_dig_sha_cleanup:
     if (NULL != ctx)
     {
         EVP_MD_CTX_destroy(ctx);
@@ -256,7 +272,7 @@ static bool _cjose_jws_build_dig_hmac_sha(
     }
     const char *alg = json_string_value(alg_obj);
 
-    // build digest using SHA-??? digest algorithm
+    // build digest using SHA-256/384/512 digest algorithm
     const EVP_MD *digest_alg = NULL;
     if (strcmp(alg, CJOSE_HDR_ALG_HS256) == 0)
     	digest_alg = EVP_sha256();
@@ -330,7 +346,7 @@ static bool _cjose_jws_build_dig_hmac_sha(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_build_sig_ps256(
+static bool _cjose_jws_build_sig_ps(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err)
@@ -343,15 +359,31 @@ static bool _cjose_jws_build_sig_ps256(
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
-    // currently only support SHA-256 digest algorithm
-    const EVP_MD *digest_alg = EVP_sha256();
+    // make sure we have an alg header
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *alg = json_string_value(alg_obj);
+
+    // build digest using SHA-256/384/512 digest algorithm
+    const EVP_MD *digest_alg = NULL;
+    if (strcmp(alg, CJOSE_HDR_ALG_PS256) == 0)
+    	digest_alg = EVP_sha256();
+    else if (strcmp(alg, CJOSE_HDR_ALG_PS384) == 0)
+    	digest_alg = EVP_sha384();
+    else if (strcmp(alg, CJOSE_HDR_ALG_PS512) == 0)
+    	digest_alg = EVP_sha512();
+
     if (NULL == digest_alg)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
     // apply EMSA-PSS encoding (RFC-3447, 8.1.1, step 1)
@@ -361,13 +393,13 @@ static bool _cjose_jws_build_sig_ps256(
     if (NULL == em)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jws_build_sig_ps256_cleanup;        
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
     if (RSA_padding_add_PKCS1_PSS((RSA *)jwk->keydata, 
             em, jws->dig, digest_alg, -1) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
     // sign the digest (RFC-3447, 8.1.1, step 2)
@@ -376,27 +408,27 @@ static bool _cjose_jws_build_sig_ps256(
     if (NULL == jws->sig)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
     if (RSA_private_encrypt(em_len, em, jws->sig, 
             (RSA *)jwk->keydata, RSA_NO_PADDING) != jws->sig_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
     // base64url encode signed digest
     if (!cjose_base64url_encode((const uint8_t *)jws->sig, jws->sig_len, 
             &jws->sig_b64u, &jws->sig_b64u_len, err))
     {
-        goto _cjose_jws_build_sig_ps256_cleanup;
+        goto _cjose_jws_build_sig_ps_cleanup;
     }
 
     // if we got this far - success
     retval = true;
 
-    _cjose_jws_build_sig_ps256_cleanup:
+    _cjose_jws_build_sig_ps_cleanup:
     cjose_get_dealloc()(em);
 
     return retval;
@@ -404,7 +436,7 @@ static bool _cjose_jws_build_sig_ps256(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_build_sig_rs256(
+static bool _cjose_jws_build_sig_rs(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err)
@@ -425,9 +457,30 @@ static bool _cjose_jws_build_sig_rs256(
         return false;
     }
      
-    // RS256 signature is RSA encryption of the digest with PKCS #1 v1.5 padding
-    if (RSA_private_encrypt(jws->dig_len, jws->dig, jws->sig, 
-            (RSA *)jwk->keydata, RSA_PKCS1_PADDING) != jws->sig_len)
+    // make sure we have an alg header
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *alg = json_string_value(alg_obj);
+
+    // build digest using SHA-256/384/512 digest algorithm
+    int digest_alg = -1;
+    if (strcmp(alg, CJOSE_HDR_ALG_RS256) == 0)
+    	digest_alg = NID_sha256;
+    else if (strcmp(alg, CJOSE_HDR_ALG_RS384) == 0)
+    	digest_alg = NID_sha384;
+    else if (strcmp(alg, CJOSE_HDR_ALG_RS512) == 0)
+    	digest_alg = NID_sha512;
+    if (-1 == digest_alg)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return false;
+    }
+
+	if (RSA_sign(digest_alg, jws->dig, jws->dig_len, jws->sig, (unsigned int *)&jws->sig_len, (RSA *)jwk->keydata) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
@@ -748,7 +801,7 @@ cjose_jws_t *cjose_jws_import(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_verify_sig_ps256(
+static bool _cjose_jws_verify_sig_ps(
             cjose_jws_t *jws, 
             const cjose_jwk_t *jwk, 
             cjose_err *err)
@@ -761,15 +814,31 @@ static bool _cjose_jws_verify_sig_ps256(
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto _cjose_jws_verify_sig_ps256_cleanup;
+        goto _cjose_jws_verify_sig_ps_cleanup;
     }
 
-    // use SHA-256 digest algorithm
-    const EVP_MD *digest_alg = EVP_sha256();
+    // make sure we have an alg header
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *alg = json_string_value(alg_obj);
+
+    // build digest using SHA-256/384/512 digest algorithm
+    const EVP_MD *digest_alg = NULL;
+    if (strcmp(alg, CJOSE_HDR_ALG_PS256) == 0)
+    	digest_alg = EVP_sha256();
+    else if (strcmp(alg, CJOSE_HDR_ALG_PS384) == 0)
+    	digest_alg = EVP_sha384();
+    else if (strcmp(alg, CJOSE_HDR_ALG_PS512) == 0)
+    	digest_alg = EVP_sha512();
+
     if (NULL == digest_alg)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_ps256_cleanup;
+        goto _cjose_jws_verify_sig_ps_cleanup;
     }
 
     // allocate buffer for encoded message
@@ -778,7 +847,7 @@ static bool _cjose_jws_verify_sig_ps256(
     if (NULL == em)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_ps256_cleanup;
+        goto _cjose_jws_verify_sig_ps_cleanup;
     }
 
     // decrypt signature
@@ -786,7 +855,7 @@ static bool _cjose_jws_verify_sig_ps256(
             (RSA *)jwk->keydata, RSA_NO_PADDING) != em_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_ps256_cleanup;
+        goto _cjose_jws_verify_sig_ps_cleanup;
     }
 
     // verify decrypted signature data against PSS encoded digest
@@ -794,13 +863,13 @@ static bool _cjose_jws_verify_sig_ps256(
            (RSA *)jwk->keydata, jws->dig, digest_alg, em, -1) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_ps256_cleanup;
+        goto _cjose_jws_verify_sig_ps_cleanup;
     }
         
     // if we got this far - success
     retval = true;
 
-    _cjose_jws_verify_sig_ps256_cleanup:
+    _cjose_jws_verify_sig_ps_cleanup:
     cjose_get_dealloc()(em);
 
     return retval;
@@ -819,55 +888,53 @@ int _const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_verify_sig_rs256(
+static bool _cjose_jws_verify_sig_rs(
             cjose_jws_t *jws, 
             const cjose_jwk_t *jwk, 
             cjose_err *err)
 {
-    return true;
-
     bool retval = false;
-    uint8_t *dig = NULL;
-    size_t dig_len = 0;
 
     // ensure jwk is RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto _cjose_jws_verify_sig_rs256_cleanup;
+        goto _cjose_jws_verify_sig_rs_cleanup;
     }
 
-    // allocate buffer for decrypted digest
-    dig_len = RSA_size((RSA *)jwk->keydata);
-    dig = (uint8_t *)cjose_get_alloc()(dig_len);
-    if (NULL == dig)
+    // make sure we have an alg header
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *alg = json_string_value(alg_obj);
+
+    // build digest using SHA-256/384/512 digest algorithm
+    int digest_alg = -1;
+    if (strcmp(alg, CJOSE_HDR_ALG_RS256) == 0)
+    	digest_alg = NID_sha256;
+    else if (strcmp(alg, CJOSE_HDR_ALG_RS384) == 0)
+    	digest_alg = NID_sha384;
+    else if (strcmp(alg, CJOSE_HDR_ALG_RS512) == 0)
+    	digest_alg = NID_sha512;
+    if (-1 == digest_alg)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_rs256_cleanup;
+        goto _cjose_jws_verify_sig_rs_cleanup;
     }
 
-    // decrypt digest - check it's at least the right length
-    dig_len = RSA_public_decrypt(jws->sig_len, jws->sig, dig, 
-            (RSA *)jwk->keydata, RSA_PKCS1_PADDING);
-    if (-1 == dig_len)
+	if (RSA_verify(digest_alg, jws->dig, jws->dig_len, jws->sig, jws->sig_len, (RSA *)jwk->keydata) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_rs256_cleanup;
+        goto _cjose_jws_verify_sig_rs_cleanup;
     }
 
-    // verify decrypted digest matches computed digest
-    if ((_const_memcmp(jws->dig, dig, jws->dig_len) != 0) ||
-        (dig_len != jws->dig_len))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jws_verify_sig_rs256_cleanup;
-    }
-        
     // if we got this far - success
     retval = true;
 
-    _cjose_jws_verify_sig_rs256_cleanup:
-    cjose_get_dealloc()(dig);
+    _cjose_jws_verify_sig_rs_cleanup:
 
     return retval;
 }
