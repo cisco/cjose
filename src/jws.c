@@ -824,8 +824,6 @@ static bool _cjose_jws_verify_sig_rs256(
             const cjose_jwk_t *jwk, 
             cjose_err *err)
 {
-    return true;
-
     bool retval = false;
     uint8_t *dig = NULL;
     size_t dig_len = 0;
