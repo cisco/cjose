@@ -82,6 +82,7 @@ START_TEST(test_cjose_base64_encode)
     ck_assert(cjose_base64_encode(input, inlen, &output, &outlen, &err));
     ck_assert(0 == outlen);
     ck_assert_str_eq("", output);
+    cjose_get_dealloc()(output);
 
     // invalid arguments -- output == NULL
     input = "valid";
