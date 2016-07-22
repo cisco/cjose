@@ -371,11 +371,17 @@ static bool _cjose_jws_build_sig_ps(
     uint8_t *em = NULL;
     size_t em_len = 0;
 
-    // ensure jwk is RSA
+    // ensure jwk is private RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto _cjose_jws_build_sig_ps_cleanup;
+    }
+    RSA *rsa = (RSA *)jwk->keydata;
+    if (!rsa || !rsa->e || !rsa->n || !rsa->d)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
     }
 
     // make sure we have an alg header
@@ -457,8 +463,14 @@ static bool _cjose_jws_build_sig_rs(
         const cjose_jwk_t *jwk,
         cjose_err *err)
 {
-    // ensure jwk is RSA
+    // ensure jwk is private RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    RSA *rsa = (RSA *)jwk->keydata;
+    if (!rsa || !rsa->e || !rsa->n || !rsa->d)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;

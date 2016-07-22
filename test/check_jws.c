@@ -4,7 +4,6 @@
 
 #include "check_cjose.h"
 
-#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <check.h>
@@ -249,7 +248,10 @@ START_TEST(test_cjose_jws_sign_with_bad_header)
     // create a JWS
     jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad header");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_sign returned bad errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_sign returned bad err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     cjose_header_release(hdr);
     cjose_jwk_release(jwk);
@@ -270,11 +272,11 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
     // some bad keys to test with
     static const char *JWK_BAD[] = {
 
-        // missing public part 'e' needed for signion
+        // missing private part 'd' needed for signing
         "{ \"kty\": \"RSA\", "
         "\"kid\": \"9ebf9edb-3a24-48b4-b2cb-21f0cf747ea7\", "
-        "\"n\": \"0a5nKJLjaB1xdebYWfhvlhYhgfzkw49HAUIjyvb6fNPKhwlBQMoAS5jM3kI17_OMGrHxL7ZP00OE-24__VWDCAhOQsSvlgCvw2XOOCtSWWLpb03dTrCMFeemqS4S9jrKd3NbUk3UJ2dVb_EIbQEC_BVjZStr_HcCrKsj4AluaQUn09H7TuK0yZFBzZMhJ1J8Yi3nAPkxzdGah0XuWhLObMAvANSVmHzRXwnTDw9Dh_bJ4G1xd1DE7W94uoUlcSDx59aSdzTpQzJh1l3lXc6JRUrXTESYgHpMv0O1n0gbIxX8X1ityBlMiccDjfZIKLnwz6hQObvRtRIpxEdq4SYS-w\", "
-        "\"d\": \"B1vTivz8th6yaKzdUusBH4dPTbyOWr6gg07K6siYKeFU7kBI5fkw4XZPWk2AjxdBB37PNBl127g25owL-twRaSrBdF5quxzzDix4fEgo77Ik9x8IcUaI5AvpMW7Ig5O0n1SRE-ZfV7KssO0Imqq6bBZkEpzfgVC760tmSuqJ0W2on8eWzi36zuKru9qA5uo7L8w9I5rzqY7XEaak0PYFi5zB1BkpI83tN2bBP2jPsym9lMP4fbf-duHgu0s9H4mDeQFyb7OuI_P7AyH3V3qhUAvk37w-HNL-17g7OBYsZK5jMwa7LobO8Tw0ZdPk5u6dWKdmiWOUUScQVAqtaDjRIQ\" }",
+        "\"e\": \"AQAB\", "
+        "\"n\": \"0a5nKJLjaB1xdebYWfhvlhYhgfzkw49HAUIjyvb6fNPKhwlBQMoAS5jM3kI17_OMGrHxL7ZP00OE-24__VWDCAhOQsSvlgCvw2XOOCtSWWLpb03dTrCMFeemqS4S9jrKd3NbUk3UJ2dVb_EIbQEC_BVjZStr_HcCrKsj4AluaQUn09H7TuK0yZFBzZMhJ1J8Yi3nAPkxzdGah0XuWhLObMAvANSVmHzRXwnTDw9Dh_bJ4G1xd1DE7W94uoUlcSDx59aSdzTpQzJh1l3lXc6JRUrXTESYgHpMv0O1n0gbIxX8X1ityBlMiccDjfZIKLnwz6hQObvRtRIpxEdq4SYS-w\" }",
 
         // currently unsupported key type (EC)
         "{ \"kty\": \"EC\", \"crv\": \"P-256\", "
@@ -304,14 +306,21 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 
         jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
         ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-        ck_assert_msg(errno == EINVAL, "cjose_jws_sign returned bad errno");
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                      "%d cjose_jws_sign returned bad err.code (%zu:%s)",
+                      i,
+                      err.code,
+                      err.message);
 
         cjose_jwk_release(jwk);
     }
 
     jws = cjose_jws_sign(NULL, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_sign returned bad errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_sign returned bad err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     cjose_header_release(hdr);
 }
@@ -345,11 +354,17 @@ START_TEST(test_cjose_jws_sign_with_bad_content)
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 1024, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_sign returned bad errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_sign returned bad err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 0, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_sign returned bad errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_sign returned bad err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     cjose_jwk_release(jwk);
     cjose_header_release(hdr);
@@ -412,7 +427,10 @@ START_TEST(test_cjose_jws_import_invalid_serialization)
     {
         cjose_jws_t *jws = cjose_jws_import(JWS_BAD[i],strlen(JWS_BAD[i]),&err);
         ck_assert_msg(NULL == jws, "cjose_jws_import of bad JWS succeeded");
-        ck_assert_msg(errno == EINVAL, "cjose_jws_import returned wrong errno");
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                      "cjose_jws_import returned wrong err.code (%zu:%s)",
+                      err.code,
+                      err.message);
     }
 }
 END_TEST
@@ -519,12 +537,18 @@ START_TEST(test_cjose_jws_verify_bad_params)
     // try to verify a NULL jws
     ck_assert_msg(!cjose_jws_verify(NULL, jwk, &err), 
             "cjose_jws_verify succeeded with NULL jws");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     // try to verify with a NULL jwk
     ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), 
             "cjose_jws_verify succeeded with NULL jwk");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     // try to verify with bad/wrong/unsupported keys
     for (int i = 0; NULL != JWK_BAD[i]; ++i)
@@ -535,7 +559,10 @@ START_TEST(test_cjose_jws_verify_bad_params)
 
         ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), 
                 "cjose_jws_verify succeeded with bad jwk");
-        ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG,
+                      "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                      err.code,
+                      err.message);
 
         cjose_jwk_release(jwk_bad);
     }
@@ -671,7 +698,10 @@ START_TEST(test_cjose_jws_verify_rs256)
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err),
             "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     static const char *JWS_TAMPERED_CONTENT =
             "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfq.cC4hiUPoj9Eetdgtv3hF80EGrhuB__dzERat0XF9g2VtQgr9PJbu3XOiZj5RZmh7AAuHIm4Bh-0Qc_lF5YKt_O8W2Fp5jujGbds9uJdbF9CUAr7t1dnZcAcQjbKBYNX4BAynRFdiuB--f_nZLgrnbyTyWzO75vRK5h6xBArLIARNPvkSjtQBMHlb1L07Qe7K0GarZRmB_eSN9383LcOLn6_dO--xi12jzDwusC-eOkHWEsqtFZESc6BfI7noOPqvhJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrBp0igcN_IoypGlUPQGe77Rw";
@@ -683,7 +713,10 @@ START_TEST(test_cjose_jws_verify_rs256)
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err),
             "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     cjose_jwk_release(jwk);
 }
@@ -808,7 +841,10 @@ START_TEST(test_cjose_jws_verify_ec256)
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err),
             "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     static const char *JWS_TAMPERED_CONTENT =
             "eyJhbGciOiJFUzI1NiIsImtpZCI6Img0aDkzIn0.eyJzdWIiOiJqb2UiLCJhdWQiOiJhY19vaWNfY2xpZW50IiwianRpIjoiZGV0blVpU2FTS0lpSUFvdHZ0ZzV3VyIsImlzcyI6Imh0dHBzOlwvXC9sb2NhbGhvc3Q6OTAzMSIsImlhdCI6MTQ2OTAzMDk1MCwiZXhwIjoxNDY5MDMxMjUwLCJub25jZSI6Im8zNU8wMi1WM0poSXJ1SkdHSlZVOGpUUGG2LUhKUTgzWEpmQXBZTGtrZHcifQ.o9bb_yW6-h9lPser01eYoK-VMlJoUabKFQ9tT_KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3iA";
@@ -820,7 +856,10 @@ START_TEST(test_cjose_jws_verify_ec256)
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err),
             "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(errno == EINVAL, "cjose_jws_verify returned wrong errno");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO,
+                  "cjose_jws_verify returned wrong err.code (%zu:%s)",
+                  err.code,
+                  err.message);
 
     cjose_jwk_release(jwk);
 }

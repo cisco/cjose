@@ -4,7 +4,6 @@
 
 #include "check_cjose.h"
 
-#include <errno.h>
 #include <stdlib.h>
 #include <openssl/evp.h>
 #include <check.h>
@@ -390,7 +389,6 @@ START_TEST (test_cjose_jwk_create_oct_random_inval)
     cjose_err err;
     cjose_jwk_t *   jwk = NULL;
 
-    errno = 0;
     jwk = cjose_jwk_create_oct_random(0, &err);
     ck_assert(NULL == jwk);
     ck_assert(CJOSE_ERR_INVALID_ARG == err.code);
