@@ -9,5 +9,5 @@
 
 const char * cjose_version()
 {
-    return VERSION;
+    return CJOSE_VERSION;
 }
