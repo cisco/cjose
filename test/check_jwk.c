@@ -100,18 +100,7 @@ START_TEST (test_cjose_jwk_create_RSA_spec)
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
     cjose_jwk_release(jwk);
 
-    // only private
-    cjose_get_dealloc()(specPriv.e);
-    specPriv.e = NULL;
-    jwk = cjose_jwk_create_RSA_spec(&specPriv, &err);
-    ck_assert(NULL != jwk);
-    ck_assert(1 == jwk->retained);
-    ck_assert(CJOSE_JWK_KTY_RSA == jwk->kty);
-    ck_assert(2048 == jwk->keysize);
-    ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
-    ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
-    cjose_jwk_release(jwk);
+    // only private is not possible after the OpenSSL 1.1.x changes because e & n always need to be set
 
     // minimal private
     cjose_get_dealloc()(specPriv.p);
@@ -138,6 +127,8 @@ START_TEST (test_cjose_jwk_create_RSA_spec)
     specPriv.n = NULL;
     cjose_get_dealloc()(specPriv.d);
     specPriv.d = NULL;
+    cjose_get_dealloc()(specPriv.e);
+    specPriv.e = NULL;
 
     // public only
     memset(&specPub, 0, sizeof(cjose_jwk_rsa_keyspec));
@@ -617,8 +608,8 @@ START_TEST(test_cjose_jwk_import_valid)
 
         // EC P-521
         "{ \"kty\": \"EC\", \"crv\": \"P-521\", "
-        "\"x\": \"AVq9Y0jEvSINQJzcExSIUWYjo73cJcVTz_QHXCU7p9rbmC8chFdACiGLKDKlzdgW6lhZzA5qnp8mkpS2qJO_EVxU\", "
-        "\"y\": \"AQHcQF8s_dhS_84CKLll0vkr0xCqWLp5XXdb79coYWI7Ev9SwZ4UZZVPxgu7ZGyp_2WdtaWw68uYeUVU4WiyKfPm\", "
+        "\"x\": \"AC8xogZa6uKAPU8086yAlG_inL3BaRyTB0pQUIJMENsPV_4S32DxIEEellMzQ_ts1Egp6OyS3ewjCUKHv5CTF7IV\", "
+        "\"y\": \"AIR1I2rUew5WyetOHYC-arEDDk2R30Yto6TTot92l4aY0DL8pSYxPVwv9beFUJEl95o_1Vv5y1453nFZW1Ca0uUj\", "
         "\"kid\": \"A3EAB438-EBF8-4FEC-B605-A67C3A0D2313\" }",
 
         // RSA 2048 public params only
@@ -671,7 +662,11 @@ START_TEST(test_cjose_jwk_import_valid)
     {
         // do import
         jwk = cjose_jwk_import( JWK[i], strlen(JWK[i]), &err);
-        ck_assert_msg(NULL != jwk, "expected a cjose_jwk_t, but got NULL");
+        ck_assert_msg(
+                NULL != jwk,
+                "expected a cjose_jwk_t, but got NULL (%s) : "
+                "%s, file: %s, function: %s, line: %ld",
+                JWK[i], err.message, err.file, err.function, err.line);
 
         // get json representation of "before" 
         json_t *left_json = json_loads(JWK[i], 0, NULL);

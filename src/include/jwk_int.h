@@ -69,4 +69,6 @@ bool cjose_jwk_hkdf(
         unsigned int okm_len,
         cjose_err *err);
 
+void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **n, BIGNUM **e, BIGNUM **d);
+
 #endif // SRC_JWK_INT_H

@@ -17,6 +17,54 @@
 static cjose_alloc_fn_t _alloc;
 static cjose_realloc_fn_t _realloc;
 static cjose_dealloc_fn_t _dealloc;
+static cjose_alloc3_fn_t _alloc3;
+static cjose_realloc3_fn_t _realloc3;
+static cjose_dealloc3_fn_t _dealloc3;
+
+void *cjose_alloc_wrapped(size_t n)
+{
+	return cjose_get_alloc3()(n, __FILE__, __LINE__);
+}
+void *cjose_realloc_wrapped(void *p, size_t n)
+{
+	return cjose_get_realloc3()(p, n, __FILE__, __LINE__);
+}
+void cjose_dealloc_wrapped(void *p)
+{
+	cjose_get_dealloc3()(p, __FILE__, __LINE__);
+}
+
+void *cjose_alloc3_default(size_t n, const char *file, int line)
+{
+	CJOSE_UNUSED_PARAM(file);
+	CJOSE_UNUSED_PARAM(line);
+	return cjose_get_alloc()(n);
+}
+
+void *cjose_realloc3_default(void *p, size_t n, const char *file, int line)
+{
+	CJOSE_UNUSED_PARAM(file);
+	CJOSE_UNUSED_PARAM(line);
+	return cjose_get_realloc()(p, n);
+}
+
+void cjose_dealloc3_default(void *p, const char *file, int line)
+{
+	CJOSE_UNUSED_PARAM(file);
+	CJOSE_UNUSED_PARAM(line);
+	cjose_get_dealloc()(p);
+}
+
+static void cjose_apply_allocs()
+{
+    // set upstream
+    json_set_alloc_funcs(cjose_get_alloc(), cjose_get_dealloc());
+#if (CJOSE_OPENSSL_11X)
+    CRYPTO_set_mem_functions(cjose_get_alloc3(), cjose_get_realloc3(), cjose_get_dealloc3());
+#else
+    CRYPTO_set_mem_functions(cjose_get_alloc(), cjose_get_realloc(), cjose_get_dealloc());
+#endif
+}
 
 void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
                            cjose_realloc_fn_t realloc,
@@ -26,9 +74,29 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
     _alloc = alloc;
     _realloc = realloc;
     _dealloc = dealloc;
-    // set upstream
-    json_set_alloc_funcs(_alloc, _dealloc);
-    CRYPTO_set_mem_functions(_alloc, _realloc, _dealloc);
+	_alloc3 = cjose_alloc3_default;
+	_realloc3 = cjose_realloc3_default;
+	_dealloc3 = cjose_dealloc3_default;
+
+	cjose_apply_allocs();
+}
+
+void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3,
+                              cjose_realloc3_fn_t realloc3,
+                              cjose_dealloc3_fn_t dealloc3)
+{
+    // save "locally"
+    _alloc3 = alloc3;
+    _realloc3 = realloc3;
+    _dealloc3 = dealloc3;
+	_alloc = (NULL != alloc3) ? cjose_alloc_wrapped :
+								NULL;
+	_realloc = (NULL != realloc3) ? cjose_realloc_wrapped :
+								    NULL;
+	_dealloc = (NULL != dealloc3) ? cjose_dealloc_wrapped :
+								    NULL;
+
+	cjose_apply_allocs();
 }
 
 cjose_alloc_fn_t cjose_get_alloc()
@@ -37,6 +105,12 @@ cjose_alloc_fn_t cjose_get_alloc()
            malloc :
            _alloc;
 }
+cjose_alloc3_fn_t cjose_get_alloc3()
+{
+	return (!_alloc3) ?
+		   cjose_alloc3_default :
+		   _alloc3;
+}
 
 cjose_realloc_fn_t cjose_get_realloc()
 {
@@ -44,12 +118,24 @@ cjose_realloc_fn_t cjose_get_realloc()
            realloc :
            _realloc;
 }
+cjose_realloc3_fn_t cjose_get_realloc3()
+{
+	return (!_realloc3) ?
+		   cjose_realloc3_default :
+		   _realloc3;
+}
 
 cjose_dealloc_fn_t cjose_get_dealloc()
 {
     return (!_dealloc) ?
            free :
            _dealloc;
+}
+cjose_dealloc3_fn_t cjose_get_dealloc3()
+{
+	return (!_dealloc3) ?
+		   cjose_dealloc3_default :
+		   _dealloc3;
 }
 
 int cjose_const_memcmp(

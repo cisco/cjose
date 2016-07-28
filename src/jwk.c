@@ -54,6 +54,103 @@ static const char * JWK_KTY_NAMES[] = {
     CJOSE_JWK_KTY_OCT_STR
 };
 
+void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d)
+{
+    if (rsa == NULL) return;
+#if (CJOSE_OPENSSL_11X)
+    RSA_get0_key(rsa, (const BIGNUM **)rsa_n, (const BIGNUM **)rsa_e, (const BIGNUM **)rsa_d);
+#else
+    *rsa_n=rsa->n;
+    *rsa_e=rsa->e;
+    *rsa_d=rsa->d;
+#endif
+}
+
+bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e_len, uint8_t *d, size_t d_len)
+{
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+
+    // RSA_set0_key doesn't work without each of those on the first call!
+    if ((n == NULL) || (n_len <= 0) || (e == NULL) || (e_len <= 0))
+        return false;
+
+    if (n && n_len > 0)
+        rsa_n = BN_bin2bn(n, n_len, NULL);
+    if (e && e_len > 0)
+        rsa_e = BN_bin2bn(e, e_len, NULL);
+    if (d && d_len > 0)
+        rsa_d = BN_bin2bn(d, d_len, NULL);
+
+#if (CJOSE_OPENSSL_11X)
+    return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
+#else
+   rsa->n = rsa_n;
+   rsa->e = rsa_e;
+   rsa->d = rsa_d;
+   return true;
+#endif
+}
+
+void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
+{
+#if (CJOSE_OPENSSL_11X)
+    RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
+#else
+    *p=rsa->p;
+    *q=rsa->q;
+#endif
+}
+
+void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
+{
+    BIGNUM *rsa_p = NULL, *rsa_q = NULL;
+
+    if (p && p_len > 0)
+        rsa_p = BN_bin2bn(p, p_len, NULL);
+    if (q && q_len > 0)
+        rsa_q = BN_bin2bn(q, q_len, NULL);
+
+#if (CJOSE_OPENSSL_11X)
+    RSA_set0_factors(rsa, rsa_p, rsa_q);
+#else
+    rsa->p = rsa_p;
+    rsa->q = rsa_q;
+#endif
+}
+
+void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
+{
+#if (CJOSE_OPENSSL_11X)
+    RSA_get0_crt_params(rsa, (const BIGNUM **)dmp1, (const BIGNUM **)dmq1, (const BIGNUM **)iqmp);
+#else
+    *dmp1=rsa->dmp1;
+    *dmq1=rsa->dmq1;
+    *iqmp=rsa->iqmp;
+#endif
+}
+
+void _cjose_jwk_rsa_set_crt(RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *dmq1, size_t dmq1_len, uint8_t *iqmp, size_t iqmp_len)
+{
+    BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
+
+    if (dmp1 && dmp1_len > 0)
+        rsa_dmp1 = BN_bin2bn(dmp1, dmp1_len, NULL);
+    if (dmq1 && dmq1_len > 0)
+        rsa_dmq1 = BN_bin2bn(dmq1, dmq1_len, NULL);
+    if (iqmp && iqmp_len > 0)
+        rsa_iqmp = BN_bin2bn(iqmp, iqmp_len, NULL);
+
+#if (CJOSE_OPENSSL_11X)
+    RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp);
+#else
+    rsa->dmp1 = rsa_dmp1;
+    rsa->dmq1 = rsa_dmq1;
+    rsa->iqmp = rsa_iqmp;
+#endif
+}
+
+
+
 // interface functions -- Generic
 
 const char * cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
@@ -1033,11 +1130,15 @@ static bool _RSA_public_fields(
         const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
     RSA *rsa = (RSA *)jwk->keydata;
-    if (!_RSA_json_field(rsa->e, "e", json, err))
+
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
+
+    if (!_RSA_json_field(rsa_e, "e", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->n, "n", json, err))
+    if (!_RSA_json_field(rsa_n, "n", json, err))
     {
         return false;
     }
@@ -1049,27 +1150,37 @@ static bool _RSA_private_fields(
         const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
     RSA *rsa = (RSA *)jwk->keydata;
-    if (!_RSA_json_field(rsa->d, "d", json, err))
+
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
+
+    BIGNUM *rsa_p = NULL, *rsa_q;
+    _cjose_jwk_rsa_get_factors(rsa, &rsa_p, &rsa_q);
+
+    BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
+    _cjose_jwk_rsa_get_crt(rsa, &rsa_dmp1, &rsa_dmq1, &rsa_iqmp);
+
+    if (!_RSA_json_field(rsa_d, "d", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->p, "p", json, err))
+    if (!_RSA_json_field(rsa_p, "p", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->q, "q", json, err))
+    if (!_RSA_json_field(rsa_q, "q", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->dmp1, "dp", json, err))
+    if (!_RSA_json_field(rsa_dmp1, "dp", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->dmq1, "dq", json, err))
+    if (!_RSA_json_field(rsa_dmq1, "dq", json, err))
     {
         return false;
     }
-    if (!_RSA_json_field(rsa->iqmp, "qi", json, err))
+    if (!_RSA_json_field(rsa_iqmp, "qi", json, err))
     {
         return false;
     }
@@ -1118,6 +1229,7 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
         goto create_RSA_random_failed;
     }
 
+    BN_free(bn);
     return _RSA_new(rsa, err);
 
     create_RSA_random_failed:
@@ -1130,24 +1242,6 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
         RSA_free(rsa);
     }
     return NULL;
-}
-
-static inline bool _RSA_set_param(
-        BIGNUM **param, const uint8_t *data, size_t len, cjose_err *err)
-{
-    BIGNUM  *bn = NULL;
-    if (NULL != data && 0 < len)
-    {
-        bn = BN_bin2bn(data, len, NULL);
-        if (!bn)
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-            return false;
-        }
-        *param = bn;
-    }
-
-    return true;
 }
 
 cjose_jwk_t *cjose_jwk_create_RSA_spec(
@@ -1179,43 +1273,20 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(
 
     if (hasPriv)
     {
-        if (!_RSA_set_param(&rsa->n, spec->n, spec->nlen, err))
+        if (!_cjose_jwk_rsa_set(rsa, spec->n, spec->nlen, spec->e, spec->elen, spec->d, spec->dlen))
         {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_RSA_spec_failed;
         }
-        if (!_RSA_set_param(&rsa->d, spec->d, spec->dlen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
-        if (!_RSA_set_param(&rsa->p, spec->p, spec->plen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
-        if (!_RSA_set_param(&rsa->q, spec->q, spec->qlen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
-        if (!_RSA_set_param(&rsa->dmp1, spec->dp, spec->dplen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
-        if (!_RSA_set_param(&rsa->dmq1, spec->dq, spec->dqlen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
-        if (!_RSA_set_param(&rsa->iqmp, spec->qi, spec->qilen, err))
-        {
-            goto create_RSA_spec_failed;
-        }
+        _cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen);
+        _cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen);
+
     }
-    if (hasPub)
+    else if (hasPub)
     {
-        if (!_RSA_set_param(&rsa->e, spec->e, spec->elen, err))
+        if (!_cjose_jwk_rsa_set(rsa, spec->n, spec->nlen, spec->e, spec->elen, NULL, 0))
         {
-            goto create_RSA_spec_failed;
-        }
-        if (!hasPriv && !_RSA_set_param(&rsa->n, spec->n, spec->nlen, err))
-        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_RSA_spec_failed;
         }
     }
@@ -1563,7 +1634,7 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
         goto import_cleanup;
     } 
 
-    // get kty cooresponding to kty_str (kty is required)
+    // get kty corresponding to kty_str (kty is required)
     cjose_jwk_kty_t kty;
     if (!_kty_from_name(kty_str, &kty, err))
     {

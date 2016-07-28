@@ -214,7 +214,7 @@ static bool _cjose_jws_build_dig_sha(
     }
 
     // allocate buffer for digest
-    jws->dig_len = digest_alg->md_size;
+    jws->dig_len = EVP_MD_size(digest_alg);
     jws->dig = (uint8_t *)cjose_get_alloc()(jws->dig_len);
     if (NULL == jws->dig)
     {
@@ -304,7 +304,7 @@ static bool _cjose_jws_build_dig_hmac_sha(
     }
 
     // allocate buffer for digest
-    jws->dig_len = digest_alg->md_size;
+    jws->dig_len = EVP_MD_size(digest_alg);
     jws->dig = (uint8_t *)cjose_get_alloc()(jws->dig_len);
     if (NULL == jws->dig)
     {
@@ -313,13 +313,20 @@ static bool _cjose_jws_build_dig_hmac_sha(
     }
 
     // instantiate and initialize a new mac digest context
+#if (CJOSE_OPENSSL_11X)
+    ctx = HMAC_CTX_new();
+#else
     ctx = cjose_get_alloc()(sizeof(HMAC_CTX));
+#endif
     if (NULL == ctx)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
     }
+
+#if !(CJOSE_OPENSSL_11X)
     HMAC_CTX_init(ctx);
+#endif
 
     // create digest as DIGEST(B64U(HEADER).B64U(DATA))
     if (HMAC_Init_ex(ctx, jwk->keydata, jwk->keysize / 8, digest_alg, NULL) != 1)
@@ -354,8 +361,12 @@ static bool _cjose_jws_build_dig_hmac_sha(
     _cjose_jws_build_dig_hmac_sha_cleanup:
     if (NULL != ctx)
     {
+#if (CJOSE_OPENSSL_11X)
+        HMAC_CTX_free(ctx);
+#else
     	HMAC_CTX_cleanup(ctx);
     	cjose_get_dealloc()(ctx);
+#endif
     }
 
     return retval;
@@ -378,7 +389,9 @@ static bool _cjose_jws_build_sig_ps(
         goto _cjose_jws_build_sig_ps_cleanup;
     }
     RSA *rsa = (RSA *)jwk->keydata;
-    if (!rsa || !rsa->e || !rsa->n || !rsa->d)
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
+    if (!rsa || !rsa_e || !rsa_n || !rsa_d)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -470,7 +483,9 @@ static bool _cjose_jws_build_sig_rs(
         return false;
     }
     RSA *rsa = (RSA *)jwk->keydata;
-    if (!rsa || !rsa->e || !rsa->n || !rsa->d)
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
+    if (!rsa || !rsa_e || !rsa_n || !rsa_d)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -605,10 +620,19 @@ static bool _cjose_jws_build_sig_ec(
     }
 
     memset(jws->sig, 0, jws->sig_len);
-    int rlen = BN_num_bytes(ecdsa_sig->r);
-    int slen = BN_num_bytes(ecdsa_sig->s);
-    BN_bn2bin(ecdsa_sig->r, jws->sig + jws->sig_len / 2 - rlen);
-    BN_bn2bin(ecdsa_sig->s, jws->sig + jws->sig_len - slen);
+
+    const BIGNUM *pr, *ps;
+#if (CJOSE_OPENSSL_11X)
+    ECDSA_SIG_get0(ecdsa_sig, &pr, &ps);
+#else
+    pr = ecdsa_sig->r;
+    ps = ecdsa_sig->s;
+#endif
+
+    int rlen = BN_num_bytes(pr);
+    int slen = BN_num_bytes(ps);
+    BN_bn2bin(pr, jws->sig + jws->sig_len / 2 - rlen);
+    BN_bn2bin(ps, jws->sig + jws->sig_len - slen);
 
     // base64url encode signed digest
     if (!cjose_base64url_encode((const uint8_t *)jws->sig, jws->sig_len,
@@ -1086,8 +1110,16 @@ static bool _cjose_jws_verify_sig_ec(
 
     ECDSA_SIG *ecdsa_sig = ECDSA_SIG_new();
     int key_len = jws->sig_len / 2;
+
+#if (CJOSE_OPENSSL_11X)
+    BIGNUM *pr = BN_new(), *ps = BN_new();
+    BN_bin2bn(jws->sig, key_len, pr);
+    BN_bin2bn(jws->sig + key_len, key_len, ps);
+    ECDSA_SIG_set0(ecdsa_sig, pr, ps);
+#else
     BN_bin2bn(jws->sig, key_len, ecdsa_sig->r);
     BN_bin2bn(jws->sig + key_len, key_len, ecdsa_sig->s);
+#endif
 
     if (ECDSA_do_verify(jws->dig, jws->dig_len, ecdsa_sig, ec) != 1)
     {
