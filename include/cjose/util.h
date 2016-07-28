@@ -16,6 +16,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+#include <openssl/rsa.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -23,20 +26,26 @@ extern "C"
 #endif
 
 
+#define CJOSE_OPENSSL_11X  OPENSSL_VERSION_NUMBER >= 0x10100005L
+
+
 /**
  * Typedef for memory allocator function.
  */
+typedef void *(* cjose_alloc3_fn_t)(size_t, const char *, int);
 typedef void *(* cjose_alloc_fn_t)(size_t);
 
 /**
  * Typedef for memory reallocator function.
  */
+typedef void *(* cjose_realloc3_fn_t)(void *, size_t, const char *, int);
 typedef void *(* cjose_realloc_fn_t)(void *, size_t);
 
 /**
  * Typedef for memory deallocator function.
  */
 typedef void (* cjose_dealloc_fn_t)(void *);
+typedef void (* cjose_dealloc3_fn_t)(void *, const char *, int);
 
 /**
  * Sets the allocator and deallocator functions.
@@ -53,8 +62,11 @@ typedef void (* cjose_dealloc_fn_t)(void *);
  * \param dealloc [in] The custom deallocator function to use.
  */
 void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
+                           cjose_alloc3_fn_t alloc3,
                            cjose_realloc_fn_t realloc,
-                           cjose_dealloc_fn_t dealloc);
+                           cjose_realloc3_fn_t realloc3,
+                           cjose_dealloc_fn_t dealloc,
+                           cjose_dealloc3_fn_t dealloc3);
 
 
 /**

@@ -19,8 +19,11 @@ static cjose_realloc_fn_t _realloc;
 static cjose_dealloc_fn_t _dealloc;
 
 void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
+                           cjose_alloc3_fn_t alloc3,
                            cjose_realloc_fn_t realloc,
-                           cjose_dealloc_fn_t dealloc)
+                           cjose_realloc3_fn_t realloc3,
+                           cjose_dealloc_fn_t dealloc,
+                           cjose_dealloc3_fn_t dealloc3)
 {
     // save "locally"
     _alloc = alloc;
@@ -28,7 +31,11 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
     _dealloc = dealloc;
     // set upstream
     json_set_alloc_funcs(_alloc, _dealloc);
-    CRYPTO_set_mem_functions(_alloc, _realloc, _dealloc);
+#if (CJOSE_OPENSSL_11X)
+    CRYPTO_set_mem_functions(alloc3, realloc3, dealloc3);
+#else
+    CRYPTO_set_mem_functions(alloc, realloc, dealloc);
+#endif
 }
 
 cjose_alloc_fn_t cjose_get_alloc()

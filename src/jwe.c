@@ -458,11 +458,17 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
         int padding,
         cjose_err *err)
 {
-    // jwk must be RSA and have the necessary public parts set
-    if (jwk->kty != CJOSE_JWK_KTY_RSA ||
-        NULL == jwk->keydata ||
-        NULL == ((RSA *)jwk->keydata)->e || 
-        NULL == ((RSA *)jwk->keydata)->n)
+    // jwk must be RSA
+    if (jwk->kty != CJOSE_JWK_KTY_RSA || NULL == jwk->keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    // jwk must have the necessary public parts set
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get((RSA *)jwk->keydata, &rsa_n, &rsa_e, &rsa_d);
+    if (NULL == rsa_e || NULL == rsa_n)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -735,7 +741,12 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(
     }
 
     // get the GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 
+    if (EVP_CIPHER_CTX_ctrl(ctx,
+#if (CJOSE_OPENSSL_11X)
+            EVP_CTRL_AEAD_GET_TAG,
+#else
+            EVP_CTRL_GCM_GET_TAG,
+#endif
             jwe->part[4].raw_len, jwe->part[4].raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -890,7 +901,7 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(
 
     // allocate buffer for the ciphertext (plaintext + block size)
     cjose_get_dealloc()(jwe->part[3].raw);
-    jwe->part[3].raw_len = plaintext_len + cipher->block_size;
+    jwe->part[3].raw_len = plaintext_len + EVP_CIPHER_block_size(cipher);
     if (!_cjose_jwe_malloc(jwe->part[3].raw_len, false, &jwe->part[3].raw, err))
     {
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
@@ -976,7 +987,12 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(
     }
 
     // set the expected GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 
+    if (EVP_CIPHER_CTX_ctrl(ctx,
+#if (CJOSE_OPENSSL_11X)
+            EVP_CTRL_AEAD_SET_TAG,
+#else
+            EVP_CTRL_GCM_SET_TAG,
+#endif
             jwe->part[4].raw_len, jwe->part[4].raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
