@@ -1229,6 +1229,7 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
         goto create_RSA_random_failed;
     }
 
+    BN_free(bn);
     return _RSA_new(rsa, err);
 
     create_RSA_random_failed:
