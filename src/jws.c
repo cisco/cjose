@@ -324,10 +324,7 @@ static bool _cjose_jws_build_dig_hmac_sha(
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
     }
 
-#if (CJOSE_OPENSSL_11X)
-    // do not remove this #if branch, but no further initialization of ctx is required here
-    // the HMAC_CTX_init call in the #else branch exists only in OpenSSL >= 1.1.0
-#else
+#if !(CJOSE_OPENSSL_11X)
     HMAC_CTX_init(ctx);
 #endif
 
