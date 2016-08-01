@@ -58,8 +58,11 @@ typedef void (* cjose_dealloc3_fn_t)(void *, const char *, int);
  * is used.
  *
  * \param alloc [in] The custom allocator function to use.
+ * \param alloc3 [in] The custom allocator function to use for OpenSSL >= 1.1.0, called with extra file/line params.
  * \param realloc [in] The custom reallocator function to use.
+ * \param realloc3 [in] The custom reallocator function to use for OpenSSL >= 1.1.0, called with extra file/line params.
  * \param dealloc [in] The custom deallocator function to use.
+ * \param dealloc3 [in] The custom deallocator function to use for OpenSSL >= 1.1.0, called with extra file/line params.
  */
 void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
                            cjose_alloc3_fn_t alloc3,
