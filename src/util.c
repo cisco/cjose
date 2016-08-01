@@ -39,11 +39,11 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
     _realloc = realloc;
     _dealloc = dealloc;
     // set upstream
-    json_set_alloc_funcs(_alloc, _dealloc);
+    json_set_alloc_funcs(cjose_get_alloc(), cjose_get_dealloc());
 #if (CJOSE_OPENSSL_11X)
     CRYPTO_set_mem_functions(cjose_alloc3_default, cjose_realloc3_default, cjose_dealloc3_default);
 #else
-    CRYPTO_set_mem_functions(_alloc, _realloc, _dealloc);
+    CRYPTO_set_mem_functions(cjose_get_alloc(), cjose_get_realloc(), cjose_get_dealloc());
 #endif
 }
 
