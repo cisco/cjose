@@ -10,11 +10,13 @@ static void *test_alloc(size_t amt)
     // TODO: verify amount requested
     return malloc(amt);
 }
+
 static void *test_realloc(void *ptr, size_t amt)
 {
     // TODO: verify pointer to change & amount requested
     return realloc(ptr, amt);
 }
+
 static void test_dealloc(void *ptr)
 {
     // TODO: verify pointer requested
@@ -36,6 +38,8 @@ START_TEST(test_cjose_set_allocators)
     ck_assert(malloc == cjose_get_alloc());
     ck_assert(realloc == cjose_get_realloc());
     ck_assert(free == cjose_get_dealloc());
+
+
 }
 END_TEST
 
