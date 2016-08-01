@@ -11,29 +11,13 @@ static void *test_alloc(size_t amt)
     return malloc(amt);
 }
 
-static void *test_alloc3(size_t amt, const char *d1, int d2)
-{
-    return malloc(amt);
-}
-
 static void *test_realloc(void *ptr, size_t amt)
 {
     // TODO: verify pointer to change & amount requested
     return realloc(ptr, amt);
 }
 
-static void *test_realloc3(void *ptr, size_t amt, const char *d1, int d2)
-{
-    return realloc(ptr, amt);
-}
-
 static void test_dealloc(void *ptr)
-{
-    // TODO: verify pointer requested
-    free(ptr);
-}
-
-static void test_dealloc3(void *ptr, const char *d1, int d2)
 {
     // TODO: verify pointer requested
     free(ptr);
@@ -45,15 +29,17 @@ START_TEST(test_cjose_set_allocators)
     ck_assert(realloc == cjose_get_realloc());
     ck_assert(free == cjose_get_dealloc());
 
-    cjose_set_alloc_funcs(test_alloc, test_alloc3, test_realloc, test_realloc3, test_dealloc, test_dealloc3);
+    cjose_set_alloc_funcs(test_alloc, test_realloc, test_dealloc);
     ck_assert(test_alloc == cjose_get_alloc());
     ck_assert(test_realloc == cjose_get_realloc());
     ck_assert(test_dealloc == cjose_get_dealloc());
 
-    cjose_set_alloc_funcs(NULL, NULL, NULL, NULL, NULL, NULL);
+    cjose_set_alloc_funcs(NULL, NULL, NULL);
     ck_assert(malloc == cjose_get_alloc());
     ck_assert(realloc == cjose_get_realloc());
     ck_assert(free == cjose_get_dealloc());
+
+
 }
 END_TEST
 
