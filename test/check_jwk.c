@@ -127,6 +127,8 @@ START_TEST (test_cjose_jwk_create_RSA_spec)
     specPriv.n = NULL;
     cjose_get_dealloc()(specPriv.d);
     specPriv.d = NULL;
+    cjose_get_dealloc()(specPriv.e);
+    specPriv.e = NULL;
 
     // public only
     memset(&specPub, 0, sizeof(cjose_jwk_rsa_keyspec));

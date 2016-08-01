@@ -932,6 +932,7 @@ START_TEST(test_cjose_jws_none)
     ck_assert_msg(!cjose_jws_sign(jwk, jws->hdr, PLAINTEXT, strlen(PLAINTEXT), &err),
             "cjose_jws_sign succeeded for unsecured JWT");
 
+    cjose_jws_release(jws);
     cjose_jwk_release(jwk);
 }
 END_TEST
