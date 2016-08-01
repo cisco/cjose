@@ -648,6 +648,14 @@ static bool _cjose_jwe_set_iv_aes_cbc(
 }
 
 
+#if (CJOSE_OPENSSL_11X)
+    #define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_AEAD_GET_TAG
+    #define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_AEAD_SET_TAG
+#else
+    #define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_GCM_GET_TAG
+    #define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_GCM_SET_TAG
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_dat_a256gcm(
         cjose_jwe_t *jwe, 
@@ -741,13 +749,7 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(
     }
 
     // get the GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx,
-#if (CJOSE_OPENSSL_11X)
-            EVP_CTRL_AEAD_GET_TAG,
-#else
-            EVP_CTRL_GCM_GET_TAG,
-#endif
-            jwe->part[4].raw_len, jwe->part[4].raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_GET_TAG, jwe->part[4].raw_len, jwe->part[4].raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
@@ -987,13 +989,7 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(
     }
 
     // set the expected GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx,
-#if (CJOSE_OPENSSL_11X)
-            EVP_CTRL_AEAD_SET_TAG,
-#else
-            EVP_CTRL_GCM_SET_TAG,
-#endif
-            jwe->part[4].raw_len, jwe->part[4].raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->part[4].raw_len, jwe->part[4].raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
