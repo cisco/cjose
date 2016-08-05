@@ -192,7 +192,7 @@ START_TEST(test_cjose_jws_self_sign_self_verify_many)
     cjose_err err;
 
     // sign and verify a whole lot of randomly sized payloads
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         size_t len = random() % 1024;
         char *plain = (char *)malloc(len);
@@ -947,7 +947,7 @@ Suite *cjose_jws_suite()
     Suite *suite = suite_create("jws");
 
     TCase *tc_jws = tcase_create("core");
-    tcase_set_timeout(tc_jws, 60.0);
+    tcase_set_timeout(tc_jws, 120.0);
     tcase_add_test(tc_jws, test_cjose_jws_self_sign_self_verify);
     tcase_add_test(tc_jws, test_cjose_jws_self_sign_self_verify_short);
     tcase_add_test(tc_jws, test_cjose_jws_self_sign_self_verify_empty);

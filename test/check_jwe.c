@@ -251,7 +251,7 @@ END_TEST
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_many)
 {
     // encrypt and decrypt a whole lot of randomly sized payloads
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         size_t len = random() % 1024;
         char *plain = (char *)malloc(len);
@@ -888,7 +888,7 @@ Suite *cjose_jwe_suite()
     Suite *suite = suite_create("jwe");
 
     TCase *tc_jwe = tcase_create("core");
-    tcase_set_timeout(tc_jwe, 60.0);
+    tcase_set_timeout(tc_jwe, 120.0);
     tcase_add_test(tc_jwe, test_cjose_jwe_node_jose_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_short);

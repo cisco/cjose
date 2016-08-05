@@ -1092,6 +1092,7 @@ Suite *cjose_jwk_suite()
     Suite *suite = suite_create("jwk");
 
     TCase *tc_jwk = tcase_create("core");
+    tcase_set_timeout(tc_jwk, 120.0);
     tcase_add_test(tc_jwk, test_cjose_jwk_name_for_kty);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random);

@@ -67,11 +67,13 @@ AC_CHECK_LIB([jansson],
     [AC_MSG_ERROR([Jansson is missing; it is required for this software])]
 )
 
+AM_EXTRA_RECURSIVE_TARGETS([package])
 AC_CONFIG_FILES([Makefile
                  include/Makefile include/cjose/version.h
                  src/Makefile
                  test/Makefile
                  doc/Makefile doc/Doxyfile
+                 platform/Makefile platform/centos/Makefile platform/debian/Makefile
                  cjose.pc])
 
 AC_OUTPUT

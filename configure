@@ -14932,7 +14932,8 @@ else
 fi
 
 
-ac_config_files="$ac_config_files Makefile include/Makefile include/cjose/version.h src/Makefile test/Makefile doc/Makefile doc/Doxyfile cjose.pc"
+
+ac_config_files="$ac_config_files Makefile include/Makefile include/cjose/version.h src/Makefile test/Makefile doc/Makefile doc/Doxyfile platform/Makefile platform/centos/Makefile platform/debian/Makefile cjose.pc"
 
 
 cat >confcache <<\_ACEOF
@@ -16020,6 +16021,9 @@ do
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
     "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
     "doc/Doxyfile") CONFIG_FILES="$CONFIG_FILES doc/Doxyfile" ;;
+    "platform/Makefile") CONFIG_FILES="$CONFIG_FILES platform/Makefile" ;;
+    "platform/centos/Makefile") CONFIG_FILES="$CONFIG_FILES platform/centos/Makefile" ;;
+    "platform/debian/Makefile") CONFIG_FILES="$CONFIG_FILES platform/debian/Makefile" ;;
     "cjose.pc") CONFIG_FILES="$CONFIG_FILES cjose.pc" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;

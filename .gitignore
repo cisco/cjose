@@ -8,6 +8,8 @@ libtool
 */.libs
 include/cjose/version.h
 doc/Doxyfile
+**/*.pkg-tag
+**/*.img-tag
 
 # Object files
 *.o
@@ -49,3 +51,7 @@ test/*.trs
 *-e
 /.project
 /.cproject
+
+# Deliverables
+cjose-*.tar.gz
+dist/

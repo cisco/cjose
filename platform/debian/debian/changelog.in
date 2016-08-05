@@ -1,0 +1,5 @@
+cjose (@PACKAGE_VERSION@-1~@PACKAGE_PLATFORM@) UNRELEASED; urgency=low
+
+  * Initial release.
+
+ -- Matthew A. Miller <linuxwolf@outer-planes.net>  Mon, 08 Aug 2016 22:29:01 +0000

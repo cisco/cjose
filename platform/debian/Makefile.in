@@ -13,7 +13,6 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -88,7 +87,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = doc
+subdir = platform/debian
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/doxygen.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
@@ -98,7 +97,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_CLEAN_FILES = Doxyfile
+CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -119,38 +118,9 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
-am__install_max = 40
-am__nobase_strip_setup = \
-  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
-am__nobase_strip = \
-  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
-am__nobase_list = $(am__nobase_strip_setup); \
-  for p in $$list; do echo "$$p $$p"; done | \
-  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
-  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
-    if (++n[$$2] == $(am__install_max)) \
-      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
-    END { for (dir in files) print dir, files[dir] }'
-am__base_list = \
-  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
-  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__uninstall_files_from_dir = { \
-  test -z "$$files" \
-    || { test ! -d "$$dir" && test ! -f "$$dir" && test ! -r "$$dir"; } \
-    || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
-         $(am__cd) "$$dir" && rm -f $$files; }; \
-  }
-am__installdirs = "$(DESTDIR)$(doxygendir)"
-DATA = $(nobase_doxygen_DATA)
 am__extra_recursive_targets = package-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
-am__DIST_COMMON = $(srcdir)/Doxyfile.in $(srcdir)/Makefile.in
+am__DIST_COMMON = $(srcdir)/Makefile.in
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -296,15 +266,10 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@DX_COND_doc_TRUE@TAGFILE = @PACKAGE@-@VERSION@.tag
-@DX_COND_doc_TRUE@@DX_COND_html_TRUE@DX_INSTALL_HTML = html
-@DX_COND_doc_TRUE@@DX_COND_html_TRUE@DX_FILES_HTML = $(shell find html -type f)
-@DX_COND_doc_TRUE@@DX_COND_html_TRUE@DX_CLEAN_HTML = $(DX_FILES_HTML) html
-@DX_COND_doc_TRUE@@DX_COND_latex_TRUE@DX_INSTALL_LATEX = latex
-@DX_COND_doc_TRUE@@DX_COND_latex_TRUE@DX_FILES_LATEX = $(shell find latex -type f)
-@DX_COND_doc_TRUE@@DX_COND_latex_TRUE@DX_CLEAN_LATEX = $(DX_FILES_LATEX) latex
-@DX_COND_doc_TRUE@doxygendir = $(docdir)
-@DX_COND_doc_TRUE@nobase_doxygen_DATA = $(DX_FILES_HTML) $(DX_FILES_LATEX)
+PLATFORMS := $(patsubst %.dockerfile,%,$(wildcard *.dockerfile))
+PLATFORM_SRCS := $(patsubst %,%.dockerfile,%(PLATFORMS))
+PLATFORM_IMGS := $(patsubst %,%.img-tag,$(PLATFORMS))
+PLATFORM_PKGS := $(patsubst %,%.pkg-tag,$(PLATFORMS))
 all: all-am
 
 .SUFFIXES:
@@ -317,9 +282,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign doc/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign platform/debian/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign doc/Makefile
+	  $(AUTOMAKE) --foreign platform/debian/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -337,38 +302,12 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-Doxyfile: $(top_builddir)/config.status $(srcdir)/Doxyfile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 
 mostlyclean-libtool:
 	-rm -f *.lo
 
 clean-libtool:
 	-rm -rf .libs _libs
-install-nobase_doxygenDATA: $(nobase_doxygen_DATA)
-	@$(NORMAL_INSTALL)
-	@list='$(nobase_doxygen_DATA)'; test -n "$(doxygendir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(doxygendir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(doxygendir)" || exit 1; \
-	fi; \
-	$(am__nobase_list) | while read dir files; do \
-	  xfiles=; for file in $$files; do \
-	    if test -f "$$file"; then xfiles="$$xfiles $$file"; \
-	    else xfiles="$$xfiles $(srcdir)/$$file"; fi; done; \
-	  test -z "$$xfiles" || { \
-	    test "x$$dir" = x. || { \
-	      echo " $(MKDIR_P) '$(DESTDIR)$(doxygendir)/$$dir'"; \
-	      $(MKDIR_P) "$(DESTDIR)$(doxygendir)/$$dir"; }; \
-	    echo " $(INSTALL_DATA) $$xfiles '$(DESTDIR)$(doxygendir)/$$dir'"; \
-	    $(INSTALL_DATA) $$xfiles "$(DESTDIR)$(doxygendir)/$$dir" || exit $$?; }; \
-	done
-
-uninstall-nobase_doxygenDATA:
-	@$(NORMAL_UNINSTALL)
-	@list='$(nobase_doxygen_DATA)'; test -n "$(doxygendir)" || list=; \
-	$(am__nobase_strip_setup); files=`$(am__nobase_strip)`; \
-	dir='$(DESTDIR)$(doxygendir)'; $(am__uninstall_files_from_dir)
 package-local: 
 tags TAGS:
 
@@ -409,11 +348,8 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(DATA)
+all-am: Makefile
 installdirs:
-	for dir in "$(DESTDIR)$(doxygendir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -444,8 +380,6 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-@DX_COND_doc_FALSE@install-data-local:
-@DX_COND_doc_FALSE@clean-local:
 clean: clean-am
 
 clean-am: clean-generic clean-libtool clean-local mostlyclean-am
@@ -466,7 +400,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-data-local install-nobase_doxygenDATA
+install-data-am:
 
 install-dvi: install-dvi-am
 
@@ -514,39 +448,44 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-nobase_doxygenDATA
+uninstall-am:
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
 	clean-local cscopelist-am ctags-am distclean distclean-generic \
 	distclean-libtool distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am \
-	install-data-local install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-nobase_doxygenDATA \
+	install install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
 	install-pdf install-pdf-am install-ps install-ps-am \
 	install-strip installcheck installcheck-am installdirs \
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-generic mostlyclean-libtool package-am \
 	package-local pdf pdf-am ps ps-am tags-am uninstall \
-	uninstall-am uninstall-nobase_doxygenDATA
+	uninstall-am
 
 .PRECIOUS: Makefile
 
 
-@DX_COND_doc_TRUE@$(TAGFILE): $(top_builddir)/include
-@DX_COND_doc_TRUE@	$(DX_ENV) $(DX_DOXYGEN) $(DX_CONFIG)
-@DX_COND_doc_TRUE@	echo "$(shell date -ju)" > $(TAGFILE)
+%.img-tag : %.dockerfile
+	docker build --force-rm --tag cjose_build:$(shell basename $< .dockerfile) --file $< . && \
+	echo "$(shell date -ju)" > $@
 
-@DX_COND_doc_TRUE@doxygen: clean-local $(TAGFILE)
+%.pkg-tag : %.img-tag $(top_builddir)/cjose-$(PACKAGE_VERSION).tar.gz
+	docker run --rm --env PACKAGE_VERSION=$(PACKAGE_VERSION) \
+		--volume $(abs_top_builddir)/dist:/opt/dist \
+		--volume $(abs_builddir):/opt/src \
+		cjose_build:$(shell basename $< .img-tag) && \
+        echo "$(shell date -ju)" > $@
 
-@DX_COND_doc_TRUE@install-data-local: $(TAGFILE)
+package-local : $(PLATFORM_PKGS)
+	@echo built $(PLATFORMS)
 
-@DX_COND_doc_TRUE@clean-local:
-@DX_COND_doc_TRUE@	rm -rf	$(TAGFILE) $(DX_CLEAN_HTML) $(DX_CLEAN_LATEX)
+clean-local :
+	rm -rf *.img-tag *.pkg-tag
 
-@DX_COND_doc_TRUE@.PHONY: doxygen
+.PRECIOUS: $(PLATFORM_IMGS)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
