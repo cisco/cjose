@@ -42,31 +42,34 @@ ${CMAKE_CURRENT_SOURCE_DIR}/src
 
 # Find dependencies
 # Look for Homebrew version of OpenSSL
+function(GetRootDirForHomebrew PKG_NAME)
+    if ((NOT ${PKG_NAME}_INCLUDE_DIR) OR (NOT ${PKG_NAME}_LIBRARIES))
+        string(TOLOWER ${PKG_NAME} PKG_NAME_LOWER) 
+        file(GLOB HB_${PKG_NAME}_ROOT_DIRECTORIES /usr/local/Cellar/${PKG_NAME_LOWER}/*)
+        list(GET HB_${PKG_NAME}_ROOT_DIRECTORIES 0 HB_${PKG_NAME}_ROOT_DIR)
+        if(HB_${PKG_NAME}_ROOT_DIRECTORIES AND NOT ${PKG_NAME}_ROOT_DIR)
+            SET(${PKG_NAME}_ROOT_DIR ${HB_${PKG_NAME}_ROOT_DIR} PARENT_SCOPE)
+        endif(HB_${PKG_NAME}_ROOT_DIRECTORIES AND NOT ${PKG_NAME}_ROOT_DIR)
+    endif((NOT ${PKG_NAME}_INCLUDE_DIR) OR (NOT ${PKG_NAME}_LIBRARIES))
+endfunction(GetRootDirForHomebrew PKG_NAME)
+
 if(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
-    if ((NOT OPENSSL_INCLUDE_DIR) OR (NOT OPENSSL_LIBRARIES))
-        file(GLOB HB_OPENSSL_ROOT_DIRECTORIES /usr/local/Cellar/openssl/*)
-        list(GET HB_OPENSSL_ROOT_DIRECTORIES 0 HB_OPENSSL_ROOT_DIR)
-        if(HB_OPENSSL_ROOT_DIRECTORIES AND NOT OPENSSL_ROOT_DIR)
-            SET(OPENSSL_ROOT_DIR ${HB_OPENSSL_ROOT_DIR})
-        endif(HB_OPENSSL_ROOT_DIRECTORIES AND NOT OPENSSL_ROOT_DIR)
-    endif((NOT OPENSSL_INCLUDE_DIR) OR (NOT OPENSSL_LIBRARIES))
+    GetRootDirForHomebrew(OPENSSL)
+    GetRootDirForHomebrew(CHECK)
+    GetRootDirForHomebrew(JANSSON)
 endif(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
 
 find_package(OpenSSL 1.0.1 REQUIRED)
 find_package(Jansson 2.3 REQUIRED)
 find_package(Check 0.9.4)
 
-message(STATUS "Looking for rt")
 find_library(RT NAMES rt)
 if (${RT} STREQUAL RT-NOTFOUND)
-	message(STATUS "Looking for rt - not found")
 	unset(${RT})
 endif(${RT} STREQUAL RT-NOTFOUND)
 
-message(STATUS "Looking for m")
 find_library(M NAMES m)
 if (${M} STREQUAL M-NOTFOUND)
-	message(STATUS "Looking for m - not found")
 	unset(${M})
 endif(${M} STREQUAL M-NOTFOUND)
 
@@ -207,3 +210,4 @@ install(EXPORT CjoseTargets
 
 # For use when simply using add_library from a parent project to build cjose.
 set(CJOSE_LIBRARIES cjose CACHE STRING "Cjose libraries")
+
