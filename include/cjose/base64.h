@@ -37,7 +37,7 @@ extern "C"
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  */
-bool cjose_base64_encode(const uint8_t *input, const size_t inlen, char **output, size_t *outlen, cjose_err *err);
+bool cjose_base64_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err);
 /**
  * Encodes the given octet string to URL-safe Base64.
  *
@@ -49,7 +49,7 @@ bool cjose_base64_encode(const uint8_t *input, const size_t inlen, char **output
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  */
-bool cjose_base64url_encode(const uint8_t *input, const size_t inlen, char **output, size_t *outlen, cjose_err *err);
+bool cjose_base64url_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err);
 
 /**
  * Decodes the given string from Base64.
@@ -63,7 +63,7 @@ bool cjose_base64url_encode(const uint8_t *input, const size_t inlen, char **out
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  */
-bool cjose_base64_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
+bool cjose_base64_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
 /**
  * Decodes the given string from URL-Safe Base64.
  *
@@ -76,7 +76,7 @@ bool cjose_base64_decode(const char *input, const size_t inlen, uint8_t **output
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  */
-bool cjose_base64url_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
+bool cjose_base64url_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
 
 
 #ifdef __cplusplus
