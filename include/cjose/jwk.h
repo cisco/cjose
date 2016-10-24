@@ -134,6 +134,7 @@ bool cjose_jwk_set_kid(
         const char *kid, 
         size_t len, 
         cjose_err *err);
+
 /**
  * Serializes the given JWK to a JSON string.
  *

@@ -38,6 +38,7 @@ extern "C"
  *        information in the event of an error.
  */
 bool cjose_base64_encode(const uint8_t *input, const size_t inlen, char **output, size_t *outlen, cjose_err *err);
+
 /**
  * Encodes the given octet string to URL-safe Base64.
  *
@@ -64,6 +65,7 @@ bool cjose_base64url_encode(const uint8_t *input, const size_t inlen, char **out
  *        information in the event of an error.
  */
 bool cjose_base64_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
+
 /**
  * Decodes the given string from URL-Safe Base64.
  *

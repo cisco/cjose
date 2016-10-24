@@ -70,7 +70,8 @@ typedef enum
 typedef struct
 {
     /** The error code */
-    cjose_errcode          code;
+    cjose_errcode       code;
+
     /** The human readable message for the error code */
     const char *        message;
 

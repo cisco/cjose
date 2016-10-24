@@ -32,7 +32,6 @@ extern "C"
  */
 typedef struct _cjose_jws_int cjose_jws_t;
 
-
 /**
  * Creates a new JWS by signing the given plaintext within the given header
  * and JWK.
@@ -51,7 +50,6 @@ cjose_jws_t *cjose_jws_sign(
         const uint8_t *plaintext,
         size_t plaintext_len,
         cjose_err *err);
-
 
 /**
  * Creates a serialization of the given JWS object.
@@ -73,7 +71,6 @@ bool cjose_jws_export(
         const char **ser,
         cjose_err *err);
 
-
 /**
  * Creates a new JWS object from the given JWS compact serialization.
  *
@@ -91,7 +88,6 @@ cjose_jws_t *cjose_jws_import(
         size_t compact_len,
         cjose_err *err);
 
-
 /**
  * Verifies the JWS object using the given JWK.  
  *
@@ -105,7 +101,6 @@ bool cjose_jws_verify(
         cjose_jws_t *jws,
         const cjose_jwk_t *jwk,
         cjose_err *err);
-
 
 /**
  * Returns the plaintext data of the JWS payload.
@@ -126,7 +121,6 @@ bool cjose_jws_get_plaintext(
         uint8_t **plaintext,
         size_t *plaintext_len,
         cjose_err *err);
-
 
 /**
  * Returns the protected header of the JWS payload.
