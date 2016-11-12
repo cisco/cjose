@@ -475,7 +475,7 @@ START_TEST(test_cjose_jws_import_get_plain_after_verify)
             "%s, file: %s, function: %s, line: %ld", 
             err.message, err.file, err.function, err.line);
 
-    // decrypt the imported jws
+    // verify the imported jws
     ck_assert_msg(cjose_jws_verify(jws, jwk, &err), "cjose_jws_verify failed: "
             "%s, file: %s, function: %s, line: %ld", 
             err.message, err.file, err.function, err.line);
@@ -702,6 +702,7 @@ START_TEST(test_cjose_jws_verify_rs256)
                   "cjose_jws_verify returned wrong err.code (%zu:%s)",
                   err.code,
                   err.message);
+    cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT =
             "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfq.cC4hiUPoj9Eetdgtv3hF80EGrhuB__dzERat0XF9g2VtQgr9PJbu3XOiZj5RZmh7AAuHIm4Bh-0Qc_lF5YKt_O8W2Fp5jujGbds9uJdbF9CUAr7t1dnZcAcQjbKBYNX4BAynRFdiuB--f_nZLgrnbyTyWzO75vRK5h6xBArLIARNPvkSjtQBMHlb1L07Qe7K0GarZRmB_eSN9383LcOLn6_dO--xi12jzDwusC-eOkHWEsqtFZESc6BfI7noOPqvhJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrBp0igcN_IoypGlUPQGe77Rw";
@@ -718,6 +719,7 @@ START_TEST(test_cjose_jws_verify_rs256)
                   err.code,
                   err.message);
 
+    cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
 }
 END_TEST
@@ -845,6 +847,7 @@ START_TEST(test_cjose_jws_verify_ec256)
                   "cjose_jws_verify returned wrong err.code (%zu:%s)",
                   err.code,
                   err.message);
+    cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT =
             "eyJhbGciOiJFUzI1NiIsImtpZCI6Img0aDkzIn0.eyJzdWIiOiJqb2UiLCJhdWQiOiJhY19vaWNfY2xpZW50IiwianRpIjoiZGV0blVpU2FTS0lpSUFvdHZ0ZzV3VyIsImlzcyI6Imh0dHBzOlwvXC9sb2NhbGhvc3Q6OTAzMSIsImlhdCI6MTQ2OTAzMDk1MCwiZXhwIjoxNDY5MDMxMjUwLCJub25jZSI6Im8zNU8wMi1WM0poSXJ1SkdHSlZVOGpUUGG2LUhKUTgzWEpmQXBZTGtrZHcifQ.o9bb_yW6-h9lPser01eYoK-VMlJoUabKFQ9tT_KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3iA";
@@ -861,6 +864,7 @@ START_TEST(test_cjose_jws_verify_ec256)
                   err.code,
                   err.message);
 
+    cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
 }
 END_TEST
@@ -922,6 +926,7 @@ START_TEST(test_cjose_jws_none)
     ck_assert_msg(!cjose_jws_verify(jws, jwk, &err),
             "cjose_jws_verify succeeded for unsecured JWT");
 
+    cjose_jws_release(jws);
 
     jws = cjose_jws_import(JWS, strlen(JWS), &err);
     ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
