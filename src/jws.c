@@ -1152,21 +1152,18 @@ bool cjose_jws_verify(
     // validate JWS header
     if (!_cjose_jws_validate_hdr(jws, err))
     {
-        cjose_jws_release(jws);
         return false;
     }
 
     // build JWS digest from header and payload (hashed signing input value)
     if (!jws->fns.digest(jws, jwk, err))
     {
-        cjose_jws_release(jws);
         return false;
     }
 
     // verify JWS signature
     if (!jws->fns.verify(jws, jwk, err))
     {
-        cjose_jws_release(jws);
         return false;
     }
 
