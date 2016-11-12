@@ -14,7 +14,7 @@ Implementation of JOSE for C/C++
 * Autoconf (>= 2.69)
 * Automake (>= 1.14)
 * libtool (>= 2.4)
-* Check (>= 0.9.4) - unit testing
+* Check (>= 0.9.4) - unit testing (e.g. check-devel)
 * Doxygen (>= 1.8) - documentation
 
 ### Libraries ###
