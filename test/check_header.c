@@ -15,7 +15,6 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
-
 START_TEST(test_cjose_header_new_release)
 {
     cjose_err err;
@@ -66,17 +65,16 @@ START_TEST(test_cjose_header_set_get)
     ck_assert_msg(result, "cjose_header_set failed to get ENC");
 
     ck_assert_msg(!strcmp(alg_set, alg_get), "cjose_header_get failed, "
-            "expected: %s, found: %s", ((alg_set) ? alg_set : "null"),
-            ((alg_get) ? alg_get : "null"));
+                                             "expected: %s, found: %s",
+                  ((alg_set) ? alg_set : "null"), ((alg_get) ? alg_get : "null"));
 
     ck_assert_msg(!strcmp(enc_set, enc_get), "cjose_header_get failed, "
-            "expected: %s, found: %s", ((enc_set) ? enc_set : "null"),
-            ((enc_get) ? enc_get : "null"));
+                                             "expected: %s, found: %s",
+                  ((enc_set) ? enc_set : "null"), ((enc_get) ? enc_get : "null"));
 
     cjose_header_release(header);
 }
 END_TEST
-
 
 Suite *cjose_header_suite()
 {

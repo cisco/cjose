@@ -22,8 +22,7 @@
 #include "cjose/error.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 /**
@@ -79,7 +78,6 @@ bool cjose_base64_decode(const char *input, const size_t inlen, uint8_t **output
  *        information in the event of an error.
  */
 bool cjose_base64url_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err);
-
 
 #ifdef __cplusplus
 }

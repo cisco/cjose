@@ -5,12 +5,10 @@
  * Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
  */
 
-
 #include <stdlib.h>
 #include <jansson.h>
 #include "cjose/header.h"
 #include "include/header_int.h"
-
 
 const char *CJOSE_HDR_ALG = "alg";
 const char *CJOSE_HDR_ALG_NONE = "none";
@@ -44,8 +42,7 @@ const char *CJOSE_HDR_CTY = "cty";
 const char *CJOSE_HDR_KID = "kid";
 
 ////////////////////////////////////////////////////////////////////////////////
-cjose_header_t *cjose_header_new(
-        cjose_err *err)
+cjose_header_t *cjose_header_new(cjose_err *err)
 {
     cjose_header_t *retval = (cjose_header_t *)json_object();
     if (NULL == retval)
@@ -56,8 +53,7 @@ cjose_header_t *cjose_header_new(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-cjose_header_t *cjose_header_retain(
-        cjose_header_t *header)
+cjose_header_t *cjose_header_retain(cjose_header_t *header)
 {
     if (NULL != header)
     {
@@ -67,8 +63,7 @@ cjose_header_t *cjose_header_retain(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void cjose_header_release(
-        cjose_header_t *header)
+void cjose_header_release(cjose_header_t *header)
 {
     if (NULL != header)
     {
@@ -76,13 +71,8 @@ void cjose_header_release(
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-bool cjose_header_set(
-        cjose_header_t *header,
-        const char *attr,
-        const char *value,
-        cjose_err *err)
+bool cjose_header_set(cjose_header_t *header, const char *attr, const char *value, cjose_err *err)
 {
     if (NULL == header || NULL == attr || NULL == value)
     {
@@ -97,20 +87,15 @@ bool cjose_header_set(
         return false;
     }
 
-    json_object_set(
-            (json_t *)header, attr, value_obj);
+    json_object_set((json_t *)header, attr, value_obj);
 
     json_decref(value_obj);
 
     return true;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-const char *cjose_header_get(
-        cjose_header_t *header,
-        const char *attr,
-        cjose_err *err)
+const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err *err)
 {
     if (NULL == header || NULL == attr)
     {

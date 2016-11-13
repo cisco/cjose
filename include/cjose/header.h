@@ -20,10 +20,8 @@
 #include "cjose/error.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
-
 
 /** The JWE algorithm header attribute name. */
 extern const char *CJOSE_HDR_ALG;
@@ -82,12 +80,10 @@ extern const char *CJOSE_HDR_ENC_A128CBC_HS256;
 extern const char *CJOSE_HDR_ENC_A192CBC_HS384;
 extern const char *CJOSE_HDR_ENC_A256CBC_HS512;
 
-
 /**
  * An instance of a header object (used when creating JWE/JWS objects).
  */
 typedef struct json_t cjose_header_t;
-
 
 /**
  * Instsantiates a new header object. Caller is responsible for
@@ -97,9 +93,7 @@ typedef struct json_t cjose_header_t;
  *        information in the event of an error.
  * \returns a newly allocated header object, or NULL if an error occurs.
  */
-cjose_header_t *cjose_header_new(
-        cjose_err *err);
-
+cjose_header_t *cjose_header_new(cjose_err *err);
 
 /**
  * Retains an existing header object. Callers must use this method if the
@@ -109,8 +103,7 @@ cjose_header_t *cjose_header_new(
  * \param header[in] the header object to be retained.
  * \returns the retained header object
  */
-cjose_header_t *cjose_header_retain(
-        cjose_header_t *header);
+cjose_header_t *cjose_header_retain(cjose_header_t *header);
 
 /**
  * Releases an existing header object. Callers must use this method
@@ -119,9 +112,7 @@ cjose_header_t *cjose_header_retain(
  *
  * \param header[in] the header object to be released.
  */
-void cjose_header_release(
-		cjose_header_t *header);
-
+void cjose_header_release(cjose_header_t *header);
 
 /**
  * Sets a header attribute on a header object.  If that header was
@@ -134,11 +125,7 @@ void cjose_header_release(
  *        information in the event of an error.
  * \returns true if header is successfully set.
  */
-bool cjose_header_set(
-        cjose_header_t *header,
-        const char *attr,
-        const char *value,
-        cjose_err *err);
+bool cjose_header_set(cjose_header_t *header, const char *attr, const char *value, cjose_err *err);
 
 /**
  * Retrieves the value of the requested header attribute from the header
@@ -150,14 +137,10 @@ bool cjose_header_set(
  *        information in the event of an error.
  * \returns a string containing the current value for the requested attribute.
  */
-const char *cjose_header_get(
-        cjose_header_t *header,
-        const char *attr,
-        cjose_err *err);
-
+const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err *err);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // CJOSE_HEADER_H
+#endif // CJOSE_HEADER_H

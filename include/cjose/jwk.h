@@ -14,7 +14,6 @@
 #ifndef CJOSE_JWK_H
 #define CJOSE_JWK_H
 
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -22,13 +21,11 @@
 #include "cjose/error.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 /** Enumeration of supported JSON Web Key (JWK) types */
-typedef enum
-{
+typedef enum {
     /** RSA Public (or Private) Key */
     CJOSE_JWK_KTY_RSA = 1,
     /** Elliptic Curve Public (or Private) Key */
@@ -59,7 +56,7 @@ typedef struct _cjose_jwk_int cjose_jwk_t;
  *        information in the event of an error.
  * \returns The retained JWK object
  */
-cjose_jwk_t * cjose_jwk_retain(cjose_jwk_t *jwk, cjose_err *err);
+cjose_jwk_t *cjose_jwk_retain(cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Releases a JWK object. For a newly-created key where cjose_jwk_retain() has
@@ -104,7 +101,7 @@ size_t cjose_jwk_get_keysize(const cjose_jwk_t *jwk, cjose_err *err);
  * \param jwk The JWK to retrieve key data from
  * \returns The key data specific to the type of key
  */
-void * cjose_jwk_get_keydata(const cjose_jwk_t *jwk, cjose_err *err);
+void *cjose_jwk_get_keydata(const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Retrieves the key id for the given JWK object.  The string returned by
@@ -129,11 +126,7 @@ const char *cjose_jwk_get_kid(const cjose_jwk_t *jwk, cjose_err *err);
  *        information in the event of an error.
  * \returns True if successful, false otherwise.
  */
-bool cjose_jwk_set_kid(
-        cjose_jwk_t *jwk, 
-        const char *kid, 
-        size_t len, 
-        cjose_err *err);
+bool cjose_jwk_set_kid(cjose_jwk_t *jwk, const char *kid, size_t len, cjose_err *err);
 
 /**
  * Serializes the given JWK to a JSON string.
@@ -146,43 +139,43 @@ bool cjose_jwk_set_kid(
  *        information in the event of an error.
  * \returns The JSON string representation of <tt>jwk</tt>
  */
-char * cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err);
+char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err);
 
 /** Key specification for RSA JWK objects. */
 typedef struct
 {
     /** Public exponent */
-    uint8_t         *e;
+    uint8_t *e;
     /** Length of <tt>e</tt> */
-    size_t          elen;
+    size_t elen;
     /** Modulus */
-    uint8_t         *n;
+    uint8_t *n;
     /** Length of <tt>n</tt> */
-    size_t          nlen;
+    size_t nlen;
     /** Private exponent */
-    uint8_t         *d;
+    uint8_t *d;
     /** Length of <tt>d</tt> */
-    size_t          dlen;
+    size_t dlen;
     /** First prime */
-    uint8_t         *p;
+    uint8_t *p;
     /** Length of <tt>p</tt> */
-    size_t          plen;
+    size_t plen;
     /** Second prime */
-    uint8_t         *q;
+    uint8_t *q;
     /** Length of <tt>q</tt> */
-    size_t          qlen;
+    size_t qlen;
     /** d (mod p - 1) */
-    uint8_t         *dp;
+    uint8_t *dp;
     /** Length of <tt>dp</tt> */
-    size_t          dplen;
+    size_t dplen;
     /** d (mod q - 1) */
-    uint8_t         *dq;
+    uint8_t *dq;
     /** Length of <tt>dq</tt> */
-    size_t          dqlen;
+    size_t dqlen;
     /** coefficient */
-    uint8_t         *qi;
+    uint8_t *qi;
     /** Length of <tt>qi</tt> */
-    size_t          qilen;
+    size_t qilen;
 } cjose_jwk_rsa_keyspec;
 
 /**
@@ -198,8 +191,7 @@ typedef struct
  *        information in the event of an error.
  * \returns The generated symmetric JWK object.
  */
-cjose_jwk_t *cjose_jwk_create_RSA_random(
-        size_t keysize, const uint8_t *e, size_t elen, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_RSA_random(size_t keysize, const uint8_t *e, size_t elen, cjose_err *err);
 
 /**
  * Creates a new RSA JWK, using the given raw value for the private
@@ -216,12 +208,10 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
  *        information in the event of an error.
  * \returns The generated RSA JWK object
  */
-cjose_jwk_t *cjose_jwk_create_RSA_spec(
-        const cjose_jwk_rsa_keyspec *spec, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_err *err);
 
 /** Enumeration of supported Elliptic-Curve types */
-typedef enum
-{
+typedef enum {
     /** NIST P-256 Prime Curve (secp256r1) */
     CJOSE_JWK_EC_P_256 = NID_X9_62_prime256v1,
     /** NIST P-384 Prime Curve (secp384r1) */
@@ -234,19 +224,19 @@ typedef enum
 typedef struct
 {
     /** The elliptic curve */
-    cjose_jwk_ec_curve  crv;
+    cjose_jwk_ec_curve crv;
     /** The private key */
-    uint8_t             *d;
+    uint8_t *d;
     /** Length of <tt>d</tt> */
-    size_t              dlen;
+    size_t dlen;
     /** The public key's X coordinate */
-    uint8_t             *x;
+    uint8_t *x;
     /** Length of <tt>x</tt> */
-    size_t              xlen;
+    size_t xlen;
     /** The public key's Y coordiate */
-    uint8_t             *y;
+    uint8_t *y;
     /** Length of <tt>y</tt> */
-    size_t              ylen;
+    size_t ylen;
 } cjose_jwk_ec_keyspec;
 
 /**
@@ -260,8 +250,7 @@ typedef struct
  *        information in the event of an error.
  * \returns The generated Elliptic Curve JWK object
  */
-cjose_jwk_t * cjose_jwk_create_EC_random(
-        cjose_jwk_ec_curve crv, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err);
 
 /**
  * Creates a new Elliptic-Curve JWK, using the given the raw values for
@@ -278,8 +267,7 @@ cjose_jwk_t * cjose_jwk_create_EC_random(
  *        information in the event of an error.
  * \returns The generated Elliptic Curve JWK object
  */
-cjose_jwk_t *cjose_jwk_create_EC_spec(
-        const cjose_jwk_ec_keyspec *spec, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_err *err);
 
 /**
  * Creates a new symmetric octet JWK, using a secure random number generator.
@@ -292,7 +280,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
  *        information in the event of an error.
  * \returns The generated symmetric JWK object.
  */
-cjose_jwk_t * cjose_jwk_create_oct_random(size_t size, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_oct_random(size_t size, cjose_err *err);
 
 /**
  * Creates a new symmetric oct JWK, using the given raw key data.
@@ -309,8 +297,7 @@ cjose_jwk_t * cjose_jwk_create_oct_random(size_t size, cjose_err *err);
  *        information in the event of an error.
  * \returns The symmetric JWK object for the given raw key data.
  */
-cjose_jwk_t * cjose_jwk_create_oct_spec(
-        const uint8_t *data, size_t len, cjose_err *err);
+cjose_jwk_t *cjose_jwk_create_oct_spec(const uint8_t *data, size_t len, cjose_err *err);
 
 /**
  * Instantiates a new JWK given a JSON document representation conforming
@@ -325,17 +312,17 @@ cjose_jwk_t * cjose_jwk_create_oct_spec(
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  * \returns A JWK object corresponding to the given JSON document.  In
- *        the event the given JSON document cannot be parsed, or is 
+ *        the event the given JSON document cannot be parsed, or is
  *        otherwise an invalid JWK representation, this will return NULL.
  */
-cjose_jwk_t * cjose_jwk_import(const char *json, size_t len, cjose_err *err);
+cjose_jwk_t *cjose_jwk_import(const char *json, size_t len, cjose_err *err);
 
 /**
- * Computes an ECDH ephemeral key as an HKDF hash of the derived shared 
- * secret from a local EC key-pair and a peer's EC public key.  The result is 
+ * Computes an ECDH ephemeral key as an HKDF hash of the derived shared
+ * secret from a local EC key-pair and a peer's EC public key.  The result is
  * returned in the form of a new JWK of type oct.
  *
- * Note: on successful return of a jwk_ecdh_ephemeral_key, the caller becomes 
+ * Note: on successful return of a jwk_ecdh_ephemeral_key, the caller becomes
  * responsible for releasing that JWK wuth the cjose_jwk_release() command.
  *
  * \param jwk_self [in] The caller's own EC key pair.
@@ -345,21 +332,15 @@ cjose_jwk_t * cjose_jwk_import(const char *json, size_t len, cjose_err *err);
  * \returns A new JWK representing the ephemeral key, or NULL in the event of
  *        and error.
  */
-cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
-        cjose_jwk_t *jwk_self,
-        cjose_jwk_t *jwk_peer,
-        cjose_err *err);
+cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err);
 
 /**
  Deprecated.  Alias for cjose_jwk_derive_ecdh_ephemeral_key.
 */
-cjose_jwk_t *cjose_jwk_derive_ecdh_secret(
-        cjose_jwk_t *jwk_self,
-        cjose_jwk_t *jwk_peer,
-        cjose_err *err);
+cjose_jwk_t *cjose_jwk_derive_ecdh_secret(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // CJOSE_JWK_H
+#endif // CJOSE_JWK_H
