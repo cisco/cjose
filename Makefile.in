@@ -903,6 +903,9 @@ package-prepare : dist
 package-local : package-prepare
 	@echo packages built
 
+clang-format:
+	clang-format -i `find . -name *.[ch]`
+
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -23,3 +23,6 @@ package-prepare : dist
 
 package-local : package-prepare
 	@echo packages built
+
+clang-format:
+	clang-format -i `find . -name *.[ch]`
