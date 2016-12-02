@@ -643,11 +643,17 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
     const EVP_MD *hash = NULL;
 
     if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
+    {
         hash = EVP_sha256();
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    }
+    else if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    {
         hash = EVP_sha384();
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    }
+    else if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    {
         hash = EVP_sha512();
+    }
 
     if (NULL == hash)
     {
@@ -932,11 +938,17 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     const EVP_CIPHER *cipher = NULL;
 
     if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
+    {
         cipher = EVP_aes_128_cbc();
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    }
+    else if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    {
         cipher = EVP_aes_192_cbc();
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    }
+    else if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    {
         cipher = EVP_aes_256_cbc();
+    }
 
     if (NULL == cipher)
     {
