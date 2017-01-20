@@ -468,11 +468,13 @@ static bool _cjose_jws_build_sig_rs(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
         return false;
     }
 
-    if (RSA_sign(digest_alg, jws->dig, jws->dig_len, jws->sig, (unsigned int *)&jws->sig_len, (RSA *)jwk->keydata) != 1)
+    unsigned int siglen;
+    if (RSA_sign(digest_alg, jws->dig, jws->dig_len, jws->sig, &siglen, (RSA *)jwk->keydata) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
+    jws->sig_len = siglen;
 
     // base64url encode signed digest
     if (!cjose_base64url_encode((const uint8_t *)jws->sig, jws->sig_len, &jws->sig_b64u, &jws->sig_b64u_len, err))
