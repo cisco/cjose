@@ -21,11 +21,10 @@
 #include <openssl/rsa.h>
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-#define CJOSE_OPENSSL_11X  OPENSSL_VERSION_NUMBER >= 0x10100005L
+#define CJOSE_OPENSSL_11X OPENSSL_VERSION_NUMBER >= 0x10100005L
 
 /**
  * Macro to explicitly mark a parameter unused, and usable across multiple
@@ -36,29 +35,29 @@ extern "C"
 /**
  * Typedef for the basic memory allocator function.
  */
-typedef void *(* cjose_alloc_fn_t)(size_t);
+typedef void *(*cjose_alloc_fn_t)(size_t);
 /**
  * Typedef for the enhanced memory allocator function.
  */
-typedef void *(* cjose_alloc3_fn_t)(size_t, const char *, int);
+typedef void *(*cjose_alloc3_fn_t)(size_t, const char *, int);
 
 /**
  * Typedef for the basic memory reallocator function.
  */
-typedef void *(* cjose_realloc_fn_t)(void *, size_t);
+typedef void *(*cjose_realloc_fn_t)(void *, size_t);
 /**
  * Typedef for the enhanced memory reallocator function.
  */
-typedef void *(* cjose_realloc3_fn_t)(void *, size_t, const char *, int);
+typedef void *(*cjose_realloc3_fn_t)(void *, size_t, const char *, int);
 
 /**
  * Typedef for the basic memory deallocator function.
  */
-typedef void (* cjose_dealloc_fn_t)(void *);
+typedef void (*cjose_dealloc_fn_t)(void *);
 /**
  * Typedef for the enhanced memory deallocator function.
  */
-typedef void (* cjose_dealloc3_fn_t)(void *, const char *, int);
+typedef void (*cjose_dealloc3_fn_t)(void *, const char *, int);
 
 /**
  * Sets the allocator and deallocator functions.
@@ -77,10 +76,7 @@ typedef void (* cjose_dealloc3_fn_t)(void *, const char *, int);
  * \param realloc [in] The custom reallocator function to use.
  * \param dealloc [in] The custom deallocator function to use.
  */
-void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
-                           cjose_realloc_fn_t realloc,
-                           cjose_dealloc_fn_t dealloc);
-
+void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc, cjose_realloc_fn_t realloc, cjose_dealloc_fn_t dealloc);
 
 /**
  * Sets the enhanced allocator and deallocator functions. This function provides
@@ -103,9 +99,7 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc,
  * \param dealloc3 [in] The custom deallocator function to use for
  *        OpenSSL >= 1.1.0, called with extra file/line params.
  */
-void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3,
-                              cjose_realloc3_fn_t realloc3,
-                              cjose_dealloc3_fn_t dealloc3);
+void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3, cjose_realloc3_fn_t realloc3, cjose_dealloc3_fn_t dealloc3);
 
 /**
  * Retrieves the configured allocator function.  If an allocator function is
@@ -171,13 +165,10 @@ cjose_dealloc3_fn_t cjose_get_dealloc3();
  *        greater than zero if the first n bytes of s1 is found, respectively, to
  *        be less than, to match, or be greater than the first n bytes of s2
  */
-int cjose_const_memcmp(
-        const uint8_t *a,
-        const uint8_t *b,
-        const size_t size);
+int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // CJOSE_UTIL_H
+#endif // CJOSE_UTIL_H

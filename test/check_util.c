@@ -54,11 +54,11 @@ START_TEST(test_cjose_set_allocators)
     ck_assert(NULL != cjose_get_alloc3());
     ck_assert(NULL != cjose_get_realloc3());
     ck_assert(NULL != cjose_get_dealloc3());
-    
+
     // test simple allocation/reallocation/deallocation redirect
-    size_t  amt;
-    void    *ptr;
-    void    *re_ptr;
+    size_t amt;
+    void *ptr;
+    void *re_ptr;
 
     test_alloc_reset();
 
@@ -72,7 +72,7 @@ START_TEST(test_cjose_set_allocators)
     ck_assert(amt == _test_alloc_in_amt);
     ck_assert(ptr == _test_alloc_in_ptr);
     ck_assert(re_ptr == _test_alloc_out_ptr);
-    
+
     ptr = re_ptr;
     cjose_get_dealloc()(ptr);
     ck_assert(ptr == _test_alloc_out_ptr);
@@ -90,7 +90,7 @@ START_TEST(test_cjose_set_allocators)
     ck_assert(amt == _test_alloc_in_amt);
     ck_assert(ptr == _test_alloc_in_ptr);
     ck_assert(re_ptr == _test_alloc_out_ptr);
-    
+
     ptr = re_ptr;
     cjose_get_dealloc3()(ptr, __FILE__, __LINE__);
     ck_assert(ptr == _test_alloc_out_ptr);
@@ -165,11 +165,11 @@ START_TEST(test_cjose_set_allocators_ex)
     ck_assert(NULL != cjose_get_realloc3());
     ck_assert(NULL != cjose_get_dealloc3());
 
-    size_t      amt;
-    void        *ptr;
-    void        *re_ptr;
-    const char  *file;
-    int         line;
+    size_t amt;
+    void *ptr;
+    void *re_ptr;
+    const char *file;
+    int line;
 
     // test extended allocation/reallocation/deallocation redirect
     test_alloc3_reset();
@@ -224,7 +224,7 @@ START_TEST(test_cjose_set_allocators_ex)
     ck_assert(ptr == _test_alloc3_in_ptr);
     ck_assert(NULL != _test_alloc3_in_file);
     ck_assert(0 != _test_alloc3_in_line);
-    
+
     test_alloc3_reset();
 
     cjose_set_alloc_ex_funcs(NULL, NULL, NULL);

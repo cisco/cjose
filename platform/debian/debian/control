@@ -1,0 +1,21 @@
+Source: cjose
+Maintainer: Matthew A. Miller <linuxwolf@outer-planes.net>
+Build-Depends: debhelper (>= 8), autotools-dev, libssl-dev (>= 1.0.1), libjansson-dev (>= 2.3), pkg-config
+Standards-Version: 3.9.4
+Section: utils
+Priority: extra
+
+Package: libcjose0
+Architecture: any
+Pre-depends: ${misc:Pre-Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: C library implementing the Javascript Object Signing and Encryption (JOSE)
+ Implementation of JOSE for C/C++
+
+
+Package: libcjose-dev
+Section: libdevel
+Architecture: any
+Depends: libcjose0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: Development files for libcjose
+ Development files for building software using libcjose

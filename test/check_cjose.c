@@ -39,7 +39,5 @@ int main()
     EVP_cleanup();
     ERR_free_strings();
 
-    return (0 == failed) ?
-           EXIT_SUCCESS :
-           EXIT_FAILURE;
+    return (0 == failed) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

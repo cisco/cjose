@@ -9,13 +9,10 @@
 #include <check.h>
 #include <cjose/version.h>
 
-START_TEST (test_cjose_version_define)
-{
-    ck_assert_str_eq(CJOSE_VERSION, VERSION);
-}
+START_TEST(test_cjose_version_define) { ck_assert_str_eq(CJOSE_VERSION, VERSION); }
 END_TEST
 
-START_TEST (test_cjose_version_fn)
+START_TEST(test_cjose_version_fn)
 {
     const char *version = cjose_version();
     ck_assert_str_eq(version, VERSION);
@@ -33,4 +30,3 @@ Suite *cjose_version_suite()
 
     return suite;
 }
-

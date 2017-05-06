@@ -30,39 +30,36 @@
 static const char CJOSE_JWK_EC_P_256_STR[] = "P-256";
 static const char CJOSE_JWK_EC_P_384_STR[] = "P-384";
 static const char CJOSE_JWK_EC_P_521_STR[] = "P-521";
-static const char CJOSE_JWK_KTY_STR[]      = "kty";
-static const char CJOSE_JWK_KID_STR[]      = "kid";
-static const char CJOSE_JWK_KTY_EC_STR[]   = "EC";
-static const char CJOSE_JWK_KTY_RSA_STR[]  = "RSA";
-static const char CJOSE_JWK_KTY_OCT_STR[]  = "oct";
-static const char CJOSE_JWK_CRV_STR[]      = "crv";
-static const char CJOSE_JWK_X_STR[]        = "x";
-static const char CJOSE_JWK_Y_STR[]        = "y";
-static const char CJOSE_JWK_D_STR[]        = "d";
-static const char CJOSE_JWK_N_STR[]        = "n";
-static const char CJOSE_JWK_E_STR[]        = "e";
-static const char CJOSE_JWK_P_STR[]        = "p";
-static const char CJOSE_JWK_Q_STR[]        = "q";
-static const char CJOSE_JWK_DP_STR[]       = "dp";
-static const char CJOSE_JWK_DQ_STR[]       = "dq";
-static const char CJOSE_JWK_QI_STR[]       = "qi";
-static const char CJOSE_JWK_K_STR[]        = "k";
+static const char CJOSE_JWK_KTY_STR[] = "kty";
+static const char CJOSE_JWK_KID_STR[] = "kid";
+static const char CJOSE_JWK_KTY_EC_STR[] = "EC";
+static const char CJOSE_JWK_KTY_RSA_STR[] = "RSA";
+static const char CJOSE_JWK_KTY_OCT_STR[] = "oct";
+static const char CJOSE_JWK_CRV_STR[] = "crv";
+static const char CJOSE_JWK_X_STR[] = "x";
+static const char CJOSE_JWK_Y_STR[] = "y";
+static const char CJOSE_JWK_D_STR[] = "d";
+static const char CJOSE_JWK_N_STR[] = "n";
+static const char CJOSE_JWK_E_STR[] = "e";
+static const char CJOSE_JWK_P_STR[] = "p";
+static const char CJOSE_JWK_Q_STR[] = "q";
+static const char CJOSE_JWK_DP_STR[] = "dp";
+static const char CJOSE_JWK_DQ_STR[] = "dq";
+static const char CJOSE_JWK_QI_STR[] = "qi";
+static const char CJOSE_JWK_K_STR[] = "k";
 
-static const char * JWK_KTY_NAMES[] = {
-    CJOSE_JWK_KTY_RSA_STR,
-    CJOSE_JWK_KTY_EC_STR,
-    CJOSE_JWK_KTY_OCT_STR
-};
+static const char *JWK_KTY_NAMES[] = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR };
 
 void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d)
 {
-    if (rsa == NULL) return;
+    if (rsa == NULL)
+        return;
 #if (CJOSE_OPENSSL_11X)
     RSA_get0_key(rsa, (const BIGNUM **)rsa_n, (const BIGNUM **)rsa_e, (const BIGNUM **)rsa_d);
 #else
-    *rsa_n=rsa->n;
-    *rsa_e=rsa->e;
-    *rsa_d=rsa->d;
+    *rsa_n = rsa->n;
+    *rsa_e = rsa->e;
+    *rsa_d = rsa->d;
 #endif
 }
 
@@ -84,10 +81,10 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
 #if (CJOSE_OPENSSL_11X)
     return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
 #else
-   rsa->n = rsa_n;
-   rsa->e = rsa_e;
-   rsa->d = rsa_d;
-   return true;
+    rsa->n = rsa_n;
+    rsa->e = rsa_e;
+    rsa->d = rsa_d;
+    return true;
 #endif
 }
 
@@ -96,8 +93,8 @@ void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
 #if (CJOSE_OPENSSL_11X)
     RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
 #else
-    *p=rsa->p;
-    *q=rsa->q;
+    *p = rsa->p;
+    *q = rsa->q;
 #endif
 }
 
@@ -123,13 +120,14 @@ void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqm
 #if (CJOSE_OPENSSL_11X)
     RSA_get0_crt_params(rsa, (const BIGNUM **)dmp1, (const BIGNUM **)dmq1, (const BIGNUM **)iqmp);
 #else
-    *dmp1=rsa->dmp1;
-    *dmq1=rsa->dmq1;
-    *iqmp=rsa->iqmp;
+    *dmp1 = rsa->dmp1;
+    *dmq1 = rsa->dmq1;
+    *iqmp = rsa->iqmp;
 #endif
 }
 
-void _cjose_jwk_rsa_set_crt(RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *dmq1, size_t dmq1_len, uint8_t *iqmp, size_t iqmp_len)
+void _cjose_jwk_rsa_set_crt(
+    RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *dmq1, size_t dmq1_len, uint8_t *iqmp, size_t iqmp_len)
 {
     BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
 
@@ -149,11 +147,9 @@ void _cjose_jwk_rsa_set_crt(RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *d
 #endif
 }
 
-
-
 // interface functions -- Generic
 
-const char * cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
+const char *cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
 {
     if (0 == kty || CJOSE_JWK_KTY_OCT < kty)
     {
@@ -164,7 +160,7 @@ const char * cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
     return JWK_KTY_NAMES[kty - CJOSE_JWK_KTY_RSA];
 }
 
-cjose_jwk_t * cjose_jwk_retain(cjose_jwk_t *jwk, cjose_err *err)
+cjose_jwk_t *cjose_jwk_retain(cjose_jwk_t *jwk, cjose_err *err)
 {
     if (!jwk)
     {
@@ -241,11 +237,7 @@ const char *cjose_jwk_get_kid(const cjose_jwk_t *jwk, cjose_err *err)
     return jwk->kid;
 }
 
-bool cjose_jwk_set_kid(
-        cjose_jwk_t *jwk, 
-        const char *kid, 
-        size_t len, 
-        cjose_err *err)
+bool cjose_jwk_set_kid(cjose_jwk_t *jwk, const char *kid, size_t len, cjose_err *err)
 {
     if (!jwk || !kid)
     {
@@ -255,14 +247,14 @@ bool cjose_jwk_set_kid(
     if (jwk->kid)
     {
         cjose_get_dealloc()(jwk->kid);
-    }    
-    jwk->kid = (char *)cjose_get_alloc()(len+1);
+    }
+    jwk->kid = (char *)cjose_get_alloc()(len + 1);
     if (!jwk->kid)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
     }
-    strncpy(jwk->kid, kid, len+1);
+    strncpy(jwk->kid, kid, len + 1);
     return true;
 }
 
@@ -276,8 +268,7 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
         return NULL;
     }
 
-    json_t *json = json_object(),
-                *field = NULL;
+    json_t *json = json_object(), *field = NULL;
     if (!json)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
@@ -317,15 +308,13 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
     }
 
     // set private fields
-    if (priv && jwk->fns->private_json && 
-            !jwk->fns->private_json(jwk, json, err))
+    if (priv && jwk->fns->private_json && !jwk->fns->private_json(jwk, json, err))
     {
         goto to_json_cleanup;
     }
 
     // generate the string ...
-    char *str_jwk = json_dumps(
-            json, JSON_ENCODE_ANY | JSON_COMPACT | JSON_PRESERVE_ORDER);
+    char *str_jwk = json_dumps(json, JSON_ENCODE_ANY | JSON_COMPACT | JSON_PRESERVE_ORDER);
     if (!str_jwk)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
@@ -338,8 +327,8 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
         goto to_json_cleanup;
     }
     cjose_get_dealloc()(str_jwk);
-    
-    to_json_cleanup:
+
+to_json_cleanup:
     if (json)
     {
         json_decref(json);
@@ -350,7 +339,7 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
         json_decref(field);
         field = NULL;
     }
-    
+
     return result;
 }
 
@@ -358,16 +347,10 @@ char *cjose_jwk_to_json(const cjose_jwk_t *jwk, bool priv, cjose_err *err)
 // internal data & functions -- Octet String
 
 static void _oct_free(cjose_jwk_t *jwk);
-static bool _oct_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
-static bool _oct_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _oct_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _oct_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
 
-static const key_fntable OCT_FNTABLE = {
-    _oct_free,
-    _oct_public_fields,
-    _oct_private_fields
-};
+static const key_fntable OCT_FNTABLE = { _oct_free, _oct_public_fields, _oct_private_fields };
 
 static cjose_jwk_t *_oct_new(uint8_t *buffer, size_t keysize, cjose_err *err)
 {
@@ -391,8 +374,8 @@ static cjose_jwk_t *_oct_new(uint8_t *buffer, size_t keysize, cjose_err *err)
 
 static void _oct_free(cjose_jwk_t *jwk)
 {
-    uint8_t *   buffer = (uint8_t *)jwk->keydata;
-    jwk->keydata =  NULL;
+    uint8_t *buffer = (uint8_t *)jwk->keydata;
+    jwk->keydata = NULL;
     if (buffer)
     {
         cjose_get_dealloc()(buffer);
@@ -400,14 +383,9 @@ static void _oct_free(cjose_jwk_t *jwk)
     cjose_get_dealloc()(jwk);
 }
 
-static bool _oct_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
-{
-    return true;
-}
+static bool _oct_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err) { return true; }
 
-static bool _oct_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+static bool _oct_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
     json_t *field = NULL;
     char *k = NULL;
@@ -429,7 +407,7 @@ static bool _oct_private_fields(
     }
     json_object_set(json, "k", field);
     json_decref(field);
-    
+
     return true;
 }
 
@@ -437,8 +415,8 @@ static bool _oct_private_fields(
 
 cjose_jwk_t *cjose_jwk_create_oct_random(size_t keysize, cjose_err *err)
 {
-    cjose_jwk_t *           jwk = NULL;
-    uint8_t *               buffer = NULL;
+    cjose_jwk_t *jwk = NULL;
+    uint8_t *buffer = NULL;
 
     if (0 == keysize)
     {
@@ -467,7 +445,7 @@ cjose_jwk_t *cjose_jwk_create_oct_random(size_t keysize, cjose_err *err)
     }
     return jwk;
 
-    create_oct_failed:
+create_oct_failed:
     if (buffer)
     {
         cjose_get_dealloc()(buffer);
@@ -477,11 +455,10 @@ cjose_jwk_t *cjose_jwk_create_oct_random(size_t keysize, cjose_err *err)
     return NULL;
 }
 
-cjose_jwk_t * cjose_jwk_create_oct_spec(
-        const uint8_t *data, size_t len, cjose_err *err)
+cjose_jwk_t *cjose_jwk_create_oct_spec(const uint8_t *data, size_t len, cjose_err *err)
 {
-    cjose_jwk_t *           jwk = NULL;
-    uint8_t *               buffer = NULL;
+    cjose_jwk_t *jwk = NULL;
+    uint8_t *buffer = NULL;
 
     if (NULL == data || 0 == len)
     {
@@ -505,7 +482,7 @@ cjose_jwk_t * cjose_jwk_create_oct_spec(
 
     return jwk;
 
-    create_oct_failed:
+create_oct_failed:
     if (buffer)
     {
         cjose_get_dealloc()(buffer);
@@ -519,59 +496,53 @@ cjose_jwk_t * cjose_jwk_create_oct_spec(
 // internal data & functions -- Elliptic Curve
 
 static void _EC_free(cjose_jwk_t *jwk);
-static bool _EC_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
-static bool _EC_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _EC_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _EC_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
 
-static const key_fntable EC_FNTABLE = {
-    _EC_free,
-    _EC_public_fields,
-    _EC_private_fields
-};
+static const key_fntable EC_FNTABLE = { _EC_free, _EC_public_fields, _EC_private_fields };
 
-static inline uint8_t _ec_size_for_curve(
-        cjose_jwk_ec_curve crv, cjose_err *err)
+static inline uint8_t _ec_size_for_curve(cjose_jwk_ec_curve crv, cjose_err *err)
 {
     switch (crv)
     {
-        case CJOSE_JWK_EC_P_256: return 32;
-        case CJOSE_JWK_EC_P_384: return 48;
-        case CJOSE_JWK_EC_P_521: return 66;
+    case CJOSE_JWK_EC_P_256:
+        return 32;
+    case CJOSE_JWK_EC_P_384:
+        return 48;
+    case CJOSE_JWK_EC_P_521:
+        return 66;
     }
 
     return 0;
 }
 
-static inline const char *_ec_name_for_curve(
-        cjose_jwk_ec_curve crv, cjose_err *err)
+static inline const char *_ec_name_for_curve(cjose_jwk_ec_curve crv, cjose_err *err)
 {
     switch (crv)
     {
-        case CJOSE_JWK_EC_P_256: return CJOSE_JWK_EC_P_256_STR;
-        case CJOSE_JWK_EC_P_384: return CJOSE_JWK_EC_P_384_STR;
-        case CJOSE_JWK_EC_P_521: return CJOSE_JWK_EC_P_521_STR;
+    case CJOSE_JWK_EC_P_256:
+        return CJOSE_JWK_EC_P_256_STR;
+    case CJOSE_JWK_EC_P_384:
+        return CJOSE_JWK_EC_P_384_STR;
+    case CJOSE_JWK_EC_P_521:
+        return CJOSE_JWK_EC_P_521_STR;
     }
 
     return NULL;
 }
 
-static inline bool _ec_curve_from_name(
-        const char *name, cjose_jwk_ec_curve *crv, cjose_err *err)
+static inline bool _ec_curve_from_name(const char *name, cjose_jwk_ec_curve *crv, cjose_err *err)
 {
     bool retval = true;
-    if (strncmp(
-            name, CJOSE_JWK_EC_P_256_STR, sizeof(CJOSE_JWK_EC_P_256_STR)) == 0)
+    if (strncmp(name, CJOSE_JWK_EC_P_256_STR, sizeof(CJOSE_JWK_EC_P_256_STR)) == 0)
     {
         *crv = CJOSE_JWK_EC_P_256;
     }
-    else if (strncmp(
-            name, CJOSE_JWK_EC_P_384_STR, sizeof(CJOSE_JWK_EC_P_384_STR)) == 0)
+    else if (strncmp(name, CJOSE_JWK_EC_P_384_STR, sizeof(CJOSE_JWK_EC_P_384_STR)) == 0)
     {
         *crv = CJOSE_JWK_EC_P_384;
     }
-    else if (strncmp(
-            name, CJOSE_JWK_EC_P_521_STR, sizeof(CJOSE_JWK_EC_P_521_STR)) == 0)
+    else if (strncmp(name, CJOSE_JWK_EC_P_521_STR, sizeof(CJOSE_JWK_EC_P_521_STR)) == 0)
     {
         *crv = CJOSE_JWK_EC_P_521;
     }
@@ -582,22 +553,18 @@ static inline bool _ec_curve_from_name(
     return retval;
 }
 
-static inline bool _kty_from_name(
-        const char *name, cjose_jwk_kty_t *kty, cjose_err *err)
+static inline bool _kty_from_name(const char *name, cjose_jwk_kty_t *kty, cjose_err *err)
 {
     bool retval = true;
-    if (strncmp(
-            name, CJOSE_JWK_KTY_EC_STR, sizeof(CJOSE_JWK_KTY_EC_STR)) == 0)
+    if (strncmp(name, CJOSE_JWK_KTY_EC_STR, sizeof(CJOSE_JWK_KTY_EC_STR)) == 0)
     {
         *kty = CJOSE_JWK_KTY_EC;
     }
-    else if (strncmp(
-            name, CJOSE_JWK_KTY_RSA_STR, sizeof(CJOSE_JWK_KTY_RSA_STR)) == 0)
+    else if (strncmp(name, CJOSE_JWK_KTY_RSA_STR, sizeof(CJOSE_JWK_KTY_RSA_STR)) == 0)
     {
         *kty = CJOSE_JWK_KTY_RSA;
     }
-    else if (strncmp(
-            name, CJOSE_JWK_KTY_OCT_STR, sizeof(CJOSE_JWK_KTY_OCT_STR)) == 0)
+    else if (strncmp(name, CJOSE_JWK_KTY_OCT_STR, sizeof(CJOSE_JWK_KTY_OCT_STR)) == 0)
     {
         *kty = CJOSE_JWK_KTY_OCT;
     }
@@ -629,16 +596,17 @@ static cjose_jwk_t *_EC_new(cjose_jwk_ec_curve crv, EC_KEY *ec, cjose_err *err)
     memset(jwk, 0, sizeof(cjose_jwk_t));
     jwk->retained = 1;
     jwk->kty = CJOSE_JWK_KTY_EC;
-    switch (crv) {
-        case CJOSE_JWK_EC_P_256:
-            jwk->keysize = 256;
-            break;
-        case CJOSE_JWK_EC_P_384:
-            jwk->keysize = 384;
-            break;
-        case CJOSE_JWK_EC_P_521:
-            jwk->keysize = 521;
-            break;
+    switch (crv)
+    {
+    case CJOSE_JWK_EC_P_256:
+        jwk->keysize = 256;
+        break;
+    case CJOSE_JWK_EC_P_384:
+        jwk->keysize = 384;
+        break;
+    case CJOSE_JWK_EC_P_521:
+        jwk->keysize = 521;
+        break;
     }
     jwk->keydata = keydata;
     jwk->fns = &EC_FNTABLE;
@@ -648,12 +616,12 @@ static cjose_jwk_t *_EC_new(cjose_jwk_ec_curve crv, EC_KEY *ec, cjose_err *err)
 
 static void _EC_free(cjose_jwk_t *jwk)
 {
-    ec_keydata  *keydata = (ec_keydata *)jwk->keydata;
+    ec_keydata *keydata = (ec_keydata *)jwk->keydata;
     jwk->keydata = NULL;
 
     if (keydata)
     {
-        EC_KEY  *ec = keydata->key;
+        EC_KEY *ec = keydata->key;
         keydata->key = NULL;
         if (ec)
         {
@@ -664,23 +632,20 @@ static void _EC_free(cjose_jwk_t *jwk)
     cjose_get_dealloc()(jwk);
 }
 
-static bool _EC_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+static bool _EC_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
-    ec_keydata      *keydata = (ec_keydata *)jwk->keydata;
-    const EC_GROUP  *params = NULL;
-    const EC_POINT  *pub = NULL;
-    BIGNUM          *bnX = NULL,
-                    *bnY = NULL;
-    uint8_t         *buffer = NULL;
-    char            *b64u = NULL;
-    size_t          len = 0,
-                    offset = 0;
-    json_t          *field = NULL;
-    bool            result = false;
+    ec_keydata *keydata = (ec_keydata *)jwk->keydata;
+    const EC_GROUP *params = NULL;
+    const EC_POINT *pub = NULL;
+    BIGNUM *bnX = NULL, *bnY = NULL;
+    uint8_t *buffer = NULL;
+    char *b64u = NULL;
+    size_t len = 0, offset = 0;
+    json_t *field = NULL;
+    bool result = false;
 
     // track expected binary data size
-    uint8_t     numsize = _ec_size_for_curve(keydata->crv, err);
+    uint8_t numsize = _ec_size_for_curve(keydata->crv, err);
 
     // output the curve
     field = json_string(_ec_name_for_curve(keydata->crv, err));
@@ -756,7 +721,7 @@ static bool _EC_public_fields(
 
     result = true;
 
-    _ec_to_string_cleanup:
+_ec_to_string_cleanup:
     if (field)
     {
         json_decref(field);
@@ -781,20 +746,18 @@ static bool _EC_public_fields(
     return result;
 }
 
-static bool _EC_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+static bool _EC_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
-    ec_keydata      *keydata = (ec_keydata *)jwk->keydata;
-    const BIGNUM    *bnD = EC_KEY_get0_private_key(keydata->key);
-    uint8_t         *buffer = NULL;
-    char            *b64u = NULL;
-    size_t          len = 0,
-                    offset = 0;
-    json_t          *field = NULL;
-    bool            result = false;
+    ec_keydata *keydata = (ec_keydata *)jwk->keydata;
+    const BIGNUM *bnD = EC_KEY_get0_private_key(keydata->key);
+    uint8_t *buffer = NULL;
+    char *b64u = NULL;
+    size_t len = 0, offset = 0;
+    json_t *field = NULL;
+    bool result = false;
 
     // track expected binary data size
-    uint8_t     numsize = _ec_size_for_curve(keydata->crv, err);
+    uint8_t numsize = _ec_size_for_curve(keydata->crv, err);
 
     // short circuit if 'd' is NULL or 0
     if (!bnD || BN_is_zero(bnD))
@@ -829,7 +792,7 @@ static bool _EC_private_fields(
 
     result = true;
 
-    _ec_to_string_cleanup:
+_ec_to_string_cleanup:
     if (buffer)
     {
         cjose_get_dealloc()(buffer);
@@ -842,8 +805,8 @@ static bool _EC_private_fields(
 
 cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err)
 {
-    cjose_jwk_t *   jwk = NULL;
-    EC_KEY *        ec = NULL;
+    cjose_jwk_t *jwk = NULL;
+    EC_KEY *ec = NULL;
 
     ec = EC_KEY_new_by_curve_name(crv);
     if (!ec)
@@ -851,7 +814,7 @@ cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto create_EC_failed;
     }
-    
+
     if (1 != EC_KEY_generate_key(ec))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
@@ -866,7 +829,7 @@ cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err)
 
     return jwk;
 
-    create_EC_failed:
+create_EC_failed:
     if (jwk)
     {
         cjose_get_dealloc()(jwk);
@@ -881,16 +844,15 @@ cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err)
     return NULL;
 }
 
-cjose_jwk_t *cjose_jwk_create_EC_spec(
-        const cjose_jwk_ec_keyspec *spec, cjose_err *err)
+cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_err *err)
 {
-    cjose_jwk_t *   jwk = NULL;
-    EC_KEY *        ec = NULL;
-    EC_GROUP *      params = NULL;
-    EC_POINT *      Q = NULL;
-    BIGNUM *        bnD = NULL;
-    BIGNUM *        bnX = NULL;
-    BIGNUM *        bnY = NULL;
+    cjose_jwk_t *jwk = NULL;
+    EC_KEY *ec = NULL;
+    EC_GROUP *params = NULL;
+    EC_POINT *Q = NULL;
+    BIGNUM *bnD = NULL;
+    BIGNUM *bnX = NULL;
+    BIGNUM *bnY = NULL;
 
     if (!spec)
     {
@@ -898,9 +860,8 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
         return NULL;
     }
 
-    bool            hasPriv = (NULL != spec->d && 0 < spec->dlen);
-    bool            hasPub = ((NULL != spec->x && 0 < spec->xlen) &&
-                             (NULL != spec->y && 0 < spec->ylen));
+    bool hasPriv = (NULL != spec->d && 0 < spec->dlen);
+    bool hasPub = ((NULL != spec->x && 0 < spec->xlen) && (NULL != spec->y && 0 < spec->ylen));
     if (!hasPriv && !hasPub)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -983,7 +944,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto create_EC_failed;
     }
-    
+
     jwk = _EC_new(spec->crv, ec, err);
     if (!jwk)
     {
@@ -993,7 +954,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
     // jump to cleanup
     goto create_EC_cleanup;
 
-    create_EC_failed:
+create_EC_failed:
     if (jwk)
     {
         cjose_get_dealloc()(jwk);
@@ -1005,7 +966,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
         ec = NULL;
     }
 
-    create_EC_cleanup:
+create_EC_cleanup:
     if (Q)
     {
         EC_POINT_free(Q);
@@ -1034,16 +995,10 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(
 // internal data & functions -- RSA
 
 static void _RSA_free(cjose_jwk_t *jwk);
-static bool _RSA_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
-static bool _RSA_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _RSA_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _RSA_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
 
-static const key_fntable RSA_FNTABLE = {
-    _RSA_free,
-    _RSA_public_fields,
-    _RSA_private_fields
-};
+static const key_fntable RSA_FNTABLE = { _RSA_free, _RSA_public_fields, _RSA_private_fields };
 
 static inline cjose_jwk_t *_RSA_new(RSA *rsa, cjose_err *err)
 {
@@ -1074,15 +1029,13 @@ static void _RSA_free(cjose_jwk_t *jwk)
     cjose_get_dealloc()(jwk);
 }
 
-static inline bool _RSA_json_field(
-        BIGNUM *param, const char *name, json_t *json, cjose_err *err)
+static inline bool _RSA_json_field(BIGNUM *param, const char *name, json_t *json, cjose_err *err)
 {
-    json_t      *field = NULL;
-    uint8_t     *data = NULL;
-    char        *b64u = NULL;
-    size_t      datalen = 0,
-                b64ulen = 0;
-    bool        result = false;
+    json_t *field = NULL;
+    uint8_t *data = NULL;
+    char *b64u = NULL;
+    size_t datalen = 0, b64ulen = 0;
+    bool result = false;
 
     if (!param)
     {
@@ -1111,7 +1064,7 @@ static inline bool _RSA_json_field(
     field = NULL;
     result = true;
 
-    RSA_json_field_cleanup:
+RSA_json_field_cleanup:
     if (b64u)
     {
         cjose_get_dealloc()(b64u);
@@ -1126,8 +1079,7 @@ static inline bool _RSA_json_field(
     return result;
 }
 
-static bool _RSA_public_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+static bool _RSA_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
     RSA *rsa = (RSA *)jwk->keydata;
 
@@ -1146,8 +1098,7 @@ static bool _RSA_public_fields(
     return true;
 }
 
-static bool _RSA_private_fields(
-        const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+static bool _RSA_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
 {
     RSA *rsa = (RSA *)jwk->keydata;
 
@@ -1192,8 +1143,7 @@ static bool _RSA_private_fields(
 static const uint8_t *DEFAULT_E_DAT = (const uint8_t *)"\x01\x00\x01";
 static const size_t DEFAULT_E_LEN = 3;
 
-cjose_jwk_t *cjose_jwk_create_RSA_random(
-        size_t keysize, const uint8_t *e, size_t elen, cjose_err *err)
+cjose_jwk_t *cjose_jwk_create_RSA_random(size_t keysize, const uint8_t *e, size_t elen, cjose_err *err)
 {
     if (0 == keysize)
     {
@@ -1206,8 +1156,8 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
         elen = DEFAULT_E_LEN;
     }
 
-    RSA     *rsa = NULL;
-    BIGNUM  *bn = NULL;
+    RSA *rsa = NULL;
+    BIGNUM *bn = NULL;
 
     rsa = RSA_new();
     if (!rsa)
@@ -1232,7 +1182,7 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
     BN_free(bn);
     return _RSA_new(rsa, err);
 
-    create_RSA_random_failed:
+create_RSA_random_failed:
     if (bn)
     {
         BN_free(bn);
@@ -1244,8 +1194,7 @@ cjose_jwk_t *cjose_jwk_create_RSA_random(
     return NULL;
 }
 
-cjose_jwk_t *cjose_jwk_create_RSA_spec(
-        const cjose_jwk_rsa_keyspec *spec, cjose_err *err)
+cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_err *err)
 {
     if (NULL == spec)
     {
@@ -1253,17 +1202,15 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(
         return NULL;
     }
 
-    bool        hasPub = (NULL != spec->n && 0 < spec->nlen) &&
-                         (NULL != spec->e && 0 < spec->elen);
-    bool        hasPriv = (NULL != spec->n && 0 < spec->nlen) &&
-                          (NULL != spec->d && 0 < spec->dlen);
+    bool hasPub = (NULL != spec->n && 0 < spec->nlen) && (NULL != spec->e && 0 < spec->elen);
+    bool hasPriv = (NULL != spec->n && 0 < spec->nlen) && (NULL != spec->d && 0 < spec->dlen);
     if (!hasPub && !hasPriv)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
     }
 
-    RSA     *rsa = NULL;
+    RSA *rsa = NULL;
     rsa = RSA_new();
     if (!rsa)
     {
@@ -1280,7 +1227,6 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(
         }
         _cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen);
         _cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen);
-
     }
     else if (hasPub)
     {
@@ -1293,7 +1239,7 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(
 
     return _RSA_new(rsa, err);
 
-    create_RSA_spec_failed:
+create_RSA_spec_failed:
     if (rsa)
     {
         RSA_free(rsa);
@@ -1305,19 +1251,16 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(
 //////////////// Import ////////////////
 // internal data & functions -- JWK key import
 
-
-static const char *_get_json_object_string_attribute(
-        json_t *json, const char *key, cjose_err *err)
+static const char *_get_json_object_string_attribute(json_t *json, const char *key, cjose_err *err)
 {
-    const char  *attr_str = NULL;
+    const char *attr_str = NULL;
     json_t *attr_json = json_object_get(json, key);
     if (NULL != attr_json)
     {
         attr_str = json_string_value(attr_json);
     }
     return attr_str;
-} 
-
+}
 
 /**
  * Internal helper function for extracing an octet string from a base64url
@@ -1331,7 +1274,7 @@ static const char *_get_json_object_string_attribute(
  * \param[in]     json the JSON object from which to read the attribute.
  * \param[in]     key the name of the attribute to be decoded.
  * \param[out]    pointer to buffer of octet string (if decoding succeeds).
- * \param[in/out] in as the expected length of the attribute, out as the 
+ * \param[in/out] in as the expected length of the attribute, out as the
  *                actual decoded length.  Note, this method succeeds only
  *                if the actual decoded length matches the expected length.
  *                If the in-value is 0 this indicates there is no particular
@@ -1339,8 +1282,8 @@ static const char *_get_json_object_string_attribute(
  * \returns true  if attribute is either not present or successfully decoded.
  *                false otherwise.
  */
-static bool _decode_json_object_base64url_attribute(json_t *jwk_json, 
-        const char *key, uint8_t **buffer, size_t *buflen, cjose_err *err)
+static bool
+_decode_json_object_base64url_attribute(json_t *jwk_json, const char *key, uint8_t **buffer, size_t *buflen, cjose_err *err)
 {
     // get the base64url encoded string value of the attribute (if any)
     const char *str = _get_json_object_string_attribute(jwk_json, key, err);
@@ -1355,7 +1298,8 @@ static bool _decode_json_object_base64url_attribute(json_t *jwk_json,
     if (*buflen != 0)
     {
         const char *end = NULL;
-        for (end = str + strlen(str) - 1; *end == '=' && end > str; --end);
+        for (end = str + strlen(str) - 1; *end == '=' && end > str; --end)
+            ;
         size_t unpadded_len = end + 1 - str - ((*end == '=') ? 1 : 0);
         size_t expected_len = ceil(4 * ((float)*buflen / 3));
 
@@ -1387,26 +1331,24 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     uint8_t *d_buffer = NULL;
 
     // get the value of the crv attribute
-    const char *crv_str = 
-            _get_json_object_string_attribute(jwk_json, CJOSE_JWK_CRV_STR, err);
+    const char *crv_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_CRV_STR, err);
     if (crv_str == NULL)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
     }
- 
+
     // get the curve identifer for the curve named by crv
     cjose_jwk_ec_curve crv;
     if (!_ec_curve_from_name(crv_str, &crv, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
-    } 
+    }
 
     // get the decoded value of the x coordinate
     size_t x_buflen = (size_t)_ec_size_for_curve(crv, err);
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_X_STR, &x_buffer, &x_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_X_STR, &x_buffer, &x_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
@@ -1414,8 +1356,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
 
     // get the decoded value of the y coordinate
     size_t y_buflen = (size_t)_ec_size_for_curve(crv, err);
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_Y_STR,  &y_buffer, &y_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Y_STR, &y_buffer, &y_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
@@ -1423,8 +1364,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
 
     // get the decoded value of the private key d
     size_t d_buflen = (size_t)_ec_size_for_curve(crv, err);
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_D_STR,  &d_buffer, &d_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
@@ -1444,7 +1384,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     // create the jwk
     jwk = cjose_jwk_create_EC_spec(&ec_keyspec, err);
 
-    import_EC_cleanup:
+import_EC_cleanup:
     if (NULL != x_buffer)
     {
         cjose_get_dealloc()(x_buffer);
@@ -1473,73 +1413,65 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     uint8_t *dq_buffer = NULL;
     uint8_t *qi_buffer = NULL;
 
-    // get the decoded value of n (buflen = 0 means no particular expected len) 
+    // get the decoded value of n (buflen = 0 means no particular expected len)
     size_t n_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_N_STR, &n_buffer, &n_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_N_STR, &n_buffer, &n_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of e 
+    // get the decoded value of e
     size_t e_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_E_STR, &e_buffer, &e_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_E_STR, &e_buffer, &e_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of d 
+    // get the decoded value of d
     size_t d_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of p 
+    // get the decoded value of p
     size_t p_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of q 
+    // get the decoded value of q
     size_t q_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of dp 
+    // get the decoded value of dp
     size_t dp_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of dq 
+    // get the decoded value of dq
     size_t dq_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
-    // get the decoded value of qi 
+    // get the decoded value of qi
     size_t qi_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
@@ -1568,7 +1500,7 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     // create the jwk
     jwk = cjose_jwk_create_RSA_spec(&rsa_keyspec, err);
 
-    import_RSA_cleanup:
+import_RSA_cleanup:
     cjose_get_dealloc()(n_buffer);
     cjose_get_dealloc()(e_buffer);
     cjose_get_dealloc()(d_buffer);
@@ -1586,10 +1518,9 @@ static cjose_jwk_t *_cjose_jwk_import_oct(json_t *jwk_json, cjose_err *err)
     cjose_jwk_t *jwk = NULL;
     uint8_t *k_buffer = NULL;
 
-    // get the decoded value of k (buflen = 0 means no particular expected len) 
+    // get the decoded value of k (buflen = 0 means no particular expected len)
     size_t k_buflen = 0;
-    if (!_decode_json_object_base64url_attribute(
-            jwk_json, CJOSE_JWK_K_STR, &k_buffer, &k_buflen, err))
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_K_STR, &k_buffer, &k_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_oct_cleanup;
@@ -1598,7 +1529,7 @@ static cjose_jwk_t *_cjose_jwk_import_oct(json_t *jwk_json, cjose_err *err)
     // create the jwk
     jwk = cjose_jwk_create_oct_spec(k_buffer, k_buflen, err);
 
-    import_oct_cleanup:
+import_oct_cleanup:
     if (NULL != k_buffer)
     {
         cjose_get_dealloc()(k_buffer);
@@ -1607,9 +1538,9 @@ static cjose_jwk_t *_cjose_jwk_import_oct(json_t *jwk_json, cjose_err *err)
     return jwk;
 }
 
-cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err) 
+cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 {
-    cjose_jwk_t *jwk= NULL;
+    cjose_jwk_t *jwk = NULL;
 
     // check params
     if ((NULL == jwk_str) || (0 == len))
@@ -1626,13 +1557,12 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
     }
 
     // get the string value of the kty attribute of the jwk
-    const char *kty_str = 
-            _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KTY_STR, err);
+    const char *kty_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KTY_STR, err);
     if (NULL == kty_str)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_cleanup;
-    } 
+    }
 
     // get kty corresponding to kty_str (kty is required)
     cjose_jwk_kty_t kty;
@@ -1641,25 +1571,25 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_cleanup;
     }
-  
+
     // create a cjose_jwt_t based on the kty
     switch (kty)
     {
-        case CJOSE_JWK_KTY_EC:  
-            jwk = _cjose_jwk_import_EC(jwk_json, err);
-            break;
+    case CJOSE_JWK_KTY_EC:
+        jwk = _cjose_jwk_import_EC(jwk_json, err);
+        break;
 
-        case CJOSE_JWK_KTY_RSA:  
-            jwk = _cjose_jwk_import_RSA(jwk_json, err);
-            break;
+    case CJOSE_JWK_KTY_RSA:
+        jwk = _cjose_jwk_import_RSA(jwk_json, err);
+        break;
 
-        case CJOSE_JWK_KTY_OCT:  
-            jwk = _cjose_jwk_import_oct(jwk_json, err);
-            break;
+    case CJOSE_JWK_KTY_OCT:
+        jwk = _cjose_jwk_import_oct(jwk_json, err);
+        break;
 
-        default:
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            goto import_cleanup;
+    default:
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_cleanup;
     }
     if (NULL == jwk)
     {
@@ -1668,8 +1598,7 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
     }
 
     // get the value of the kid attribute (kid is optional)
-    const char *kid_str = 
-            _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KID_STR, err);
+    const char *kid_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KID_STR, err);
     if (kid_str != NULL)
     {
         jwk->kid = _cjose_strndup(kid_str, -1, err);
@@ -1681,8 +1610,8 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
         }
     }
 
-    // poor man's "finally"
-    import_cleanup:
+// poor man's "finally"
+import_cleanup:
     if (NULL != jwk_json)
     {
         json_decref(jwk_json);
@@ -1694,18 +1623,13 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 //////////////// ECDH ////////////////
 // internal data & functions -- ECDH derivation
 
-static bool _cjose_jwk_evp_key_from_ec_key(
-        cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
+static bool _cjose_jwk_evp_key_from_ec_key(cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
 {
     // validate that the jwk is of type EC and we have a valid out-param
-    if (NULL == jwk || 
-            CJOSE_JWK_KTY_EC != jwk->kty || 
-            NULL == jwk->keydata ||
-            NULL == key ||
-            NULL != *key)
+    if (NULL == jwk || CJOSE_JWK_KTY_EC != jwk->kty || NULL == jwk->keydata || NULL == key || NULL != *key)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto _cjose_jwk_evp_key_from_ec_key_fail;        
+        goto _cjose_jwk_evp_key_from_ec_key_fail;
     }
 
     // create a blank EVP_PKEY
@@ -1717,8 +1641,7 @@ static bool _cjose_jwk_evp_key_from_ec_key(
     }
 
     // assign the EVP_PKEY to reference the jwk's internal EC_KEY structure
-    if (1 != EVP_PKEY_set1_EC_KEY(
-            *key, ((struct _ec_keydata_int *)(jwk->keydata))->key))
+    if (1 != EVP_PKEY_set1_EC_KEY(*key, ((struct _ec_keydata_int *)(jwk->keydata))->key))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_evp_key_from_ec_key_fail;
@@ -1727,8 +1650,8 @@ static bool _cjose_jwk_evp_key_from_ec_key(
     // happy path
     return true;
 
-    // fail path
-    _cjose_jwk_evp_key_from_ec_key_fail:
+// fail path
+_cjose_jwk_evp_key_from_ec_key_fail:
 
     EVP_PKEY_free(*key);
     *key = NULL;
@@ -1736,20 +1659,12 @@ static bool _cjose_jwk_evp_key_from_ec_key(
     return false;
 }
 
-
-cjose_jwk_t *cjose_jwk_derive_ecdh_secret(
-        cjose_jwk_t *jwk_self,
-        cjose_jwk_t *jwk_peer,
-        cjose_err *err)
+cjose_jwk_t *cjose_jwk_derive_ecdh_secret(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err)
 {
     return cjose_jwk_derive_ecdh_ephemeral_key(jwk_self, jwk_peer, err);
 }
 
-
-cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
-        cjose_jwk_t *jwk_self,
-        cjose_jwk_t *jwk_peer,
-        cjose_err *err) 
+cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err)
 {
     EVP_PKEY_CTX *ctx = NULL;
     EVP_PKEY *pkey_self = NULL;
@@ -1795,7 +1710,7 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     }
 
     // determine buffer length for shared secret
-    if(1 != EVP_PKEY_derive(ctx, NULL, &secret_len))
+    if (1 != EVP_PKEY_derive(ctx, NULL, &secret_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_derive_shared_secret_fail;
@@ -1806,7 +1721,7 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     if (NULL == secret)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jwk_derive_shared_secret_fail;        
+        goto _cjose_jwk_derive_shared_secret_fail;
     }
     memset(secret, 0, secret_len);
 
@@ -1814,24 +1729,23 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     if (1 != (EVP_PKEY_derive(ctx, secret, &secret_len)))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jwk_derive_shared_secret_fail;                
+        goto _cjose_jwk_derive_shared_secret_fail;
     }
 
     // HKDF of the DH shared secret (SHA256, no salt, no info, 256 bit expand)
     ephemeral_key_len = 32;
     ephemeral_key = (uint8_t *)cjose_get_alloc()(ephemeral_key_len);
-    if (!cjose_jwk_hkdf(EVP_sha256(), (uint8_t *)"", 0, (uint8_t *)"", 0, 
-            secret, secret_len, ephemeral_key, ephemeral_key_len, err))
+    if (!cjose_jwk_hkdf(EVP_sha256(), (uint8_t *)"", 0, (uint8_t *)"", 0, secret, secret_len, ephemeral_key, ephemeral_key_len,
+                        err))
     {
-        goto _cjose_jwk_derive_shared_secret_fail;        
+        goto _cjose_jwk_derive_shared_secret_fail;
     }
 
     // create a JWK of the shared secret
-    jwk_ephemeral_key = cjose_jwk_create_oct_spec(
-            ephemeral_key, ephemeral_key_len, err);
+    jwk_ephemeral_key = cjose_jwk_create_oct_spec(ephemeral_key, ephemeral_key_len, err);
     if (NULL == jwk_ephemeral_key)
     {
-        goto _cjose_jwk_derive_shared_secret_fail;        
+        goto _cjose_jwk_derive_shared_secret_fail;
     }
 
     // happy path
@@ -1843,9 +1757,9 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
 
     return jwk_ephemeral_key;
 
-    // fail path
-    _cjose_jwk_derive_shared_secret_fail:
-    
+// fail path
+_cjose_jwk_derive_shared_secret_fail:
+
     if (NULL != ctx)
     {
         EVP_PKEY_CTX_free(ctx);
@@ -1867,20 +1781,20 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     return NULL;
 }
 
-bool cjose_jwk_hkdf(
-        const EVP_MD *md,
-        const uint8_t *salt,
-        size_t salt_len,
-        const uint8_t *info,
-        size_t info_len,
-        const uint8_t *ikm, 
-        size_t ikm_len, 
-        uint8_t *okm,
-        unsigned int okm_len,
-        cjose_err *err)
+bool cjose_jwk_hkdf(const EVP_MD *md,
+                    const uint8_t *salt,
+                    size_t salt_len,
+                    const uint8_t *info,
+                    size_t info_len,
+                    const uint8_t *ikm,
+                    size_t ikm_len,
+                    uint8_t *okm,
+                    unsigned int okm_len,
+                    cjose_err *err)
 {
     // current impl. is very limited: SHA256, 256 bit output, and no info
-    if ((EVP_sha256() != md) || (0 != info_len) || (32 != okm_len)) {
+    if ((EVP_sha256() != md) || (0 != info_len) || (32 != okm_len))
+    {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
@@ -1889,7 +1803,7 @@ bool cjose_jwk_hkdf(
     unsigned int prk_len;
     unsigned char prk[EVP_MAX_MD_SIZE];
     HMAC(md, salt, salt_len, ikm, ikm_len, prk, &prk_len);
- 
+
     // HKDF-Expand, HMAC-SHA256(PRK,0x01) -> OKM
     const unsigned char t[] = { 0x01 };
     HMAC(md, prk, prk_len, t, sizeof(t), okm, NULL);

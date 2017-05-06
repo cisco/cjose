@@ -9,16 +9,8 @@
 #include <openssl/err.h>
 #include "cjose/error.h"
 
-
 ////////////////////////////////////////////////////////////////////////////////
-static const char *_ERR_MSG_TABLE[] = {
-    "no error",
-    "invalid argument",
-    "invalid state",
-    "out of memory",
-    "crypto error"
-};
-
+static const char *_ERR_MSG_TABLE[] = { "no error", "invalid argument", "invalid state", "out of memory", "crypto error" };
 
 ////////////////////////////////////////////////////////////////////////////////
 const char *cjose_err_message(cjose_errcode code)

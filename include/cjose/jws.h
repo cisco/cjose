@@ -7,7 +7,7 @@
 
 /**
  * \file  jws.h
- * \brief Functions and data structures for interacting with 
+ * \brief Functions and data structures for interacting with
  *        JSON Web Signature (JWS) objects.
  *
  */
@@ -22,13 +22,11 @@
 #include "jwk.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-
-/** 
- * An instance of a JWS object. 
+/**
+ * An instance of a JWS object.
  */
 typedef struct _cjose_jws_int cjose_jws_t;
 
@@ -45,11 +43,7 @@ typedef struct _cjose_jws_int cjose_jws_t;
  * \returns a newly generated JWS with the given plaintext as the payload.
  */
 cjose_jws_t *cjose_jws_sign(
-        const cjose_jwk_t *jwk,
-        cjose_header_t *protected_header,
-        const uint8_t *plaintext,
-        size_t plaintext_len,
-        cjose_err *err);
+    const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
 /**
  * Creates a serialization of the given JWS object.
@@ -60,16 +54,13 @@ cjose_jws_t *cjose_jws_sign(
  * \param jws [in] the JWS object to be serialized.
  * \param ser [out] pointer to a compact serialization of this JWS.  Note
  *        the returned string pointer is owned by the JWS, the caller should
- *        not attempt to free it directly, and note that it will be freed 
+ *        not attempt to free it directly, and note that it will be freed
  *        automatically when the JWS itself is released.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
- * \returns true if the serialization is successfully returned. 
+ * \returns true if the serialization is successfully returned.
  */
-bool cjose_jws_export(
-        cjose_jws_t *jws, 
-        const char **ser,
-        cjose_err *err);
+bool cjose_jws_export(cjose_jws_t *jws, const char **ser, cjose_err *err);
 
 /**
  * Creates a new JWS object from the given JWS compact serialization.
@@ -83,13 +74,10 @@ bool cjose_jws_export(
  *        information in the event of an error.
  * \returns a newly generated JWS object from the given JWS serialization.
  */
-cjose_jws_t *cjose_jws_import(
-        const char *compact,
-        size_t compact_len,
-        cjose_err *err);
+cjose_jws_t *cjose_jws_import(const char *compact, size_t compact_len, cjose_err *err);
 
 /**
- * Verifies the JWS object using the given JWK.  
+ * Verifies the JWS object using the given JWK.
  *
  * \param jws [in] the JWS object to verify.
  * \param jwk [in] the key to use for verification.
@@ -97,10 +85,7 @@ cjose_jws_t *cjose_jws_import(
  *        information in the event of an error.
  * \returns true if verification was sucecssful.
  */
-bool cjose_jws_verify(
-        cjose_jws_t *jws,
-        const cjose_jwk_t *jwk,
-        cjose_err *err);
+bool cjose_jws_verify(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Returns the plaintext data of the JWS payload.
@@ -108,19 +93,15 @@ bool cjose_jws_verify(
  * \param jws [in] the JWS object for which the plaintext is requested.
  * \param plaintext [out] pointer to the plaintext of this JWS.  Note
  *        the returned buffer is owned by the JWS, the caller should
- *        not attempt to free it directly, and note that it will be freed 
+ *        not attempt to free it directly, and note that it will be freed
  *        automatically when the JWS itself is released.
  * \param plaintext_len [out] number of bytes of plaintext in the returned
  *        plaintext buffer.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
- * \returns true if the plaintext is sucessfully returned. 
+ * \returns true if the plaintext is sucessfully returned.
  */
-bool cjose_jws_get_plaintext(
-        const cjose_jws_t *jws,
-        uint8_t **plaintext,
-        size_t *plaintext_len,
-        cjose_err *err);
+bool cjose_jws_get_plaintext(const cjose_jws_t *jws, uint8_t **plaintext, size_t *plaintext_len, cjose_err *err);
 
 /**
  * Returns the protected header of the JWS payload.
@@ -145,4 +126,4 @@ void cjose_jws_release(cjose_jws_t *jws);
 }
 #endif
 
-#endif  // CJOSE_JWS_H
+#endif // CJOSE_JWS_H

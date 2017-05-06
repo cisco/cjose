@@ -28,4 +28,4 @@
 #include "jws.h"
 #include "util.h"
 
-#endif  // CJOSE_CJOSE_H
+#endif // CJOSE_CJOSE_H

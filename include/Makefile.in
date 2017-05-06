@@ -149,6 +149,7 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(includedir)"
 HEADERS = $(nobase_include_HEADERS)
+am__extra_recursive_targets = package-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -386,6 +387,7 @@ uninstall-nobase_includeHEADERS:
 	@list='$(nobase_include_HEADERS)'; test -n "$(includedir)" || list=; \
 	$(am__nobase_strip_setup); files=`$(am__nobase_strip)`; \
 	dir='$(DESTDIR)$(includedir)'; $(am__uninstall_files_from_dir)
+package-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -562,6 +564,10 @@ mostlyclean: mostlyclean-am
 
 mostlyclean-am: mostlyclean-generic mostlyclean-libtool
 
+package: package-am
+
+package-am: package-local
+
 pdf: pdf-am
 
 pdf-am:
@@ -585,8 +591,9 @@ uninstall-am: uninstall-nobase_includeHEADERS
 	install-ps install-ps-am install-strip installcheck \
 	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am uninstall \
-	uninstall-am uninstall-nobase_includeHEADERS
+	mostlyclean-libtool package-am package-local pdf pdf-am ps \
+	ps-am tags tags-am uninstall uninstall-am \
+	uninstall-nobase_includeHEADERS
 
 .PRECIOUS: Makefile
 

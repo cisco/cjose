@@ -16,6 +16,7 @@ Implementation of JOSE for C/C++
 * libtool (>= 2.4)
 * Check (>= 0.9.4) - unit testing (e.g. check-devel)
 * Doxygen (>= 1.8) - documentation
+* clang-format (= 3.9.0)
 
 ### Libraries ###
 
@@ -86,3 +87,10 @@ This has been seen on Mac OSX 10.9 when openssl 1.0.1h or newer has been install
 This has been seen on Mac OSX 10.9 when Jansson has been installed via brew.  A solution is to explicitly include the jansson directory in the configure command:
 
     ./configure --with-jansson=/usr/local/opt/jansson
+
+## Contributing ##
+
+### Before Submitting PR ###
+
+* Run `make clang-format`
+* Run `make test`

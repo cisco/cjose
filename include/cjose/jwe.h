@@ -7,7 +7,7 @@
 
 /**
  * \file  jwe.h
- * \brief Functions and data structures for interacting with 
+ * \brief Functions and data structures for interacting with
  *        JSON Web Encryption (JWE) objects.
  *
  */
@@ -23,21 +23,18 @@
 #include "jwk.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-
-/** 
- * An instance of a JWE object. 
+/**
+ * An instance of a JWE object.
  */
 typedef struct _cjose_jwe_int cjose_jwe_t;
-
 
 /**
  * Creates a new JWE by encrypting the given plaintext within the given header
  * and JWK.
- * 
+ *
  * If the header provided indicates an algorithm requiring an asymmetric key
  * (e.g. RSA-OAEP), the provided JWK must be asymmetric (e.g. RSA or EC).
  *
@@ -53,12 +50,7 @@ typedef struct _cjose_jwe_int cjose_jwe_t;
  * \returns a newly generated JWE with the given plaintext as the payload.
  */
 cjose_jwe_t *cjose_jwe_encrypt(
-        const cjose_jwk_t *jwk,
-        cjose_header_t *protected_header,
-        const uint8_t *plaintext,
-        size_t plaintext_len,
-        cjose_err *err);
-
+    const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
 /**
  * Creates a serialization of the given JWE object.
@@ -74,9 +66,7 @@ cjose_jwe_t *cjose_jwe_encrypt(
  *        must free it directly when no longer needed, or the memory will be
  *        leaked.
  */
-char *cjose_jwe_export(
-        cjose_jwe_t *jwe,
-        cjose_err *err);
+char *cjose_jwe_export(cjose_jwe_t *jwe, cjose_err *err);
 
 /**
  * Creates a new JWE object from the given JWE compact serialization.
@@ -90,13 +80,10 @@ char *cjose_jwe_export(
  *        information in the event of an error.
  * \returns a newly generated JWE object from the given JWE serialization.
  */
-cjose_jwe_t *cjose_jwe_import(
-        const char *compact,
-        size_t compact_len,
-        cjose_err *err);
+cjose_jwe_t *cjose_jwe_import(const char *compact, size_t compact_len, cjose_err *err);
 
 /**
- * Decrypts the JWE object using the given JWK.  Returns the plaintext data of 
+ * Decrypts the JWE object using the given JWK.  Returns the plaintext data of
  * the JWE payload.
  *
  * \param jwe [in] the JWE object to decrypt.
@@ -108,12 +95,7 @@ cjose_jwe_t *cjose_jwe_import(
  *        this buffer when no longer in use.  Failure to do so will result in
  *        a memory leak.
  */
-uint8_t *cjose_jwe_decrypt(
-        cjose_jwe_t *jwe,
-        const cjose_jwk_t *jwk,
-        size_t *content_len,
-        cjose_err *err);
-
+uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *content_len, cjose_err *err);
 
 /**
  * Returns the protected header of the JWE object.
@@ -138,4 +120,4 @@ void cjose_jwe_release(cjose_jwe_t *jwe);
 }
 #endif
 
-#endif  // CJOSE_JWE_H
+#endif // CJOSE_JWE_H
