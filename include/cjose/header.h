@@ -136,6 +136,10 @@ bool cjose_header_set(cjose_header_t *header, const char *attr, const char *valu
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  * \returns a string containing the current value for the requested attribute.
+ * The value returned is a null terminated UTF-8 encoded string, or NULL if corresponding
+ * string header was not found. The retuned value is read-only and must not be modified
+ * or freed by the user. It is valid as long as the corresponding cjose_header_t object
+ * is not released.
  */
 const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err *err);
 
