@@ -72,7 +72,7 @@ static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
 {
     // make sure we have an alg header
     json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
-    if (NULL == alg_obj)
+    if ((NULL == alg_obj) || (!json_is_string(alg_obj)))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;

@@ -1,5 +1,20 @@
 # Release Notes #
 
+<a name="0.5.0"></a>
+## [0.5.0](https://github.com/cisco/cjose/0.4.1..0.5.0) (2017-05-05)
+
+### Update
+
+* Unexpected release of JWS resources on failure but not success ([ed3cb39cf2fdaf401fbba9b93fd44e6a50b97f62](https://github.com/cisco/cjose/commit/ed3cb39cf2fdaf401fbba9b93fd44e6a50b97f62))
+
+### Fix
+
+* Bad casting of pointers ([5b7ac9a6dfd08aead145dcef7a46bbc52ffb68de](https://github.com/cisco/cjose/commit/5b7ac9a6dfd08aead145dcef7a46bbc52ffb68de))
+
+### Build
+* Support for clang-format ([7d0f5566dff5258f4babb1e843715fcec3b03cbe](https://github.com/cisco/cjose/commit/7d0f5566dff5258f4babb1e843715fcec3b03cbe))
+* Improve alloc/realloc/dealloc tests ([f02e19c99de9e7b2621c56f6a88cb2b9eb91e954](https://github.com/cisco/cjose/commit/f02e19c99de9e7b2621c56f6a88cb2b9eb91e954))
+
 <a name="0.4.1"></a>
 ## [0.4.1](https://github.com/cisco/cjose/0.4.0..0.4.1) (2016-08-04)
 
