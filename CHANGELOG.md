@@ -1,6 +1,14 @@
 # Release Notes #
 
 <a name="0.5.0"></a>
+## [0.5.1](https://github.com/cisco/cjose/0.5.0..0.5.1) (2017-05-24)
+
+### Fix
+
+* Crash on non string "alg" ([b5daeb66ad603d40da8c7250d9121ef4cc8060c2](https://github.com/cisco/cjose/commit/b5daeb66ad603d40da8c7250d9121ef4cc8060c2))
+
+
+<a name="0.5.0"></a>
 ## [0.5.0](https://github.com/cisco/cjose/0.4.1..0.5.0) (2017-05-05)
 
 ### Update
