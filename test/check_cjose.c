@@ -23,6 +23,9 @@ int main()
 
     // setup suites
     SRunner *runner = srunner_create(cjose_suite());
+
+    srunner_set_fork_status (runner, CK_NOFORK);
+
     srunner_add_suite(runner, cjose_version_suite());
     srunner_add_suite(runner, cjose_util_suite());
     srunner_add_suite(runner, cjose_base64_suite());

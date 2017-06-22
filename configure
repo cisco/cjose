@@ -14698,8 +14698,8 @@ $as_echo "no" >&6; }
 fi
 
 pkg_failed=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for check >= 0.9.4" >&5
-$as_echo_n "checking for check >= 0.9.4... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CHECK" >&5
+$as_echo_n "checking for CHECK... " >&6; }
 
 if test -n "$CHECK_CFLAGS"; then
     pkg_cv_CHECK_CFLAGS="$CHECK_CFLAGS"
@@ -14739,7 +14739,7 @@ fi
 
 
 if test $pkg_failed = yes; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+   	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
@@ -14760,7 +14760,7 @@ $as_echo "$as_me: WARNING: Check not found; cannot run unit tests!" >&2;};
             have_check="no"
 
 elif test $pkg_failed = untried; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 	   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Check not found; cannot run unit tests!" >&5
 $as_echo "$as_me: WARNING: Check not found; cannot run unit tests!" >&2;};

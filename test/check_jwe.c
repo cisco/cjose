@@ -131,9 +131,9 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
 
     // deserialize the compact representation to a new JWE
     cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
-    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed: "
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed for algo %s, method %s: "
                                 "%s, file: %s, function: %s, line: %ld",
-                  err.message, err.file, err.function, err.line);
+                  alg, enc, err.message, err.file, err.function, err.line);
 
     // get the decrypted plaintext
     uint8_t *plain2 = NULL;

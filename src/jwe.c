@@ -25,25 +25,25 @@
 #include "include/util_int.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_set_cek_a256gcm(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_set_cek_aes_cbc(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_dir(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_encrypt_ek_dir(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_dir(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_decrypt_ek_dir(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_encrypt_ek_aes_kw(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_decrypt_ek_aes_kw(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_rsa_oaep(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_encrypt_ek_rsa_oaep(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_rsa_oaep(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_decrypt_ek_rsa_oaep(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_rsa1_5(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_encrypt_ek_rsa1_5(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_rsa1_5(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jwe_decrypt_ek_rsa1_5(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jwe_set_iv_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
 
@@ -56,6 +56,21 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
 static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
 
 static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err);
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_empty_json(json_t * arg) {
+
+    return (NULL == arg || json_is_null(arg) || (json_is_object(arg) && NULL == json_object_iter_key(arg)));
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static void _cjose_dealloc_part(struct _cjose_jwe_part_int * part) {
+
+    cjose_get_dealloc()(part->raw);
+    cjose_get_dealloc()(part->b64u);
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose_err *err)
@@ -106,59 +121,77 @@ static bool _cjose_jwe_build_hdr(cjose_jwe_t *jwe, cjose_header_t *header, cjose
         return false;
     }
 
-    jwe->part[0].raw = data;
-    jwe->part[0].raw_len = len;
+    jwe->enc_header.raw = data;
+    jwe->enc_header.raw_len = len;
     cjose_get_dealloc()(hdr_str);
 
     return true;
 }
 
+static const char * _cjose_jwe_get_from_headers(cjose_header_t *protected_header,
+        cjose_header_t * unprotected_header, cjose_header_t * personal_header, const char * key) {
+
+    // TODO: https://github.com/cisco/cjose/issues/52
+    cjose_header_t * headers[] = { personal_header, unprotected_header, protected_header };
+
+    for (int i=0; i<3; i++) {
+        if (NULL == headers[i]) { continue; }
+        json_t * obj = json_object_get((json_t*)headers[i], key);
+        if (NULL == obj) { continue; }
+        const char * value = json_string_value(obj);
+        if (NULL == value) { continue; }
+        return value;
+    }
+
+    return NULL;
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *header, cjose_err *err)
+static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *protected_header,
+        cjose_header_t * unprotected_header, struct _cjose_jwe_recipient * recipient, cjose_err *err)
 {
     // make sure we have an alg header
-    json_t *alg_obj = json_object_get((json_t *)header, CJOSE_HDR_ALG);
-    if (NULL == alg_obj)
-    {
+    const char *alg = _cjose_jwe_get_from_headers(protected_header, unprotected_header,
+            (cjose_header_t*)recipient->unprotected, CJOSE_HDR_ALG);
+    if (NULL == alg) {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
-    const char *alg = json_string_value(alg_obj);
 
-    // make sure we have an enc header
-    json_t *enc_obj = json_object_get((json_t *)header, CJOSE_HDR_ENC);
-    if (NULL == enc_obj)
+    const char * enc = _cjose_jwe_get_from_headers(protected_header, unprotected_header,
+            (cjose_header_t*)recipient->unprotected, CJOSE_HDR_ENC);
+    if (NULL == enc)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
-    const char *enc = json_string_value(enc_obj);
 
     // set JWE build functions based on header contents
     if (strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP) == 0)
     {
-        jwe->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep;
-        jwe->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep;
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep;
     }
     if (strcmp(alg, CJOSE_HDR_ALG_RSA1_5) == 0)
     {
-        jwe->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa1_5;
-        jwe->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa1_5;
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa1_5;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa1_5;
     }
     if (strcmp(alg, CJOSE_HDR_ALG_DIR) == 0)
     {
-        jwe->fns.encrypt_ek = _cjose_jwe_encrypt_ek_dir;
-        jwe->fns.decrypt_ek = _cjose_jwe_decrypt_ek_dir;
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_dir;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_dir;
     }
     if ((strcmp(alg, CJOSE_HDR_ALG_A128KW) == 0) || (strcmp(alg, CJOSE_HDR_ALG_A192KW) == 0)
         || (strcmp(alg, CJOSE_HDR_ALG_A256KW) == 0))
     {
-        jwe->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_kw;
-        jwe->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_kw;
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_kw;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_kw;
     }
     if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
     {
-        jwe->fns.set_cek = _cjose_jwe_set_cek_a256gcm;
+        recipient->fns.set_cek = _cjose_jwe_set_cek_a256gcm;
         jwe->fns.set_iv = _cjose_jwe_set_iv_a256gcm;
         jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_a256gcm;
         jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_a256gcm;
@@ -166,15 +199,15 @@ static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *header, cj
     if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         || (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0))
     {
-        jwe->fns.set_cek = _cjose_jwe_set_cek_aes_cbc;
+        recipient->fns.set_cek = _cjose_jwe_set_cek_aes_cbc;
         jwe->fns.set_iv = _cjose_jwe_set_iv_aes_cbc;
         jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_aes_cbc;
         jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_aes_cbc;
     }
 
     // ensure required builders have been assigned
-    if (NULL == jwe->fns.set_cek || NULL == jwe->fns.encrypt_ek || NULL == jwe->fns.decrypt_ek || NULL == jwe->fns.set_iv
-        || NULL == jwe->fns.encrypt_dat || NULL == jwe->fns.decrypt_dat)
+    if (NULL == recipient->fns.set_cek || NULL == recipient->fns.encrypt_ek || NULL == recipient->fns.decrypt_ek
+        || NULL == jwe->fns.set_iv || NULL == jwe->fns.encrypt_dat || NULL == jwe->fns.decrypt_dat)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -184,7 +217,7 @@ static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *header, cj
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_set_cek_a256gcm(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     // 256 bits = 32 bytes
     static const size_t keysize = 32;
@@ -222,7 +255,7 @@ static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *dummy_set_to_null_for_random, cjose_err *err)
+static bool _cjose_jwe_set_cek_aes_cbc(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *dummy_set_to_null_for_random, cjose_err *err)
 {
     // make sure we have an enc header
     json_t *enc_obj = json_object_get(jwe->hdr, CJOSE_HDR_ENC);
@@ -252,31 +285,31 @@ static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *dumm
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_dir(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_dir(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     // for direct encryption, JWE sec 5.1, step 6: let CEK be the symmetric key.
-    if (!jwe->fns.set_cek(jwe, jwk, err))
+    if (!recipient->fns.set_cek(recipient, jwe, jwk, err))
     {
         return false;
     }
 
     // for direct encryption, JWE sec 5.1, step 5: let EK be empty octet seq.
-    jwe->part[1].raw = NULL;
-    jwe->part[1].raw_len = 0;
+    recipient->enc_key.raw = NULL;
+    recipient->enc_key.raw_len = 0;
 
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_dir(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_dir(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     // do not try and decrypt the ek. that's impossible.
     // instead... only try to realize the truth.  there is no ek.
-    return _cjose_jwe_set_cek_a256gcm(jwe, jwk, err);
+    return _cjose_jwe_set_cek_a256gcm(recipient, jwe, jwk, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_aes_kw(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jwe || NULL == jwk)
     {
@@ -292,7 +325,7 @@ static bool _cjose_jwe_encrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jw
     }
 
     // generate random CEK
-    if (!jwe->fns.set_cek(jwe, NULL, err))
+    if (!recipient->fns.set_cek(recipient, jwe, NULL, err))
     {
         return false;
     }
@@ -306,25 +339,25 @@ static bool _cjose_jwe_encrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jw
     }
 
     // allocate buffer for encrypted CEK (=cek_len + 8)
-    if (!_cjose_jwe_malloc(jwe->cek_len + 8, false, &jwe->part[1].raw, err))
+    if (!_cjose_jwe_malloc(jwe->cek_len + 8, false, &recipient->enc_key.raw, err))
     {
         return false;
     }
 
     // AES wrap the CEK
-    int len = AES_wrap_key(&akey, NULL, jwe->part[1].raw, jwe->cek, jwe->cek_len);
+    int len = AES_wrap_key(&akey, NULL, recipient->enc_key.raw, jwe->cek, jwe->cek_len);
     if (len <= 0)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
-    jwe->part[1].raw_len = len;
+    recipient->enc_key.raw_len = len;
 
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_aes_kw(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jwe || NULL == jwk)
     {
@@ -348,14 +381,14 @@ static bool _cjose_jwe_decrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jw
     }
 
     // generate empty CEK so the the right amount of memory is allocated (abuse JWK parameter to empty)
-    if (!jwe->fns.set_cek(jwe, (const cjose_jwk_t *)1, err))
+    if (!recipient->fns.set_cek(recipient, jwe, (const cjose_jwk_t *)1, err))
     {
         return false;
     }
 
     // AES unwrap the CEK in to jwe->cek
-    int len = AES_unwrap_key(&akey, (const unsigned char *)NULL, jwe->cek, (const unsigned char *)jwe->part[1].raw,
-                             jwe->part[1].raw_len);
+    int len = AES_unwrap_key(&akey, (const unsigned char *)NULL, jwe->cek, (const unsigned char *)recipient->enc_key.raw,
+                             recipient->enc_key.raw_len);
     if (len <= 0)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -367,7 +400,7 @@ static bool _cjose_jwe_decrypt_ek_aes_kw(cjose_jwe_t *jwe, const cjose_jwk_t *jw
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_rsa_padding(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
 {
     // jwk must be RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA || NULL == jwk->keydata)
@@ -386,30 +419,30 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_
     }
 
     // generate random cek
-    if (!jwe->fns.set_cek(jwe, NULL, err))
+    if (!recipient->fns.set_cek(recipient, jwe, NULL, err))
     {
         return false;
     }
 
     // the size of the ek will match the size of the RSA key
-    jwe->part[1].raw_len = RSA_size((RSA *)jwk->keydata);
+    recipient->enc_key.raw_len = RSA_size((RSA *)jwk->keydata);
 
     // for OAEP padding - the RSA size - 41 must be greater than input
-    if (jwe->cek_len >= jwe->part[1].raw_len - 41)
+    if (jwe->cek_len >= recipient->enc_key.raw_len - 41)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
     // allocate memory for RSA encryption
-    cjose_get_dealloc()(jwe->part[1].raw);
-    if (!_cjose_jwe_malloc(jwe->part[1].raw_len, false, &jwe->part[1].raw, err))
+    cjose_get_dealloc()(recipient->enc_key.raw);
+    if (!_cjose_jwe_malloc(recipient->enc_key.raw_len, false, &recipient->enc_key.raw, err))
     {
         return false;
     }
 
     // encrypt the CEK using RSA v1.5 or OAEP padding
-    if (RSA_public_encrypt(jwe->cek_len, jwe->cek, jwe->part[1].raw, (RSA *)jwk->keydata, padding) != jwe->part[1].raw_len)
+    if (RSA_public_encrypt(jwe->cek_len, jwe->cek, recipient->enc_key.raw, (RSA *)jwk->keydata, padding) != recipient->enc_key.raw_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
@@ -419,7 +452,7 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_rsa_padding(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
 {
     if (NULL == jwe || NULL == jwk)
     {
@@ -443,7 +476,7 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_
     }
 
     // decrypt the CEK using RSA v1.5 or OAEP padding
-    jwe->cek_len = RSA_private_decrypt(jwe->part[1].raw_len, jwe->part[1].raw, jwe->cek, (RSA *)jwk->keydata, padding);
+    jwe->cek_len = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, jwe->cek, (RSA *)jwk->keydata, padding);
     if (-1 == jwe->cek_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -454,36 +487,36 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(cjose_jwe_t *jwe, const cjose_jwk_
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_rsa_oaep(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_rsa_oaep(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_encrypt_ek_rsa_padding(jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_rsa_oaep(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_rsa_oaep(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_decrypt_ek_rsa_padding(jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_rsa1_5(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_rsa1_5(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_encrypt_ek_rsa_padding(jwe, jwk, RSA_PKCS1_PADDING, err);
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_rsa1_5(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_rsa1_5(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_decrypt_ek_rsa_padding(jwe, jwk, RSA_PKCS1_PADDING, err);
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_set_iv_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
 {
     // generate IV as random 96 bit value
-    cjose_get_dealloc()(jwe->part[2].raw);
-    jwe->part[2].raw_len = 12;
-    if (!_cjose_jwe_malloc(jwe->part[2].raw_len, true, &jwe->part[2].raw, err))
+    cjose_get_dealloc()(jwe->enc_iv.raw);
+    jwe->enc_iv.raw_len = 12;
+    if (!_cjose_jwe_malloc(jwe->enc_iv.raw_len, true, &jwe->enc_iv.raw, err))
     {
         return false;
     }
@@ -503,24 +536,24 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
     const char *enc = json_string_value(enc_obj);
 
-    cjose_get_dealloc()(jwe->part[2].raw);
-    jwe->part[2].raw_len = 0;
+    cjose_get_dealloc()(jwe->enc_iv.raw);
+    jwe->enc_iv.raw_len = 0;
 
     if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
-        jwe->part[2].raw_len = 16;
+        jwe->enc_iv.raw_len = 16;
     if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
-        jwe->part[2].raw_len = 24;
+        jwe->enc_iv.raw_len = 24;
     if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
-        jwe->part[2].raw_len = 32;
+        jwe->enc_iv.raw_len = 32;
 
-    if (jwe->part[2].raw_len == 0)
+    if (jwe->enc_iv.raw_len == 0)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
     // generate IV as random iv_size * 8 bit value
-    if (!_cjose_jwe_malloc(jwe->part[2].raw_len, true, &jwe->part[2].raw, err))
+    if (!_cjose_jwe_malloc(jwe->enc_iv.raw_len, true, &jwe->enc_iv.raw, err))
     {
         return false;
     }
@@ -565,43 +598,43 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plai
     EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for encryption using A256GCM cipher and CEK and IV
-    if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->part[2].raw) != 1)
+    if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
     // we need the header in base64url encoding as input for encryption
-    if ((NULL == jwe->part[0].b64u) && (!cjose_base64url_encode((const uint8_t *)jwe->part[0].raw, jwe->part[0].raw_len,
-                                                                &jwe->part[0].b64u, &jwe->part[0].b64u_len, err)))
+    if ((NULL == jwe->enc_header.b64u) && (!cjose_base64url_encode((const uint8_t *)jwe->enc_header.raw, jwe->enc_header.raw_len,
+                                                                &jwe->enc_header.b64u, &jwe->enc_header.b64u_len, err)))
     {
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
     // set GCM mode AAD data (hdr_b64u) by setting "out" to NULL
     int bytes_encrypted = 0;
-    if (EVP_EncryptUpdate(ctx, NULL, &bytes_encrypted, (unsigned char *)jwe->part[0].b64u, jwe->part[0].b64u_len) != 1
-        || bytes_encrypted != jwe->part[0].b64u_len)
+    if (EVP_EncryptUpdate(ctx, NULL, &bytes_encrypted, (unsigned char *)jwe->enc_header.b64u, jwe->enc_header.b64u_len) != 1
+        || bytes_encrypted != jwe->enc_header.b64u_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
     // allocate buffer for the ciphertext
-    cjose_get_dealloc()(jwe->part[3].raw);
-    jwe->part[3].raw_len = plaintext_len;
-    if (!_cjose_jwe_malloc(jwe->part[3].raw_len, false, &jwe->part[3].raw, err))
+    cjose_get_dealloc()(jwe->enc_ct.raw);
+    jwe->enc_ct.raw_len = plaintext_len;
+    if (!_cjose_jwe_malloc(jwe->enc_ct.raw_len, false, &jwe->enc_ct.raw, err))
     {
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
     // encrypt entire plaintext to ciphertext buffer
-    if (EVP_EncryptUpdate(ctx, jwe->part[3].raw, &bytes_encrypted, plaintext, plaintext_len) != 1)
+    if (EVP_EncryptUpdate(ctx, jwe->enc_ct.raw, &bytes_encrypted, plaintext, plaintext_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
     }
-    jwe->part[3].raw_len = bytes_encrypted;
+    jwe->enc_ct.raw_len = bytes_encrypted;
 
     // finalize the encryption and set the ciphertext length to correct value
     if (EVP_EncryptFinal_ex(ctx, NULL, &bytes_encrypted) != 1)
@@ -611,15 +644,15 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plai
     }
 
     // allocate buffer for the authentication tag
-    cjose_get_dealloc()(jwe->part[4].raw);
-    jwe->part[4].raw_len = 16;
-    if (!_cjose_jwe_malloc(jwe->part[4].raw_len, false, &jwe->part[4].raw, err))
+    cjose_get_dealloc()(jwe->enc_auth_tag.raw);
+    jwe->enc_auth_tag.raw_len = 16;
+    if (!_cjose_jwe_malloc(jwe->enc_auth_tag.raw_len, false, &jwe->enc_auth_tag.raw, err))
     {
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
     // get the GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_GET_TAG, jwe->part[4].raw_len, jwe->part[4].raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_GET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
@@ -672,10 +705,10 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
     // 4 = authentication tag
 
     // Additional Authentication Data length (base64encoded header) in # of bits in 64 bit length field
-    uint64_t al = jwe->part[0].b64u_len * 8;
+    uint64_t al = jwe->enc_header.b64u_len * 8;
 
     // concatenate AAD + IV + ciphertext + AAD length field
-    int msg_len = jwe->part[0].b64u_len + jwe->part[2].raw_len + jwe->part[3].raw_len + sizeof(uint64_t);
+    int msg_len = jwe->enc_header.b64u_len + jwe->enc_iv.raw_len + jwe->enc_ct.raw_len + sizeof(uint64_t);
     if (!_cjose_jwe_malloc(msg_len, false, &msg, err))
     {
         goto _cjose_jwe_calc_auth_tag_end;
@@ -683,12 +716,12 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
 
     // construct AAD + IV + ciphertext + AAD input
     uint8_t *p = msg;
-    memcpy(p, jwe->part[0].b64u, jwe->part[0].b64u_len);
-    p += jwe->part[0].b64u_len;
-    memcpy(p, jwe->part[2].raw, jwe->part[2].raw_len);
-    p += jwe->part[2].raw_len;
-    memcpy(p, jwe->part[3].raw, jwe->part[3].raw_len);
-    p += jwe->part[3].raw_len;
+    memcpy(p, jwe->enc_header.b64u, jwe->enc_header.b64u_len);
+    p += jwe->enc_header.b64u_len;
+    memcpy(p, jwe->enc_iv.raw, jwe->enc_iv.raw_len);
+    p += jwe->enc_iv.raw_len;
+    memcpy(p, jwe->enc_ct.raw, jwe->enc_ct.raw_len);
+    p += jwe->enc_ct.raw_len;
 
     // check if we are on a big endian or little endian machine
     int c = 1;
@@ -759,43 +792,43 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
     EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
-    if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->part[2].raw) != 1)
+    if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
     // we need the header in base64url encoding as input for encryption
-    if ((NULL == jwe->part[0].b64u) && (!cjose_base64url_encode((const uint8_t *)jwe->part[0].raw, jwe->part[0].raw_len,
-                                                                &jwe->part[0].b64u, &jwe->part[0].b64u_len, err)))
+    if ((NULL == jwe->enc_header.b64u) && (!cjose_base64url_encode((const uint8_t *)jwe->enc_header.raw, jwe->enc_header.raw_len,
+                                                                &jwe->enc_header.b64u, &jwe->enc_header.b64u_len, err)))
     {
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
     // allocate buffer for the ciphertext (plaintext + block size)
-    cjose_get_dealloc()(jwe->part[3].raw);
-    jwe->part[3].raw_len = plaintext_len + EVP_CIPHER_block_size(cipher);
-    if (!_cjose_jwe_malloc(jwe->part[3].raw_len, false, &jwe->part[3].raw, err))
+    cjose_get_dealloc()(jwe->enc_ct.raw);
+    jwe->enc_ct.raw_len = plaintext_len + EVP_CIPHER_block_size(cipher);
+    if (!_cjose_jwe_malloc(jwe->enc_ct.raw_len, false, &jwe->enc_ct.raw, err))
     {
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
     // encrypt entire plaintext to ciphertext buffer
     int bytes_encrypted = 0;
-    if (EVP_EncryptUpdate(ctx, jwe->part[3].raw, &bytes_encrypted, plaintext, plaintext_len) != 1)
+    if (EVP_EncryptUpdate(ctx, jwe->enc_ct.raw, &bytes_encrypted, plaintext, plaintext_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
-    jwe->part[3].raw_len = bytes_encrypted;
+    jwe->enc_ct.raw_len = bytes_encrypted;
 
     // finalize the encryption and set the ciphertext length to correct value
-    if (EVP_EncryptFinal_ex(ctx, jwe->part[3].raw + bytes_encrypted, &bytes_encrypted) != 1)
+    if (EVP_EncryptFinal_ex(ctx, jwe->enc_ct.raw + bytes_encrypted, &bytes_encrypted) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
-    jwe->part[3].raw_len += bytes_encrypted;
+    jwe->enc_ct.raw_len += bytes_encrypted;
 
     // calculate Authentication Tag
     unsigned int tag_len = 0;
@@ -806,14 +839,14 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
     }
 
     // allocate buffer for the authentication tag
-    cjose_get_dealloc()(jwe->part[4].raw);
-    jwe->part[4].raw_len = tag_len;
-    if (!_cjose_jwe_malloc(jwe->part[4].raw_len, false, &jwe->part[4].raw, err))
+    cjose_get_dealloc()(jwe->enc_auth_tag.raw);
+    jwe->enc_auth_tag.raw_len = tag_len;
+    if (!_cjose_jwe_malloc(jwe->enc_auth_tag.raw_len, false, &jwe->enc_auth_tag.raw, err))
     {
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
-    memcpy(jwe->part[4].raw, tag, tag_len);
+    memcpy(jwe->enc_auth_tag.raw, tag, tag_len);
 
     EVP_CIPHER_CTX_free(ctx);
 
@@ -850,14 +883,14 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
     EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using A256GCM cipher and CEK and IV
-    if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->part[2].raw) != 1)
+    if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
     }
 
     // set the expected GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->part[4].raw_len, jwe->part[4].raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
@@ -865,8 +898,8 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
 
     // set GCM mode AAD data (hdr_b64u) by setting "out" to NULL
     int bytes_decrypted = 0;
-    if (EVP_DecryptUpdate(ctx, NULL, &bytes_decrypted, (unsigned char *)jwe->part[0].b64u, jwe->part[0].b64u_len) != 1
-        || bytes_decrypted != jwe->part[0].b64u_len)
+    if (EVP_DecryptUpdate(ctx, NULL, &bytes_decrypted, (unsigned char *)jwe->enc_header.b64u, jwe->enc_header.b64u_len) != 1
+        || bytes_decrypted != jwe->enc_header.b64u_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
@@ -874,14 +907,14 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
 
     // allocate buffer for the plaintext
     cjose_get_dealloc()(jwe->dat);
-    jwe->dat_len = jwe->part[3].raw_len;
+    jwe->dat_len = jwe->enc_ct.raw_len;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
     }
 
     // decrypt ciphertext to plaintext buffer
-    if (EVP_DecryptUpdate(ctx, jwe->dat, &bytes_decrypted, jwe->part[3].raw, jwe->part[3].raw_len) != 1)
+    if (EVP_DecryptUpdate(ctx, jwe->dat, &bytes_decrypted, jwe->enc_ct.raw, jwe->enc_ct.raw_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
@@ -927,7 +960,7 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // compare the provided Authentication Tag against our calculation
-    if ((tag_len != jwe->part[4].raw_len) || (cjose_const_memcmp(tag, jwe->part[4].raw, tag_len) != 0))
+    if ((tag_len != jwe->enc_auth_tag.raw_len) || (cjose_const_memcmp(tag, jwe->enc_auth_tag.raw, tag_len) != 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
@@ -966,14 +999,14 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
-    if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->part[2].raw) != 1)
+    if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
     }
 
     // allocate buffer for the plaintext + one block padding
-    int p_len = jwe->part[3].raw_len, f_len = 0;
+    int p_len = jwe->enc_ct.raw_len, f_len = 0;
     cjose_get_dealloc()(jwe->dat);
     jwe->dat_len = p_len + AES_BLOCK_SIZE;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
@@ -982,7 +1015,7 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // decrypt ciphertext to plaintext buffer
-    if (EVP_DecryptUpdate(ctx, jwe->dat, &p_len, jwe->part[3].raw, jwe->part[3].raw_len) != 1)
+    if (EVP_DecryptUpdate(ctx, jwe->dat, &p_len, jwe->enc_ct.raw, jwe->enc_ct.raw_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
@@ -1010,25 +1043,26 @@ _cjose_jwe_decrypt_dat_aes_cbc_fail:
 
 ////////////////////////////////////////////////////////////////////////////////
 cjose_jwe_t *cjose_jwe_encrypt(
-    const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
+        const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err) {
+
+    cjose_header_t * unprotected_header[1] = { NULL };
+
+    return cjose_jwe_encrypt_full(&jwk, unprotected_header, 1, protected_header, NULL, plaintext, plaintext_len, err);
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+cjose_jwe_t *cjose_jwe_encrypt_full(
+        const cjose_jwk_t **jwk, cjose_header_t ** unprotected_header, size_t jwk_len,
+        cjose_header_t *protected_header, cjose_header_t *shared_unprotected_header,
+        const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
     cjose_jwe_t *jwe = NULL;
 
-    if (NULL == jwk || NULL == protected_header)
+    if (NULL == jwk || NULL == protected_header || NULL == unprotected_header || jwk_len < 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
-    }
-
-    // if not already set, add kid header to JWE to match that of JWK
-    const char *kid = cjose_jwk_get_kid(jwk, err);
-    if (NULL != kid)
-    {
-        if (!cjose_header_set(protected_header, CJOSE_HDR_KID, kid, err))
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
-            return false;
-        }
     }
 
     // allocate and initialize a new JWE object
@@ -1037,11 +1071,27 @@ cjose_jwe_t *cjose_jwe_encrypt(
         return NULL;
     }
 
-    // validate JWE header
-    if (!_cjose_jwe_validate_hdr(jwe, protected_header, err))
-    {
+    jwe->to_count = jwk_len;
+    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient) * jwk_len, false, (uint8_t**)&jwe->to, err)) {
         cjose_jwe_release(jwe);
         return NULL;
+    }
+
+    // validate JWE header
+    for (size_t i = 0; i<jwk_len; i++) {
+
+        if (NULL == jwk[i]) {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+
+        jwe->to[i].unprotected = json_incref(unprotected_header[i]);
+        if (!_cjose_jwe_validate_hdr(jwe, protected_header, shared_unprotected_header, jwe->to + i, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
     }
 
     // build JWE header
@@ -1051,11 +1101,17 @@ cjose_jwe_t *cjose_jwe_encrypt(
         return NULL;
     }
 
-    // build JWE content-encryption key and encrypted key
-    if (!jwe->fns.encrypt_ek(jwe, jwk, err))
-    {
-        cjose_jwe_release(jwe);
-        return NULL;
+    jwe->shared_hdr = json_incref(shared_unprotected_header);
+
+    for (size_t i = 0; i<jwk_len; i++) {
+
+        // build JWE content-encryption key and encrypted key
+        if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, jwk[i], err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+
     }
 
     // build JWE initialization vector
@@ -1082,16 +1138,21 @@ void cjose_jwe_release(cjose_jwe_t *jwe)
     {
         return;
     }
-    if (NULL != jwe->hdr)
+
+    json_decref(jwe->hdr);
+    json_decref(jwe->shared_hdr);
+
+    _cjose_dealloc_part(&jwe->enc_header);
+    _cjose_dealloc_part(&jwe->enc_iv);
+    _cjose_dealloc_part(&jwe->enc_ct);
+    _cjose_dealloc_part(&jwe->enc_auth_tag);
+
+    for (int i = 0; i < jwe->to_count; ++i)
     {
-        json_decref(jwe->hdr);
+        json_decref(jwe->to[i].unprotected);
+        _cjose_dealloc_part(&jwe->to[i].enc_key);
     }
 
-    for (int i = 0; i < 5; ++i)
-    {
-        cjose_get_dealloc()(jwe->part[i].raw);
-        cjose_get_dealloc()(jwe->part[i].b64u);
-    }
     cjose_get_dealloc()(jwe->cek);
     cjose_get_dealloc()(jwe->dat);
     cjose_get_dealloc()(jwe);
@@ -1103,27 +1164,31 @@ char *cjose_jwe_export(cjose_jwe_t *jwe, cjose_err *err)
     char *cser = NULL;
     size_t cser_len = 0;
 
-    if (NULL == jwe)
-    {
+    if (NULL == jwe || jwe->to_count > 1 || !_cjose_empty_json(jwe->shared_hdr) || !_cjose_empty_json(jwe->to[0].unprotected)) {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
     }
 
-    // make sure all parts are b64u encoded
-    for (int i = 0; i < 5; ++i)
-    {
-        if ((NULL == jwe->part[i].b64u) && (!cjose_base64url_encode((const uint8_t *)jwe->part[i].raw, jwe->part[i].raw_len,
-                                                                    &jwe->part[i].b64u, &jwe->part[i].b64u_len, err)))
-        {
-            return NULL;
-        }
-    }
+    struct _cjose_jwe_part_int * parts[] = {
+            &jwe->enc_header,
+            &jwe->to[0].enc_key,
+            &jwe->enc_iv,
+            &jwe->enc_ct,
+            &jwe->enc_auth_tag,
+    };
 
-    // compute length of compact serialization
+    // make sure all parts are b64u encoded
     cser_len = 0;
     for (int i = 0; i < 5; ++i)
     {
-        cser_len += jwe->part[i].b64u_len + 1;
+        if ((NULL == parts[i]->b64u) && (!cjose_base64url_encode((const uint8_t *)parts[i]->raw, parts[i]->raw_len,
+                                                                    &parts[i]->b64u, &parts[i]->b64u_len, err)))
+        {
+            return NULL;
+        }
+
+        cser_len += parts[i]->b64u_len + 1;
+
     }
 
     // allocate buffer for compact serialization
@@ -1133,29 +1198,35 @@ char *cjose_jwe_export(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // build the compact serialization
-    snprintf(cser, cser_len, "%s.%s.%s.%s.%s", jwe->part[0].b64u, jwe->part[1].b64u, jwe->part[2].b64u, jwe->part[3].b64u,
-             jwe->part[4].b64u);
+    snprintf(cser, cser_len, "%s.%s.%s.%s.%s", jwe->enc_header.b64u, jwe->to[0].enc_key.b64u, jwe->enc_iv.b64u, jwe->enc_ct.b64u,
+             jwe->enc_auth_tag.b64u);
 
     return cser;
 }
 
+char *cjose_jwe_export_json(cjose_jwe_t *jwe, cjose_err *err) {
+
+
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-bool _cjose_jwe_import_part(cjose_jwe_t *jwe, size_t p, const char *b64u, size_t b64u_len, cjose_err *err)
+bool _cjose_jwe_import_part(struct _cjose_jwe_part_int * part, bool empty_ok, const char *b64u, size_t b64u_len, cjose_err *err)
 {
     // only the ek and the data parts may be of zero length
-    if (b64u_len == 0 && p != 1 && p != 3)
+    if (b64u_len == 0 && !empty_ok)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
     // copy the b64u part to the jwe
-    jwe->part[p].b64u = _cjose_strndup(b64u, b64u_len, err);
-    jwe->part[p].b64u_len = b64u_len;
+    part->b64u = _cjose_strndup(b64u, b64u_len, err);
+    part->b64u_len = b64u_len;
 
     // b64u decode the part
-    if (!cjose_base64url_decode(jwe->part[p].b64u, jwe->part[p].b64u_len, (uint8_t **)&jwe->part[p].raw, &jwe->part[p].raw_len, err)
-        || NULL == jwe->part[p].raw)
+    if (!cjose_base64url_decode(part->b64u, part->b64u_len, (uint8_t **)&part->raw, &part->raw_len, err)
+        || NULL == part->raw)
     {
         return false;
     }
@@ -1180,19 +1251,34 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
         return NULL;
     }
 
+    jwe->to_count = 1;
+    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient), false, (uint8_t **)&jwe->to, err)) {
+        cjose_jwe_release(jwe);
+        return NULL;
+    }
+
+    struct _cjose_jwe_part_int * parts[] = {
+            &jwe->enc_header,
+            &jwe->to[0].enc_key,
+            &jwe->enc_iv,
+            &jwe->enc_ct,
+            &jwe->enc_auth_tag,
+    };
+
     // import each part of the compact serialization
     int part = 0;
-    int idx = 0;
-    int start_idx = 0;
+    size_t idx = 0;
+    size_t start_idx = 0;
     while (idx <= cser_len && part < 5)
     {
         if ((idx == cser_len) || (cser[idx] == '.'))
         {
-            if (!_cjose_jwe_import_part(jwe, part++, cser + start_idx, idx - start_idx, err))
+            if (!_cjose_jwe_import_part(parts[part], 1 == part || 3 == part, cser + start_idx, idx - start_idx, err))
             {
                 cjose_jwe_release(jwe);
                 return NULL;
             }
+            part++;
             start_idx = idx + 1;
         }
         if (part < 5)
@@ -1216,7 +1302,7 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
     }
 
     // deserialize JSON header
-    jwe->hdr = json_loadb((const char *)jwe->part[0].raw, jwe->part[0].raw_len, 0, NULL);
+    jwe->hdr = json_loadb((const char *)jwe->enc_header.raw, jwe->enc_header.raw_len, 0, NULL);
     if (NULL == jwe->hdr)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1224,8 +1310,8 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
         return NULL;
     }
 
-    // validate the JSON header
-    if (!_cjose_jwe_validate_hdr(jwe, (cjose_header_t *)jwe->hdr, err))
+    // validate the JSON header. No unprotected headers can exist.
+    if (!_cjose_jwe_validate_hdr(jwe, (cjose_header_t *)jwe->hdr, NULL, jwe->to, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         cjose_jwe_release(jwe);
@@ -1238,14 +1324,14 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
 ////////////////////////////////////////////////////////////////////////////////
 uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *content_len, cjose_err *err)
 {
-    if (NULL == jwe || NULL == jwk || NULL == content_len)
+    if (NULL == jwe || NULL == jwk || NULL == content_len || jwe->to_count > 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
     }
 
     // decrypt JWE content-encryption key from encrypted key
-    if (!jwe->fns.decrypt_ek(jwe, jwk, err))
+    if (!jwe->to[0].fns.decrypt_ek(jwe->to, jwe, jwk, err))
     {
         return NULL;
     }
