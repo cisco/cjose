@@ -139,6 +139,8 @@ static inline bool _decode(const char *input, size_t inlen, uint8_t **output, si
         buffer[pos++] = (packed >> 16) & 0xff;
     }
 
+    buffer[pos] = '\0';
+
     *output = buffer;
     *outlen = pos;
     assert(*outlen <= rlen);
