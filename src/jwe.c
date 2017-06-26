@@ -72,6 +72,64 @@ static void _cjose_dealloc_part(struct _cjose_jwe_part_int * part) {
 
 }
 
+static json_t * _cjose_parse_json_object(const char *str, size_t len, cjose_err *err) {
+
+    // unfortunately, it's not possible to tell whether the error is due
+    // to syntax, or memory shortage. See https://github.com/akheron/jansson/issues/352
+
+    json_error_t j_err;
+    json_t * json = json_loadb(str, len, 0, &j_err);
+    if (NULL == json || !json_is_object(json)) {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        json_decref(json);
+        return NULL;
+    }
+
+    return json;
+
+}
+
+static inline bool _cjose_convert_part(struct _cjose_jwe_part_int * part, cjose_err * err)
+{
+
+    if ((NULL == part->b64u) && (!cjose_base64url_encode((const uint8_t *)part->raw, part->raw_len,
+            &part->b64u, &part->b64u_len, err))) {
+
+        return false;
+
+    }
+
+    // dealloc the raw part, we will never need it again
+    cjose_get_dealloc()(part->raw);
+    part->raw = NULL;
+    return true;
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_convert_to_base64(struct _cjose_jwe_int * jwe, cjose_err * err) {
+
+    if (!_cjose_convert_part(&jwe->enc_header, err) ||
+            !_cjose_convert_part(&jwe->enc_iv, err) ||
+            !_cjose_convert_part(&jwe->enc_iv, err) ||
+            !_cjose_convert_part(&jwe->enc_ct, err) ||
+            !_cjose_convert_part(&jwe->enc_auth_tag, err)) {
+
+        return false;
+
+    }
+
+    for (int i=0; i<jwe->to_count; i++) {
+        if (!_cjose_convert_part(&jwe->to[i].enc_key, err)) {
+            return false;
+        }
+    }
+
+    return true;
+
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose_err *err)
 {
@@ -151,6 +209,16 @@ static const char * _cjose_jwe_get_from_headers(cjose_header_t *protected_header
 static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *protected_header,
         cjose_header_t * unprotected_header, struct _cjose_jwe_recipient * recipient, cjose_err *err)
 {
+
+#define _CJOSE_SET_FN(to, fn) do {\
+    if (NULL == (to)) { \
+        (to) = (fn); \
+    } else if ((to) != (fn)) { \
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG); \
+        return false; \
+    } \
+} while(0)
+
     // make sure we have an alg header
     const char *alg = _cjose_jwe_get_from_headers(protected_header, unprotected_header,
             (cjose_header_t*)recipient->unprotected, CJOSE_HDR_ALG);
@@ -192,17 +260,17 @@ static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *protected_
     if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
     {
         recipient->fns.set_cek = _cjose_jwe_set_cek_a256gcm;
-        jwe->fns.set_iv = _cjose_jwe_set_iv_a256gcm;
-        jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_a256gcm;
-        jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_a256gcm;
+        _CJOSE_SET_FN(jwe->fns.set_iv, _cjose_jwe_set_iv_a256gcm);
+        _CJOSE_SET_FN(jwe->fns.encrypt_dat, _cjose_jwe_encrypt_dat_a256gcm);
+        _CJOSE_SET_FN(jwe->fns.decrypt_dat, _cjose_jwe_decrypt_dat_a256gcm);
     }
     if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         || (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0))
     {
         recipient->fns.set_cek = _cjose_jwe_set_cek_aes_cbc;
-        jwe->fns.set_iv = _cjose_jwe_set_iv_aes_cbc;
-        jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_aes_cbc;
-        jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_aes_cbc;
+        _CJOSE_SET_FN(jwe->fns.set_iv, _cjose_jwe_set_iv_aes_cbc);
+        _CJOSE_SET_FN(jwe->fns.encrypt_dat, _cjose_jwe_encrypt_dat_aes_cbc);
+        _CJOSE_SET_FN(jwe->fns.decrypt_dat, _cjose_jwe_decrypt_dat_aes_cbc);
     }
 
     // ensure required builders have been assigned
@@ -212,6 +280,8 @@ static bool _cjose_jwe_validate_hdr(cjose_jwe_t *jwe, cjose_header_t *protected_
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
+
+#undef _CJOSE_SET_FN
 
     return true;
 }
@@ -1169,27 +1239,13 @@ char *cjose_jwe_export(cjose_jwe_t *jwe, cjose_err *err)
         return NULL;
     }
 
-    struct _cjose_jwe_part_int * parts[] = {
-            &jwe->enc_header,
-            &jwe->to[0].enc_key,
-            &jwe->enc_iv,
-            &jwe->enc_ct,
-            &jwe->enc_auth_tag,
-    };
+    if (!_cjose_convert_to_base64(jwe, err)) {
+        return NULL;
+    }
 
     // make sure all parts are b64u encoded
-    cser_len = 0;
-    for (int i = 0; i < 5; ++i)
-    {
-        if ((NULL == parts[i]->b64u) && (!cjose_base64url_encode((const uint8_t *)parts[i]->raw, parts[i]->raw_len,
-                                                                    &parts[i]->b64u, &parts[i]->b64u_len, err)))
-        {
-            return NULL;
-        }
-
-        cser_len += parts[i]->b64u_len + 1;
-
-    }
+    cser_len = jwe->enc_header.b64u_len + jwe->to[0].enc_key.b64u_len +
+            jwe->enc_iv.b64u_len + jwe->enc_ct.b64u_len + jwe->enc_auth_tag.b64u_len + 5;
 
     // allocate buffer for compact serialization
     if (!_cjose_jwe_malloc(cser_len, false, (uint8_t **)&cser, err))
@@ -1204,14 +1260,93 @@ char *cjose_jwe_export(cjose_jwe_t *jwe, cjose_err *err)
     return cser;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+static inline bool _cjose_add_json_part(json_t * obj, const char * key, struct _cjose_jwe_part_int * part, cjose_err * err)
+{
+    json_t * str = json_stringn(part->b64u, part->b64u_len);
+    if (NULL == str) {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return false;
+    }
+    json_object_set_new(obj, key, str);
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 char *cjose_jwe_export_json(cjose_jwe_t *jwe, cjose_err *err) {
 
+    if (!_cjose_convert_to_base64(jwe, err)) {
+        return NULL;
+    }
 
+    json_t * form = json_object();
+    if (NULL == form) {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+
+    if (!_cjose_add_json_part(form, "protected", &jwe->enc_header, err) ||
+            !_cjose_add_json_part(form, "iv", &jwe->enc_iv, err) ||
+            !_cjose_add_json_part(form, "ciphertext", &jwe->enc_ct, err) ||
+            !_cjose_add_json_part(form, "tag", &jwe->enc_auth_tag, err)) {
+        json_delete(form);
+        return NULL;
+    }
+
+    json_object_set(form, "unprotected", jwe->shared_hdr);
+
+    if (jwe->to_count == 1) {
+        json_object_set(form, "header", jwe->to[0].unprotected);
+        if (!_cjose_add_json_part(form, "encrypted_key", &jwe->to[0].enc_key, err)) {
+            json_delete(form);
+            return NULL;
+        }
+    } else {
+
+        json_t * recipients = json_array();
+        if (NULL == recipients) {
+            CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+            json_delete(form);
+            return NULL;
+        }
+
+        json_object_set_new(form, "recipients", recipients);
+
+        for (int i=0; i<jwe->to_count; i++) {
+
+            json_t * recipient = json_object();
+            if (NULL == recipient) {
+                CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+                json_delete(form);
+                return NULL;
+            }
+
+            json_array_append_new(recipients, recipient);
+
+            json_object_set(recipient, "header", jwe->to[i].unprotected);
+            if (!_cjose_add_json_part(form, "encrypted_key", &jwe->to[i].enc_key, err)) {
+                json_delete(form);
+                return NULL;
+            }
+
+        }
+
+    }
+
+    char * json_str = json_dumps(form, 0);
+    if (NULL == json_str) {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        json_delete(form);
+        return NULL;
+    }
+
+    json_delete(form);
+    return json_str;
 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool _cjose_jwe_import_part(struct _cjose_jwe_part_int * part, bool empty_ok, const char *b64u, size_t b64u_len, cjose_err *err)
+static bool _cjose_jwe_import_part(struct _cjose_jwe_part_int * part, bool empty_ok, const char *b64u, size_t b64u_len, cjose_err *err)
 {
     // only the ek and the data parts may be of zero length
     if (b64u_len == 0 && !empty_ok)
@@ -1232,6 +1367,20 @@ bool _cjose_jwe_import_part(struct _cjose_jwe_part_int * part, bool empty_ok, co
     }
 
     return true;
+}
+
+static bool _cjose_jwe_import_json_part(struct _cjose_jwe_part_int * part, bool empty_ok, json_t * json, cjose_err *err) {
+
+    if (NULL == json || !json_is_string(json)) {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const char * str = json_string_value(json);
+    // TODO: if json_is_string() was true, are we guaranteed that str is !NULL?
+
+    return _cjose_jwe_import_part(part, empty_ok, str, strlen(str), err);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1302,10 +1451,9 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
     }
 
     // deserialize JSON header
-    jwe->hdr = json_loadb((const char *)jwe->enc_header.raw, jwe->enc_header.raw_len, 0, NULL);
+    jwe->hdr = _cjose_parse_json_object((const char *) jwe->enc_header.raw, jwe->enc_header.raw_len, err);
     if (NULL == jwe->hdr)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         cjose_jwe_release(jwe);
         return NULL;
     }
@@ -1319,6 +1467,120 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
     }
 
     return jwe;
+}
+
+static inline bool _cjose_read_json_recipient(cjose_jwe_t * jwe, cjose_header_t *protected_header,
+        struct _cjose_jwe_recipient * recipient, json_t * obj, cjose_err * err) {
+
+    if (!json_is_object(obj)) {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (!_cjose_jwe_import_json_part(&recipient->enc_key, true, json_object_get(obj, "encrypted_key"), err)) {
+        return false;
+    };
+
+    recipient->unprotected = json_incref(json_object_get(obj, "header"));
+
+    if (!json_is_object(recipient->unprotected)) {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return _cjose_jwe_validate_hdr(jwe, protected_header, jwe->shared_hdr, recipient, err);
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+cjose_jwe_t *cjose_jwe_import_json(const char *cser, size_t cser_len, cjose_err *err)
+{
+    cjose_jwe_t *jwe = NULL;
+    json_t * form = NULL;
+    json_t * protected_header = NULL;
+
+    if (NULL == cser)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    // allocate and initialize a new JWE object
+    if (!_cjose_jwe_malloc(sizeof(cjose_jwe_t), false, (uint8_t **)&jwe, err))
+    {
+        return NULL;
+    }
+
+    form = _cjose_parse_json_object(cser, cser_len, err);
+    if (NULL == form) {
+        goto _cjose_jwe_import_json_fail;
+    }
+
+    json_t * recipients = json_object_get(form, "recipients");
+    if (NULL != recipients) {
+        if (!json_is_array(recipients)) {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto _cjose_jwe_import_json_fail;
+        }
+        jwe->to_count = json_array_size(recipients);
+        if (jwe->to_count < 1) {
+            // TODO: is empty recipients array allowed?
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto _cjose_jwe_import_json_fail;
+        }
+    } else {
+        jwe->to_count = 1;
+    }
+
+    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient), false, (uint8_t **)&jwe->to, err)) {
+        goto _cjose_jwe_import_json_fail;
+    }
+
+    if (!_cjose_jwe_import_json_part(&jwe->enc_header, false, json_object_get(form, "protected"), err)) {
+        goto _cjose_jwe_import_json_fail;
+    }
+
+    protected_header = _cjose_parse_json_object((const char *) jwe->enc_header.raw, jwe->enc_header.raw_len, err);
+    if (NULL == protected_header) {
+        goto _cjose_jwe_import_json_fail;
+    }
+
+    if (NULL == recipients) {
+
+        if (!_cjose_read_json_recipient(jwe, protected_header, jwe->to, form, err)) {
+            goto _cjose_jwe_import_json_fail;
+        }
+
+    } else {
+
+        for (size_t i=0; i<jwe->to_count; i++) {
+
+            if (!_cjose_read_json_recipient(jwe, protected_header, jwe->to + i, json_array_get(recipients, i), err)) {
+                goto _cjose_jwe_import_json_fail;
+            }
+
+        }
+
+    }
+
+    if (!_cjose_jwe_import_json_part(&jwe->enc_iv, false, json_object_get(form, "iv"), err) || !_cjose_jwe_import_json_part(&jwe->enc_ct, false, json_object_get(form, "ciphertext"), err) ||
+            !_cjose_jwe_import_json_part(&jwe->enc_auth_tag, false, json_object_get(form, "tag"), err)) {
+
+        goto _cjose_jwe_import_json_fail;
+
+    }
+
+    json_decref(form);
+    json_decref(protected_header);
+
+    return jwe;
+
+_cjose_jwe_import_json_fail:
+    json_decref(form);
+    json_decref(protected_header);
+    cjose_jwe_release(jwe);
+    return NULL;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

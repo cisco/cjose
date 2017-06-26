@@ -113,6 +113,20 @@ char *cjose_jwe_export_json(cjose_jwe_t *jwe, cjose_err *err);
 cjose_jwe_t *cjose_jwe_import(const char *compact, size_t compact_len, cjose_err *err);
 
 /**
+ * Creates a new JWE object from the given JWE compact serialization.
+ *
+ * Note the current implementation only recognizes the JWE compact serialization
+ * format.
+ *
+ * \param json [in] a JWE in a JSON serialized form.
+ * \param json_len [in] the length of the serialization.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns a newly generated JWE object from the given JWE JSON serialization.
+ */
+cjose_jwe_t *cjose_jwe_import_json(const char *json, size_t json_len, cjose_err *err);
+
+/**
  * Decrypts the JWE object using the given JWK.  Returns the plaintext data of
  * the JWE payload.
  *
