@@ -26,9 +26,9 @@ struct _cjose_jwe_recipient;
 // functions for building JWE parts
 typedef struct _jwe_rec_fntable_int
 {
-    bool (*encrypt_ek)(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+    bool (*encrypt_ek)(struct _cjose_jwe_recipient *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-    bool (*decrypt_ek)(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+    bool (*decrypt_ek)(struct _cjose_jwe_recipient *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
 } jwe_rec_fntable;
 
@@ -45,18 +45,18 @@ typedef struct _jwe_fntable_int
 
 } jwe_fntable;
 
-struct _cjose_jwe_recipient {
+struct _cjose_jwe_recipient
+{
 
-    json_t * unprotected; /* unprotected headers */
+    json_t *unprotected;                /* unprotected headers */
     struct _cjose_jwe_part_int enc_key; /* encrypted key */
-    jwe_rec_fntable fns; // functions for building JWE parts
-
+    jwe_rec_fntable fns;                // functions for building JWE parts
 };
 
 // JWE object
 struct _cjose_jwe_int
 {
-    json_t *hdr; // header JSON object
+    json_t *hdr;        // header JSON object
     json_t *shared_hdr; // shared header JSON object
 
     // struct _cjose_jwe_part_int part[5]; // the 5 compact JWE parts
@@ -75,8 +75,7 @@ struct _cjose_jwe_int
     size_t dat_len;
 
     size_t to_count; // recipients count.
-    struct _cjose_jwe_recipient * to;
-
+    struct _cjose_jwe_recipient *to;
 };
 
 #endif // SRC_JWE_INT_H

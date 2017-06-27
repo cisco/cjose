@@ -31,7 +31,7 @@ extern "C" {
  */
 typedef struct _cjose_jwe_int cjose_jwe_t;
 
-typedef const cjose_jwk_t *(*cjose_key_locator(cjose_jwe_t * jwe, cjose_header_t * hdr, void *));
+typedef const cjose_jwk_t *(*cjose_key_locator(cjose_jwe_t *jwe, cjose_header_t *hdr, void *));
 
 /**
  * Creates a new JWE by encrypting the given plaintext within the given header
@@ -51,8 +51,8 @@ typedef const cjose_jwk_t *(*cjose_key_locator(cjose_jwe_t * jwe, cjose_header_t
  *        information in the event of an error.
  * \returns a newly generated JWE with the given plaintext as the payload.
  */
-cjose_jwe_t *cjose_jwe_encrypt(
-    const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
+cjose_jwe_t *
+cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
 /**
  * Creates a new JWE by encrypting the given plaintext with multiple keys.
@@ -69,10 +69,14 @@ cjose_jwe_t *cjose_jwe_encrypt(
  *        information in the event of an error.
  * \returns a newly generated JWE with the given plaintext as the payload.
  */
-cjose_jwe_t *cjose_jwe_encrypt_full(
-    const cjose_jwk_t **jwk, cjose_header_t ** unprotected_header, size_t jwk_len,
-        cjose_header_t *protected_header, cjose_header_t *shared_unprotected_header,
-        const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
+cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
+                                    cjose_header_t **unprotected_header,
+                                    size_t jwk_len,
+                                    cjose_header_t *protected_header,
+                                    cjose_header_t *shared_unprotected_header,
+                                    const uint8_t *plaintext,
+                                    size_t plaintext_len,
+                                    cjose_err *err);
 
 /**
  * Creates a compact serialization of the given JWE object.
@@ -161,8 +165,7 @@ uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *con
  *        this buffer when no longer in use.  Failure to do so will result in
  *        a memory leak.
  */
-uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t * jwe, cjose_key_locator key_locator, void * data,
-        size_t * content_len, cjose_err * err);
+uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator, void *data, size_t *content_len, cjose_err *err);
 
 /**
  * Returns the protected header of the JWE object.
