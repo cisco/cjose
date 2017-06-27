@@ -309,6 +309,10 @@ static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
     // 256 bits = 32 bytes
     static const size_t keysize = 32;
 
+    if (NULL != jwe->cek) {
+        return true;
+    }
+
     // if no JWK is provided, generate a random key
     if (NULL == jwk)
     {
@@ -344,6 +348,11 @@ static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *dummy_set_to_null_for_random, cjose_err *err)
 {
+
+    if (NULL != jwe->cek) {
+        return true;
+    }
+
     // make sure we have an enc header
     json_t *enc_obj = json_object_get(jwe->hdr, CJOSE_HDR_ENC);
     if (NULL == enc_obj)
@@ -1221,6 +1230,8 @@ cjose_jwe_t *cjose_jwe_encrypt_full(
         cjose_jwe_release(jwe);
         return NULL;
     }
+
+    _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
     return jwe;
 }
