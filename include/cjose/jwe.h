@@ -31,6 +31,8 @@ extern "C" {
  */
 typedef struct _cjose_jwe_int cjose_jwe_t;
 
+typedef const cjose_jwk_t *(*cjose_key_locator(cjose_jwe_t * jwe, cjose_header_t * hdr, void *));
+
 /**
  * Creates a new JWE by encrypting the given plaintext within the given header
  * and JWK.
@@ -132,14 +134,35 @@ cjose_jwe_t *cjose_jwe_import_json(const char *json, size_t json_len, cjose_err 
  *
  * \param jwe [in] the JWE object to decrypt.
  * \param jwk [in] the key to use for decrypting.
- * \param content_len [out] The number of byes in the returned buffer.
+ * \param content_len [out] The number of bytes in the returned buffer.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
- * \returns The decrypted content.  Note the caller is responseible for free'ing
+ * \returns The decrypted content.  Note the caller is responsible for free'ing
  *        this buffer when no longer in use.  Failure to do so will result in
  *        a memory leak.
  */
 uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *content_len, cjose_err *err);
+
+/**
+ * Decrypts the JWE object. Returns the plaintext data of the JWE payload.
+ * The key to be used for decryption must be provided by the specified call back.
+ * The call back will be invoked for each recipient information in the JWE.
+ * If no key is available for a particular recipient information, `NULL` must be returned.
+ * More than one key can be returned, decryption is considered successful if the content
+ * decrypts and validates against all returned keys, and at least one key was attempted.
+ *
+ * \param jwe [in] the JWE object to decrypt.
+ * \param jwk [in] key_locator callback for finding keys
+ * \param data [in] custom data argument that is passed to the key locator callback.
+ * \param content_len [out] The number of bytes in the returned buffer.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns The decrypted content. Note the caller is responsible for free'ing
+ *        this buffer when no longer in use.  Failure to do so will result in
+ *        a memory leak.
+ */
+uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t * jwe, cjose_key_locator key_locator, void * data,
+        size_t * content_len, cjose_err * err);
 
 /**
  * Returns the protected header of the JWE object.

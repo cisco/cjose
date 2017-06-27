@@ -26,17 +26,16 @@ struct _cjose_jwe_recipient;
 // functions for building JWE parts
 typedef struct _jwe_rec_fntable_int
 {
-    bool (*set_cek)(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
-
     bool (*encrypt_ek)(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
     bool (*decrypt_ek)(struct _cjose_jwe_recipient * recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
-
 
 } jwe_rec_fntable;
 
 typedef struct _jwe_fntable_int
 {
+
+    bool (*set_cek)(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
     bool (*set_iv)(cjose_jwe_t *jwe, cjose_err *err);
 

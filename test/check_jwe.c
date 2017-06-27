@@ -63,6 +63,25 @@ static const char *JWE_RSA
 static const char *PLAINTEXT = "If you reveal your secrets to the wind, you should not blame the "
                                "wind for revealing them to the trees. — Kahlil Gibran";
 
+static cjose_jwk_t * cjose_multi_key_locator(cjose_jwe_t * jwe, cjose_header_t * hdr, void * data) {
+    const char * kid = cjose_header_get(hdr, CJOSE_HDR_KID, NULL);
+    if (NULL != kid) {
+
+        ;
+        for (cjose_jwk_t ** keys = data; *keys; keys++) {
+            const char * t_kid = cjose_jwk_get_kid(*keys, NULL);
+            if (NULL != t_kid && !strcmp(t_kid, kid)) {
+                return *keys;
+            }
+        }
+
+    }
+
+    return NULL;
+
+}
+
+
 START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 {
     cjose_err err;
@@ -864,6 +883,106 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
+START_TEST(test_cjose_jwe_multiple_recipients)
+{
+
+    char * rsa[] = {"{\"kty\":\"RSA\",\"e\":\"AQAB\",\"n\":\"pXldOFJS1PKXlkkkcCKtBt6efl84jkZinEzVF1HcksvO_b"
+            "QUFJbUPcZwyzKk8fYnGbu0LwnY3hhCSDk-Ki8S2h_8VOiR7AY2ptI_TjeGp0DDqSnmJEdDrwIbw0yGTgOHZ63xms0aE4"
+            "fv9tdrw5U4v_A3AfOwUtCyxuyZP_7WlNj0sMsWwiyp0BGvCUB4xuhVtsEsbSWvSAO8CYHEy3fVGZ6bLXh7DbF7WlbfZ9K"
+            "bZCiLhP4RAmNtBQQ8jYpzTedr6qGvAz8TNl7mSfG7aQk465xCHOCrk0TLrHMDI1G4ZaFAkhXeg-KsoC8C1Mktaz3zLZwam_"
+            "ZsMHyl5UNxl4MzZQ\",\"d\":\"Zgss2JGz8QxVPOGILfrEVysr9GSGPP7cyuR6uHHMI166HCxUAcptwlbAsh5eJ7STskPVv"
+            "vhEm9m77kwWsO7sokT9V-NAMZw3UbLwRSzqxfOjdYuYGCE2dRNIyaxEWpHEi8Rx7PO0s_ytl7yLAUbhg0QAuBxuTPPUe-XmL"
+            "9fYvlr6mxbA0Pxtr_ZcisDOL5gUWhpb-rWzIUH_G9519J_Th7z9_C5v3q88UiA7VomBiMg8TKz23GKsG4TPmGnAW7ctHKP"
+            "2b3xl6b868IuPOr1YqqlnOCh6T9-mKuOlCMcU89UR5TTgRn0HoRQBumbw3qYGn8YbxcW38jbR9imKTcbrPQ\",\""
+            "p\":\"1v7ar4cL2Jh0h9DigLcyC1F8-MlDKtDzrqhpJsk49aYoc4vsdsBYUQCKbnarxhmItbLMq178p8nu31qSYXhkg0D-YeL"
+            "o3RIbLqfC1HElVp6E3U41L7AGSjg6WdwInfqwfRfiCNNPKKtb-gHbtEP54PezqdcIXfjSlFim1vBmCA0\",\""
+            "q\":\"xQigtlXLQX8J93V_PK2ZRGvTAFHDTZkJ-1CUPphOXZNezvMzEgv4tPsHJPUZU_muFjwlEs17qGO8xaZlfU-ohD13h"
+            "kpVh_xqJj6Cl5kOVXIW6COE_M6dGGJDzCIiXurN3QjQXututMlhO-anmRspaI3v6vby2JXjZIdJqpm6ark\","
+            "\"dp\":\"C4VswqtB_0FsPTr8aFlo3SJoyAxBBTJdXKa5u9Jcsw1MbaS570MveGfHA1RosBz-Ln5-aVCVyYgQvPdlkMO"
+            "a303EVAqM4AvwWPe0gR3vGk00YYenYf7U13Vb6yTXcV_VxV5aRo7MVymXrDYdR_O8mEmt3xQe5qpG3pxBlJMdZKE\","
+            "\"dq\":\"nIyBXL4H868jVRlnEegAeeuNx5gvK-1nj-VzE9Thltnrn1R-BF28qtc00vlmuWENH5-D-U-Ia79rEkNmKc1r4"
+            "D4SRIG1OYmlMWPDUP4L9Hnkl2b5WAA1s1UH9x473tyC2pcRMAmxeTTz66sVCMIbAXac5Dx3sPxOouYW8tSX2Ak\","
+            "\"qi\":\"PphvSiKY95wBif4o2AUOxk9p7v2KdMZ9FY92v-moGML8k5_Gy7xHYUIzoeGGwzp_4V4kI1zTct76K-Q"
+            "zDebf2wv1_v4AKFjcAUleEpDVVnGPQ3-ftftkc0UFmkoKorHLZ5Q5ZjKxa313V1pYQwbdra54xabl7LvPStYJ3asw2Yc\"}",
+
+            "{\"kty\":\"RSA\",\"e\":\"AQAB\",\"n\":\"zi97QZsWWOkQ1x1gnZvcJPh1jse60KxJMHruvWI0D3klI3_"
+            "29gamVgkdl9M0_t0OCq0PZZB2jzXp7b7M07sYg6MEyjOQ61KznN-fEm1QKjXznIUQghOll5u04Tjmm8dXtWNV6on2LpsN1"
+            "J9hz3088ekOaYwdTntx2fZPDRmxYOBJOoX9sswW6iL-PrFCcLtwcpsyJsU_A9Am7whHQSS2dmzM5ruz7P6d9NDwlPhGLXV"
+            "qRYlPc1kr3_vzwLDI8Yo1GUEzdEQ2HWWP7dL2ySl8s8ExoUTcl8AKT5w805ZmpfmhK1mxixFpbCTvJX3WPo3GWJ614XO6"
+            "lZZRoh5ypt0Rsw\","
+            "\"d\":\"vpmIAFrEasZwydqfYLMe65I-4hFicdqCAe3yWmG4rIEZwtpdSotVIn1kvOACwoNIorfeXs4Pu01khWF26Vew"
+            "TqfZGq5WjiMyZJcX7qncjFi5bXxYiVZuIltO91BpZaH-Q3CjkJ-eUvEE9QOtIGiueRYvO4TJ5q4YzhtycjLJFTo3vIDX"
+            "woOb4R4TW5qtSlzg0baW4qEyMzqiink9kT6OvXwt6FC6RMquLlPtOYzr5KvoaBf-qbBUU9L5M9bfmPUjgk_Suz9QLYOgE"
+            "ZDxUj0jyJiXgCnjidqd094iCHpBIevByfhLJmBqjIlPAZ9O1svHeA0jpE73E6ZZyKDOES3qgQ\","
+            "\"p\":\"6oIBg20lS5YIESnUM7SpGLaWCMem-c-IRolnN6gRLHkpb_mudUhO-RuQNYUzB8we5dmBkVyJxR2W4J79rFj"
+            "bmilUO_8NcGYvGPYM_rOzPIP02Sltaea_vrNr-dS6-Q-lICL6845E8VeTBKRRKRr-uf-AWZfrr-ncNZaTuqa9rsE\","
+            "\"q\":\"4RT608xr6KN1Q2uj9ADXu5ZY3k1-Lf7RrtwXO-5U56777Ww7POvZi5EZoySEgWeBA426Ty5QIm0oqClCSlS0s"
+            "CkYwrno0zEePsvJ9nb0BHRi_x1NVL_1iuL0dy3g5LgThhvaoMTQwiSNRRFveQhRYgB89eHIHxPw_FYSFl780XM\","
+            "\"dp\":\"rPrUzvM1rXmv3akzJCjBCr-0ECnlWyPga9dy0bUhZeLB1B0iuNRrnIjeaPwl1jyVFgrI7kaKQWJAJtRgXj"
+            "71TdPqlI7ghOZ7Gzh0AXTgY2UauQ077gANtEd5AEIQ4SLPNNNYtUteQ3_LrILgcye8ecqkDHJpocspakX2FppkFIE\","
+            "\"dq\":\"hgBAiGG2iKzv_jCSTo1F4pdS1x5ZlbaUTT8Y0gRFJh3GPIZoCg_71xyOn9L41DWz2FLDbaqL6MMGJn9RyQD"
+            "_BbWh2SRnWXxvnkEjPwl4o0JLQcjHJkKWQ5Z0ppN4xZJVhU0F7xrdkgfC1zDXJb5u_SJ_Qr-lreLoYMI5SHpKl8M\","
+            "\"qi\":\"Boxvcq8bIswXo8BPCcZurLjacS0TlUzbs2mLJD3noJKd361fgGoO2XdG94bqkbGg-5wbGDZL2YqGKlA2Y"
+            "j8yU8ZiULaLsm3HadNVxkLTy90j59urbf0MSnMkljACZUfH2yfxVbzgZd0DWS7eDtMBP4VrQ_tQmR_djRaLOMh5yxg\"}"
+    };
+
+    const char * algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA1_5 };
+
+    cjose_err err;
+
+    // struct cjose_jwk_t * pub_key[2];
+    struct cjose_jwk_t * priv_key[3];
+    cjose_header_t * r_header[2];
+
+    for (int i=0; i<2; i++) {
+
+        char kid[32];
+
+        cjose_jwk_t *jwk = cjose_jwk_import(rsa[i], strlen(rsa[i]), &err);
+        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
+                "%s, file: %s, function: %s, line: %ld",
+                err.message, err.file, err.function, err.line);
+
+        memset(kid, 0, 32);
+        snprintf(kid, 31, "test-%d", i);
+
+        ck_assert_msg(cjose_jwk_set_kid(jwk, kid, strlen(kid), &err),
+                "cjose_jwk_set_kid failed: "
+                        "%s, file: %s, function: %s, line: %ld",
+                err.message, err.file, err.function, err.line);
+
+        priv_key[i] = jwk;
+
+        ck_assert_msg((r_header[i] = cjose_header_new(&err)) && cjose_header_set(r_header[i], "kid", kid, &err) &&
+                cjose_header_set(r_header[i], CJOSE_HDR_ALG, algs[i], &err),
+                "failed to set KID into a header: "
+                        "%s, file: %s, function: %s, line: %ld",
+                err.message, err.file, err.function, err.line);
+
+    }
+
+    priv_key[2] = NULL;
+
+    cjose_header_t * protected_header = cjose_header_new(&err);
+
+    ck_assert_msg(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err), "cjose_header_set failed: "
+            "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+
+
+    cjose_jwe_t * jwe = cjose_jwe_encrypt_full(priv_key, r_header, 2, protected_header, NULL, PLAINTEXT, strlen(PLAINTEXT)+1, &err);
+    ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients", "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+
+    size_t decoded_len;
+    uint8_t * decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, priv_key, &decoded_len, &err);
+    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients", "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+
+
+}
+END_TEST
+
 Suite *cjose_jwe_suite()
 {
     Suite *suite = suite_create("jwe");
@@ -884,6 +1003,7 @@ Suite *cjose_jwe_suite()
     tcase_add_test(tc_jwe, test_cjose_jwe_import_export_compare);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_invalid_serialization);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;
