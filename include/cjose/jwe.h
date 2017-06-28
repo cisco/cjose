@@ -59,10 +59,13 @@ cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t 
  * \see ::cjose_jwe_encrypt for key requirements.
  * \param jwk [in] array of keys to use for encrypting the JWE.
  * \param unprotected_header [in] array of unprotected headers, one matching each key entry.
- *        An element can be NULL if no additional header fields are needed.
+ *        An element can be NULL if no additional header fields are needed. The headers
+ *        are retained by the JWE and can be released by the caller if no longer needed.
  * \param jwk_len [in] number of entries in both `jwk` and `unprotected_header` arrays.
- * \param protected_header [in] additional header values to include in the JWE protected header.
- * \param unprotected_header [in] additional header values to include in the shared JWE unprotected header, can be NULL
+ * \param protected_header [in] additional header values to include in the JWE protected header. The header
+ *        is retained by JWE and should be released by the caller if no longer needed.
+ * \param unprotected_header [in] additional header values to include in the shared JWE unprotected header,
+ *        can be NULL. The header is retained by JWE and should be released by the caller if no longer needed.
  * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
  * \param plaintext_len [in] the length of the plaintext.
  * \param err [out] An optional error object which can be used to get additional
@@ -148,12 +151,12 @@ cjose_jwe_t *cjose_jwe_import_json(const char *json, size_t json_len, cjose_err 
 uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *content_len, cjose_err *err);
 
 /**
- * Decrypts the JWE object. Returns the plaintext data of the JWE payload.
- * The key to be used for decryption must be provided by the specified call back.
+ * Decrypts the JWE object using one or more provided JWKs. Returns the plaintext data
+ * of the JWE payload. The key to be used for decryption must be provided by the specified call back.
  * The call back will be invoked for each recipient information in the JWE.
  * If no key is available for a particular recipient information, `NULL` must be returned.
  * More than one key can be returned, decryption is considered successful if the content
- * decrypts and validates against all returned keys, and at least one key was attempted.
+ * decrypts and validates against all returned non-NULL keys, and at least one key was attempted.
  *
  * \param jwe [in] the JWE object to decrypt.
  * \param jwk [in] key_locator callback for finding keys
