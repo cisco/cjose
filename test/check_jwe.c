@@ -14,6 +14,7 @@
 #include <openssl/rsa.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <cjose/error.h>
 
 // a JWK of type RSA
 static const char *JWK_RSA
@@ -63,7 +64,7 @@ static const char *JWE_RSA
 static const char *PLAINTEXT = "If you reveal your secrets to the wind, you should not blame the "
                                "wind for revealing them to the trees. — Kahlil Gibran";
 
-static cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
+static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
 {
     const char *kid = cjose_header_get(hdr, CJOSE_HDR_KID, NULL);
     if (NULL != kid)
@@ -884,6 +885,34 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
+static void _cjose_test_json_serial(const char * json, const char * match_json, cjose_jwk_t ** keys)
+{
+
+    cjose_jwe_t * jwe;
+    cjose_err err;
+
+    jwe = cjose_jwe_import_json(json, strlen(json), &err);
+    ck_assert_msg(NULL != jwe, "failed to import multi-recipient json", "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+
+    size_t decoded_len;
+    char * decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, keys, &decoded_len, &err);
+    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients", "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+    ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT)+1, "decrypted plaintext does not match");
+    cjose_get_dealloc()(decoded);
+
+    decoded = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != decoded, "failed to serialize JWE into json", "%s, file: %s, function: %s, line: %ld",
+            err.message, err.file, err.function, err.line);
+    ck_assert_msg(strcmp(decoded, match_json) == 0, "serialized json doesn't match expectation");
+
+    cjose_get_dealloc()(decoded);
+
+    cjose_jwe_release(jwe);
+
+}
+
 START_TEST(test_cjose_jwe_multiple_recipients)
 {
 
@@ -926,12 +955,16 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                     "\"qi\":\"Boxvcq8bIswXo8BPCcZurLjacS0TlUzbs2mLJD3noJKd361fgGoO2XdG94bqkbGg-5wbGDZL2YqGKlA2Y"
                     "j8yU8ZiULaLsm3HadNVxkLTy90j59urbf0MSnMkljACZUfH2yfxVbzgZd0DWS7eDtMBP4VrQ_tQmR_djRaLOMh5yxg\"}" };
 
+    char * multi_json = "{\"protected\": \"eyJlbmMiOiAiQTI1NkdDTSJ9\", \"iv\": \"cGHj6gmN4kC0cLTh\", \"ciphertext\": \"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_M46Ay66lY3kFHGqWMtS6DcQs9nYltUf8uo0hEsUl1D1eA\", \"tag\": \"5LF0d_O23WKHq4c1ijaJqg\", \"recipients\": [{\"header\": {\"kid\": \"test-0\", \"alg\": \"RSA-OAEP\"}, \"encrypted_key\": \"hfrpxvv57nnZKJ5Whic5nEvMp2Iob5JSkht25fGRbRBj3Q9_hgbCKiMV10sSX5qVLwIsfdfSYH3QvvsI_aPV4qB326cp7SuHDgvqdKnQs-qDwHrg7Erc9tJFjpR-t_VfnV8wZvEP92xvCaZ4-kx86718Op2Gb82M7ojaHufwoxN_Al5oNrBNZgLZgvKROT7HmvlxHSCr0XamI8txtOt7pawZ4ENqVc1VKGYu7il-h4htMvYT7Ix0OSBWoAG1NxW-tqcD75dR_SEmPkgbeC8ofbulq1lL22PLAQzpi1Op69tOIvBQ3j0JZDOUpSQajYNAyZdD26BHV_STVb-hkUCFmA\"}, {\"header\": {\"kid\": \"test-1\", \"alg\": \"RSA1_5\"}, \"encrypted_key\": \"Hro4KVp4KfI-7NBtAPJ67N9Oas0RrU8qs01o6fOGiVtAO9yvfvzmC6dSYOAmrhMfASm5EI3K_miQT40agyRUC5wpfV6x5NKTFaJRgGJeF5xdQyE_fVNthG67GLcc-_LY5Shu2Jm5Ih1pSb4mRl6zOVBVw0HroPJLiMmRU3ai5YFLNp7M87igWHznkFWFljLONVcgV7QTJ4KDEhJUmasDqCpQ_kf5_b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-OyENlWxQ\"}]}";
+    char * single_json = "{\"protected\":\"eyJlbmMiOiAiQTI1NkdDTSJ9\",\"iv\":\"cGHj6gmN4kC0cLTh\",\"ciphertext\":\"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_M46Ay66lY3kFHGqWMtS6DcQs9nYltUf8uo0hEsUl1D1eA\",\"tag\":\"5LF0d_O23WKHq4c1ijaJqg\",\"recipients\":[{\"header\":{\"kid\":\"test-1\",\"alg\":\"RSA1_5\"},\"encrypted_key\":\"Hro4KVp4KfI-7NBtAPJ67N9Oas0RrU8qs01o6fOGiVtAO9yvfvzmC6dSYOAmrhMfASm5EI3K_miQT40agyRUC5wpfV6x5NKTFaJRgGJeF5xdQyE_fVNthG67GLcc-_LY5Shu2Jm5Ih1pSb4mRl6zOVBVw0HroPJLiMmRU3ai5YFLNp7M87igWHznkFWFljLONVcgV7QTJ4KDEhJUmasDqCpQ_kf5_b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-OyENlWxQ\"}]}";
+    char * single_flat_json = "{\"protected\": \"eyJlbmMiOiAiQTI1NkdDTSJ9\", \"iv\": \"cGHj6gmN4kC0cLTh\", \"ciphertext\": \"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_M46Ay66lY3kFHGqWMtS6DcQs9nYltUf8uo0hEsUl1D1eA\", \"tag\": \"5LF0d_O23WKHq4c1ijaJqg\", \"header\": {\"kid\": \"test-1\", \"alg\": \"RSA1_5\"}, \"encrypted_key\": \"Hro4KVp4KfI-7NBtAPJ67N9Oas0RrU8qs01o6fOGiVtAO9yvfvzmC6dSYOAmrhMfASm5EI3K_miQT40agyRUC5wpfV6x5NKTFaJRgGJeF5xdQyE_fVNthG67GLcc-_LY5Shu2Jm5Ih1pSb4mRl6zOVBVw0HroPJLiMmRU3ai5YFLNp7M87igWHznkFWFljLONVcgV7QTJ4KDEhJUmasDqCpQ_kf5_b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-OyENlWxQ\"}";
+
     const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA1_5 };
 
     cjose_err err;
 
     // struct cjose_jwk_t * pub_key[2];
-    struct cjose_jwk_t *priv_key[3];
+    cjose_jwk_t *priv_key[3];
     cjose_header_t *r_header[2];
 
     for (int i = 0; i < 2; i++)
@@ -970,7 +1003,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   err.message, err.file, err.function, err.line);
 
     cjose_jwe_t *jwe
-        = cjose_jwe_encrypt_full(priv_key, r_header, 2, protected_header, NULL, PLAINTEXT, strlen(PLAINTEXT) + 1, &err);
+        = cjose_jwe_encrypt_full((const cjose_jwk_t **) priv_key, r_header, 2, protected_header, NULL, PLAINTEXT, strlen(PLAINTEXT) + 1, &err);
     ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients", "%s, file: %s, function: %s, line: %ld", err.message,
                   err.file, err.function, err.line);
 
@@ -978,6 +1011,26 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     uint8_t *decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, priv_key, &decoded_len, &err);
     ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients", "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
+    ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT)+1, "decrypted plaintext does not match");
+
+    char * ser = cjose_jwe_export(jwe, &err);
+    ck_assert_msg(ser == NULL && err.code == CJOSE_ERR_INVALID_ARG,
+            "succeeded in creating compact serialization for multiple recipients");
+
+    cjose_jwe_release(jwe);
+    cjose_get_dealloc()(decoded);
+
+    _cjose_test_json_serial(multi_json, multi_json, priv_key);
+    _cjose_test_json_serial(single_json, single_flat_json, priv_key);
+    _cjose_test_json_serial(single_flat_json, single_flat_json, priv_key);
+
+    for (int i=0; i<2; i++) {
+        cjose_jwk_release(priv_key[i]);
+        cjose_header_release(r_header[i]);
+    }
+
+    cjose_header_release(protected_header);
+
 }
 END_TEST
 

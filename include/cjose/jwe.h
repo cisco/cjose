@@ -31,7 +31,7 @@ extern "C" {
  */
 typedef struct _cjose_jwe_int cjose_jwe_t;
 
-typedef const cjose_jwk_t *(*cjose_key_locator(cjose_jwe_t *jwe, cjose_header_t *hdr, void *));
+typedef const cjose_jwk_t *(*cjose_key_locator)(cjose_jwe_t *jwe, cjose_header_t *hdr, void *);
 
 /**
  * Creates a new JWE by encrypting the given plaintext within the given header

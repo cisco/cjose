@@ -1307,6 +1307,8 @@ void cjose_jwe_release(cjose_jwe_t *jwe)
         _cjose_dealloc_part(&jwe->to[i].enc_key);
     }
 
+    cjose_get_dealloc()(jwe->to);
+
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
     cjose_get_dealloc()(jwe->dat);
@@ -1422,7 +1424,7 @@ char *cjose_jwe_export_json(cjose_jwe_t *jwe, cjose_err *err)
             json_array_append_new(recipients, recipient);
 
             json_object_set(recipient, "header", jwe->to[i].unprotected);
-            if (!_cjose_add_json_part(form, "encrypted_key", &jwe->to[i].enc_key, err))
+            if (!_cjose_add_json_part(recipient, "encrypted_key", &jwe->to[i].enc_key, err))
             {
                 json_delete(form);
                 return NULL;
@@ -1641,7 +1643,7 @@ cjose_jwe_t *cjose_jwe_import_json(const char *cser, size_t cser_len, cjose_err 
         jwe->to_count = 1;
     }
 
-    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient), false, (uint8_t **)&jwe->to, err))
+    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient) * jwe->to_count, false, (uint8_t **)&jwe->to, err))
     {
         goto _cjose_jwe_import_json_fail;
     }
