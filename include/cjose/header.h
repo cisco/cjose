@@ -118,7 +118,7 @@ void cjose_header_release(cjose_header_t *header);
  * Sets a header attribute on a header object.  If that header was
  * previously set, this will replace the previous value with the new one.
  *
- * \param header[in] a previously instantated header object.
+ * \param header[in] a previously instantiated header object.
  * \param attr[in] the header attribute to be set.
  * \param value[in] the value to assign to the header attribute.
  * \param err [out] An optional error object which can be used to get additional
@@ -137,11 +137,42 @@ bool cjose_header_set(cjose_header_t *header, const char *attr, const char *valu
  *        information in the event of an error.
  * \returns a string containing the current value for the requested attribute.
  * The value returned is a null terminated UTF-8 encoded string, or NULL if corresponding
- * string header was not found. The retuned value is read-only and must not be modified
+ * string header was not found. The returned value is read-only and must not be modified
  * or freed by the user. It is valid as long as the corresponding cjose_header_t object
  * is not released.
  */
 const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err *err);
+
+/**
+ * Sets a raw header attribute on a header object. If that header was
+ * previously set, this will replace the previous value with the new one.
+ * The input value must be a JSON serialized string. This function does not
+ * retain pointers to specified attribute or value.
+ *
+ * \param header[in] a previously instantiated header object.
+ * \param attr[in] the header attribute to be set.
+ * \param value[in] the JSON value to assign to the header attribute. The value must
+ * be a valid JSON, and will be assigned as is.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns true if header is successfully set.
+ */
+bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *value, cjose_err *err);
+
+/**
+ * Retrieves the raw value of the requested header attribute from the header
+ * object.
+ *
+ * \param header[in] a header object.
+ * \param attr[in] the header attribute to be got.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns a string containing the current JSON value for the requested attribute.
+ * The value returned is a null terminated UTF-8 encoded JSON string, or NULL if corresponding
+ * header was not found. The returned value is allocated when this function is called, and must
+ * be freed by the caller.
+ */
+const char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err);
 
 #ifdef __cplusplus
 }

@@ -87,9 +87,7 @@ bool cjose_header_set(cjose_header_t *header, const char *attr, const char *valu
         return false;
     }
 
-    json_object_set((json_t *)header, attr, value_obj);
-
-    json_decref(value_obj);
+    json_object_set_new((json_t *)header, attr, value_obj);
 
     return true;
 }
@@ -110,4 +108,47 @@ const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err
     }
 
     return json_string_value(value_obj);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *value, cjose_err *err)
+{
+    if (NULL == header || NULL == attr || NULL == value)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    json_error_t j_err;
+    json_t *value_obj = json_loads(value, 0, &j_err);
+    if (NULL == value_obj)
+    {
+        // unfortunately, it's not possible to tell whether the error is due
+        // to syntax, or memory shortage. See https://github.com/akheron/jansson/issues/352
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    json_object_set_new((json_t *)header, attr, value_obj);
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err)
+{
+    if (NULL == header || NULL == attr)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    json_t *value_obj = json_object_get((json_t *)header, attr);
+    if (NULL == value_obj)
+    {
+        return NULL;
+    }
+
+    return json_dumps(value_obj, 0);
+
 }
