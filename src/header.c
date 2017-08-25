@@ -135,7 +135,7 @@ bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err)
+char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err)
 {
     if (NULL == header || NULL == attr)
     {

@@ -172,7 +172,7 @@ bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *
  * header was not found. The returned value is allocated when this function is called, and must
  * be freed by the caller.
  */
-const char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err);
+char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err);
 
 #ifdef __cplusplus
 }
