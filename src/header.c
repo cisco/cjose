@@ -150,5 +150,4 @@ char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *
     }
 
     return json_dumps(value_obj, 0);
-
 }

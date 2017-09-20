@@ -1588,7 +1588,8 @@ static inline bool _cjose_read_json_recipient(cjose_jwe_t *jwe,
 
     recipient->unprotected = json_incref(json_object_get(obj, "header"));
 
-    if (!json_is_object(recipient->unprotected))
+    // it's OK to have empty/null unprotected header
+    if (recipient->unprotected && !json_is_object(recipient->unprotected))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -1693,6 +1694,8 @@ cjose_jwe_t *cjose_jwe_import_json(const char *cser, size_t cser_len, cjose_err 
 
         goto _cjose_jwe_import_json_fail;
     }
+
+    jwe->hdr = json_incref(protected_header);
 
     json_decref(form);
     json_decref(protected_header);

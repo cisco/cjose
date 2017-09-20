@@ -892,24 +892,72 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
     cjose_err err;
 
     jwe = cjose_jwe_import_json(json, strlen(json), &err);
-    ck_assert_msg(NULL != jwe, "failed to import multi-recipient json", "%s, file: %s, function: %s, line: %ld", err.message,
-                  err.file, err.function, err.line);
+    ck_assert_msg(NULL != jwe, "failed to import multi-recipient json: "
+                               "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
     char *decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, keys, &decoded_len, &err);
-    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients", "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
+                                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
                   "decrypted plaintext does not match");
     cjose_get_dealloc()(decoded);
 
     decoded = cjose_jwe_export_json(jwe, &err);
-    ck_assert_msg(NULL != decoded, "failed to serialize JWE into json", "%s, file: %s, function: %s, line: %ld", err.message,
-                  err.file, err.function, err.line);
+    ck_assert_msg(NULL != decoded, "failed to serialize JWE into json: "
+                                   "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
     ck_assert_msg(strcmp(decoded, match_json) == 0, "serialized json doesn't match expectation");
 
     cjose_get_dealloc()(decoded);
 
+    cjose_jwe_release(jwe);
+}
+
+static void _cjose_test_empty_headers(cjose_jwk_t *key)
+{
+
+    cjose_jwe_t *jwe;
+    cjose_err err;
+    cjose_header_t *hdr;
+
+    // regression test - if we created json without unprotected headers, we must
+    // be able to read it back.
+
+    cjose_header_t *unprotected_headers[1] = { NULL };
+
+    hdr = cjose_header_new(&err);
+    cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err);
+    cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256CBC_HS512, &err);
+    jwe = cjose_jwe_encrypt_full((const cjose_jwk_t **)&key, unprotected_headers, 1, hdr, 0, (uint8_t *)"", 1, &err);
+    ck_assert_msg(NULL != jwe, "failed to encrypt test data: "
+                               "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != json, "failed to serialize test data: "
+                                "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    cjose_jwe_release(jwe);
+    cjose_header_release(hdr);
+
+    // import the json back
+
+    jwe = cjose_jwe_import_json(json, strlen(json), &err);
+    ck_assert_msg(NULL != jwe, "failed to import test data: "
+                               "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+    size_t len;
+    char *test = (char *)cjose_jwe_decrypt(jwe, key, &len, &err);
+    ck_assert_msg(NULL != test, "failed to decrypt test data: "
+                                "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+    ck_assert_msg((len == 1) && (*test == 0), "Decrypted data does not match original");
+
+    free(test);
+    free(json);
     cjose_jwe_release(jwe);
 }
 
@@ -1033,12 +1081,14 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 
     cjose_jwe_t *jwe = cjose_jwe_encrypt_full((const cjose_jwk_t **)priv_key, r_header, 2, protected_header, NULL, PLAINTEXT,
                                               strlen(PLAINTEXT) + 1, &err);
-    ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients", "%s, file: %s, function: %s, line: %ld", err.message,
-                  err.file, err.function, err.line);
+    ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients:"
+                               "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
     uint8_t *decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, priv_key, &decoded_len, &err);
-    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients", "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
+                                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
                   "decrypted plaintext does not match");
@@ -1053,6 +1103,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     _cjose_test_json_serial(multi_json, multi_json, priv_key);
     _cjose_test_json_serial(single_json, single_flat_json, priv_key);
     _cjose_test_json_serial(single_flat_json, single_flat_json, priv_key);
+    _cjose_test_empty_headers(priv_key[0]);
 
     for (int i = 0; i < 2; i++)
     {
