@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#define CJOSE_OPENSSL_11X OPENSSL_VERSION_NUMBER >= 0x10100005L
+#define CJOSE_OPENSSL_11X OPENSSL_VERSION_NUMBER >= 0x10100005L && !defined(LIBRESSL_VERSION_NUMBER)
 
 /**
  * Macro to explicitly mark a parameter unused, and usable across multiple
