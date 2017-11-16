@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <openssl/obj_mac.h>
 #include "cjose/error.h"
+#include "cjose/header.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -316,6 +317,23 @@ cjose_jwk_t *cjose_jwk_create_oct_spec(const uint8_t *data, size_t len, cjose_er
  *        otherwise an invalid JWK representation, this will return NULL.
  */
 cjose_jwk_t *cjose_jwk_import(const char *json, size_t len, cjose_err *err);
+
+/**
+ * Instantiates a new JWK given a JSON object conforming to JSON Web Key (JWK)
+ * IETF RFC 7518.
+ *
+ * \b NOTE: A successful call returns a new cjose_jwk_t object. It is the
+ * caller's responsibility to call cjose_jwk_release() to release the JWK when
+ * it is no longer needed.  Failure to do so will result in a memory leak.
+ *
+ * \param json A JSON document conforming to the Jose JWK specification.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns A JWK object corresponding to the given JSON document.  In
+ *        the event the given JSON object is an invalid JWK representation, this
+ *        will return NULL.
+ */
+cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err);
 
 /**
  * Computes an ECDH ephemeral key as an HKDF hash of the derived shared

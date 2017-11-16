@@ -12,6 +12,7 @@
 
 const char *CJOSE_HDR_ALG = "alg";
 const char *CJOSE_HDR_ALG_NONE = "none";
+const char *CJOSE_HDR_ALG_ECDH_ES = "ECDH-ES";
 const char *CJOSE_HDR_ALG_RSA_OAEP = "RSA-OAEP";
 const char *CJOSE_HDR_ALG_RSA1_5 = "RSA1_5";
 const char *CJOSE_HDR_ALG_A128KW = "A128KW";
@@ -40,6 +41,8 @@ const char *CJOSE_HDR_ENC_A256CBC_HS512 = "A256CBC-HS512";
 const char *CJOSE_HDR_CTY = "cty";
 
 const char *CJOSE_HDR_KID = "kid";
+
+const char *CJOSE_HDR_EPK = "epk";
 
 ////////////////////////////////////////////////////////////////////////////////
 cjose_header_t *cjose_header_new(cjose_err *err)
@@ -135,6 +138,29 @@ bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool cjose_header_set_object(cjose_header_t *header, const char *attr, const cjose_header_t *value, cjose_err *err)
+{
+    if (NULL == header || NULL == attr)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG)
+        return false;
+    }
+
+    if (NULL == value)
+    {
+        // delete any existing attr
+        json_object_del((json_t *)header, attr);
+    }
+    else
+    {
+        // add new/replace existing attr
+        json_object_set((json_t *)header, attr, (json_t *)value);
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *err)
 {
     if (NULL == header || NULL == attr)
@@ -150,4 +176,22 @@ char *cjose_header_get_raw(cjose_header_t *header, const char *attr, cjose_err *
     }
 
     return json_dumps(value_obj, 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+cjose_header_t *cjose_header_get_object(cjose_header_t *header, const char *attr, cjose_err *err)
+{
+    if (NULL == header || NULL == attr)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    json_t *value_obj = json_object_get((json_t *)header, attr);
+    if (NULL == value_obj)
+    {
+        return NULL;
+    }
+
+    return (cjose_header_t *)value_obj;
 }
