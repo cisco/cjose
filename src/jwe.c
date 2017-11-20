@@ -433,7 +433,7 @@ _cjose_jwe_decrypt_ek_dir(struct _cjose_jwe_recipient *recipient, cjose_jwe_t *j
 {
     // do not try and decrypt the ek. that's impossible.
     // instead... only try to realize the truth.  there is no ek.
-    return _cjose_jwe_set_cek_a256gcm(jwe, jwk, err);
+    return jwe->fns.set_cek(jwe, jwk, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
