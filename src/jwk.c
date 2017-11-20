@@ -1556,12 +1556,36 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
         goto import_cleanup;
     }
 
+    jwk = cjose_jwk_import_json((cjose_header_t *)jwk_json, err);
+
+// poor man's "finally"
+import_cleanup:
+    if (NULL != jwk_json)
+    {
+        json_decref(jwk_json);
+    }
+
+    return jwk;
+}
+
+cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err)
+{
+    cjose_jwk_t *jwk = NULL;
+
+    json_t *jwk_json = (json_t *)json;
+
+    if (NULL == jwk_json || JSON_OBJECT != json_typeof(jwk_json))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
     // get the string value of the kty attribute of the jwk
     const char *kty_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_KTY_STR, err);
     if (NULL == kty_str)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto import_cleanup;
+        return NULL;
     }
 
     // get kty corresponding to kty_str (kty is required)
@@ -1569,7 +1593,7 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
     if (!_kty_from_name(kty_str, &kty, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto import_cleanup;
+        return NULL;
     }
 
     // create a cjose_jwt_t based on the kty
@@ -1589,12 +1613,12 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 
     default:
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto import_cleanup;
+        return NULL;
     }
     if (NULL == jwk)
     {
         // helper function will have already set err
-        goto import_cleanup;
+        return NULL;
     }
 
     // get the value of the kid attribute (kid is optional)
@@ -1605,16 +1629,8 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
         if (!jwk->kid)
         {
             cjose_jwk_release(jwk);
-            jwk = NULL;
-            goto import_cleanup;
+            return NULL;
         }
-    }
-
-// poor man's "finally"
-import_cleanup:
-    if (NULL != jwk_json)
-    {
-        json_decref(jwk_json);
     }
 
     return jwk;
