@@ -511,6 +511,8 @@ static inline uint8_t _ec_size_for_curve(cjose_jwk_ec_curve crv, cjose_err *err)
         return 48;
     case CJOSE_JWK_EC_P_521:
         return 66;
+    case CJOSE_JWK_EC_INVALID:
+        return 0;
     }
 
     return 0;
@@ -526,6 +528,8 @@ static inline const char *_ec_name_for_curve(cjose_jwk_ec_curve crv, cjose_err *
         return CJOSE_JWK_EC_P_384_STR;
     case CJOSE_JWK_EC_P_521:
         return CJOSE_JWK_EC_P_521_STR;
+    case CJOSE_JWK_EC_INVALID:
+        return NULL;
     }
 
     return NULL;
@@ -606,6 +610,10 @@ static cjose_jwk_t *_EC_new(cjose_jwk_ec_curve crv, EC_KEY *ec, cjose_err *err)
         break;
     case CJOSE_JWK_EC_P_521:
         jwk->keysize = 521;
+        break;
+    case CJOSE_JWK_EC_INVALID:
+        // should never happen
+        jwk->keysize = 0;
         break;
     }
     jwk->keydata = keydata;
@@ -989,6 +997,18 @@ create_EC_cleanup:
     }
 
     return jwk;
+}
+
+const cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err)
+{
+    if (NULL == jwk || CJOSE_JWK_KTY_EC != cjose_jwk_get_kty(jwk, err))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return CJOSE_JWK_EC_INVALID;
+    }
+
+    ec_keydata *keydata = jwk->keydata;
+    return keydata->crv;
 }
 
 //////////////// RSA ////////////////
@@ -1639,7 +1659,7 @@ cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err)
 //////////////// ECDH ////////////////
 // internal data & functions -- ECDH derivation
 
-static bool _cjose_jwk_evp_key_from_ec_key(cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
+static bool _cjose_jwk_evp_key_from_ec_key(const cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
 {
     // validate that the jwk is of type EC and we have a valid out-param
     if (NULL == jwk || CJOSE_JWK_KTY_EC != jwk->kty || NULL == jwk->keydata || NULL == key || NULL != *key)
@@ -1675,76 +1695,21 @@ _cjose_jwk_evp_key_from_ec_key_fail:
     return false;
 }
 
-cjose_jwk_t *cjose_jwk_derive_ecdh_secret(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err)
+cjose_jwk_t *cjose_jwk_derive_ecdh_secret(const cjose_jwk_t *jwk_self, const cjose_jwk_t *jwk_peer, cjose_err *err)
 {
     return cjose_jwk_derive_ecdh_ephemeral_key(jwk_self, jwk_peer, err);
 }
 
-cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(cjose_jwk_t *jwk_self, cjose_jwk_t *jwk_peer, cjose_err *err)
+cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(const cjose_jwk_t *jwk_self, const cjose_jwk_t *jwk_peer, cjose_err *err)
 {
-    EVP_PKEY_CTX *ctx = NULL;
-    EVP_PKEY *pkey_self = NULL;
-    EVP_PKEY *pkey_peer = NULL;
     uint8_t *secret = NULL;
     size_t secret_len = 0;
     uint8_t *ephemeral_key = NULL;
     size_t ephemeral_key_len = 0;
     cjose_jwk_t *jwk_ephemeral_key = NULL;
 
-    // get EVP_KEY from jwk_self
-    if (!_cjose_jwk_evp_key_from_ec_key(jwk_self, &pkey_self, err))
+    if (!cjose_jwk_derive_ecdh_bits(jwk_self, jwk_peer, &secret, &secret_len, err))
     {
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // get EVP_KEY from jwk_peer
-    if (!_cjose_jwk_evp_key_from_ec_key(jwk_peer, &pkey_peer, err))
-    {
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // create derivation context based on local key pair
-    ctx = EVP_PKEY_CTX_new(pkey_self, NULL);
-    if (NULL == ctx)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // initialize derivation context
-    if (1 != EVP_PKEY_derive_init(ctx))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // provide the peer public key
-    if (1 != EVP_PKEY_derive_set_peer(ctx, pkey_peer))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // determine buffer length for shared secret
-    if (1 != EVP_PKEY_derive(ctx, NULL, &secret_len))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-
-    // allocate buffer for shared secret
-    secret = (uint8_t *)cjose_get_alloc()(secret_len);
-    if (NULL == secret)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
-        goto _cjose_jwk_derive_shared_secret_fail;
-    }
-    memset(secret, 0, secret_len);
-
-    // derive the shared secret
-    if (1 != (EVP_PKEY_derive(ctx, secret, &secret_len)))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jwk_derive_shared_secret_fail;
     }
 
@@ -1765,9 +1730,6 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(cjose_jwk_t *jwk_self, cjose_jw
     }
 
     // happy path
-    EVP_PKEY_CTX_free(ctx);
-    EVP_PKEY_free(pkey_self);
-    EVP_PKEY_free(pkey_peer);
     cjose_get_dealloc()(secret);
     cjose_get_dealloc()(ephemeral_key);
 
@@ -1775,6 +1737,95 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(cjose_jwk_t *jwk_self, cjose_jw
 
 // fail path
 _cjose_jwk_derive_shared_secret_fail:
+
+    if (NULL != jwk_ephemeral_key)
+    {
+        cjose_jwk_release(jwk_ephemeral_key);
+    }
+    cjose_get_dealloc()(secret);
+    cjose_get_dealloc()(ephemeral_key);
+    return NULL;
+}
+
+bool cjose_jwk_derive_ecdh_bits(const cjose_jwk_t *jwk_self,
+                                const cjose_jwk_t *jwk_peer,
+                                uint8_t **output,
+                                size_t *output_len,
+                                cjose_err *err)
+{
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *pkey_self = NULL;
+    EVP_PKEY *pkey_peer = NULL;
+    uint8_t *secret = NULL;
+    size_t secret_len = 0;
+
+    // get EVP_KEY from jwk_self
+    if (!_cjose_jwk_evp_key_from_ec_key(jwk_self, &pkey_self, err))
+    {
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // get EVP_KEY from jwk_peer
+    if (!_cjose_jwk_evp_key_from_ec_key(jwk_peer, &pkey_peer, err))
+    {
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // create derivation context based on local key pair
+    ctx = EVP_PKEY_CTX_new(pkey_self, NULL);
+    if (NULL == ctx)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // initialize derivation context
+    if (1 != EVP_PKEY_derive_init(ctx))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // provide the peer public key
+    if (1 != EVP_PKEY_derive_set_peer(ctx, pkey_peer))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // determine buffer length for shared secret
+    if (1 != EVP_PKEY_derive(ctx, NULL, &secret_len))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // allocate buffer for shared secret
+    secret = (uint8_t *)cjose_get_alloc()(secret_len);
+    if (NULL == output)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+    memset(secret, 0, secret_len);
+
+    // derive the shared secret
+    if (1 != (EVP_PKEY_derive(ctx, secret, &secret_len)))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _cjose_jwk_derive_bits_fail;
+    }
+
+    // happy path
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pkey_self);
+    EVP_PKEY_free(pkey_peer);
+
+    *output = secret;
+    *output_len = secret_len;
+    return true;
+
+_cjose_jwk_derive_bits_fail:
 
     if (NULL != ctx)
     {
@@ -1788,13 +1839,9 @@ _cjose_jwk_derive_shared_secret_fail:
     {
         EVP_PKEY_free(pkey_peer);
     }
-    if (NULL != jwk_ephemeral_key)
-    {
-        cjose_jwk_release(jwk_ephemeral_key);
-    }
     cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(ephemeral_key);
-    return NULL;
+
+    return false;
 }
 
 bool cjose_jwk_hkdf(const EVP_MD *md,

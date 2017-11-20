@@ -220,6 +220,7 @@ START_TEST(test_cjose_jwk_create_EC_P256_spec)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_256 == cjose_jwk_EC_get_curve(jwk, &err));
     cjose_get_dealloc()(spec.d);
     cjose_get_dealloc()(spec.x);
     cjose_get_dealloc()(spec.y);
@@ -240,6 +241,7 @@ START_TEST(test_cjose_jwk_create_EC_P256_random)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_256 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
     cjose_jwk_release(jwk);
@@ -269,6 +271,7 @@ START_TEST(test_cjose_jwk_create_EC_P384_spec)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_384 == cjose_jwk_EC_get_curve(jwk, &err));
     cjose_get_dealloc()(spec.d);
     cjose_get_dealloc()(spec.x);
     cjose_get_dealloc()(spec.y);
@@ -289,6 +292,7 @@ START_TEST(test_cjose_jwk_create_EC_P384_random)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_384 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
     cjose_jwk_release(jwk);
@@ -318,6 +322,7 @@ START_TEST(test_cjose_jwk_create_EC_P521_spec)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_521 == cjose_jwk_EC_get_curve(jwk, &err));
     free(spec.d);
     free(spec.x);
     free(spec.y);
@@ -338,6 +343,7 @@ START_TEST(test_cjose_jwk_create_EC_P521_random)
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_P_521 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
     cjose_jwk_release(jwk);

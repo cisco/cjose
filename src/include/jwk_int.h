@@ -54,6 +54,13 @@ typedef struct _ec_keydata_int
 
 // RSA-specific keydata = OpenSSL RSA struct
 // (just uses RSA struct)
+void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **n, BIGNUM **e, BIGNUM **d);
+
+bool cjose_jwk_derive_ecdh_bits(const cjose_jwk_t *jwk_self,
+                                const cjose_jwk_t *jwk_peer,
+                                uint8_t **output,
+                                size_t *output_len,
+                                cjose_err *err);
 
 // HKDF implementation, note it currrently supports only SHA256, no info
 // and okm must be exactly 32 bytes.
@@ -67,7 +74,5 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
                     uint8_t *okm,
                     unsigned int okm_len,
                     cjose_err *err);
-
-void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **n, BIGNUM **e, BIGNUM **d);
 
 #endif // SRC_JWK_INT_H

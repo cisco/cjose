@@ -550,6 +550,9 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
     case CJOSE_JWK_EC_P_521:
         jws->sig_len = 66 * 2;
         break;
+    case CJOSE_JWK_EC_INVALID:
+        jws->sig_len = 0;
+        break;
     }
 
     jws->sig = (uint8_t *)cjose_get_alloc()(jws->sig_len);
