@@ -1183,15 +1183,17 @@ cjose_jwe_t *cjose_jwe_encrypt(
     const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
 
-    cjose_header_t *unprotected_header[1] = { NULL };
+    cjose_jwe_recipient_t rec = {
+        .jwk = jwk,
+        .unprotected_header = NULL
+    };
 
-    return cjose_jwe_encrypt_full(&jwk, unprotected_header, 1, protected_header, NULL, plaintext, plaintext_len, err);
+    return cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, plaintext, plaintext_len, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
-                                    cjose_header_t **unprotected_header,
-                                    size_t jwk_len,
+cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
+                                    size_t recipient_count,
                                     cjose_header_t *protected_header,
                                     cjose_header_t *shared_unprotected_header,
                                     const uint8_t *plaintext,
@@ -1200,7 +1202,7 @@ cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
 {
     cjose_jwe_t *jwe = NULL;
 
-    if (NULL == jwk || NULL == protected_header || NULL == unprotected_header || jwk_len < 1)
+    if (NULL == recipients || NULL == protected_header || recipient_count < 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
@@ -1212,8 +1214,8 @@ cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
         return NULL;
     }
 
-    jwe->to_count = jwk_len;
-    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient) * jwk_len, false, (uint8_t **)&jwe->to, err))
+    jwe->to_count = recipient_count;
+    if (!_cjose_jwe_malloc(sizeof(struct _cjose_jwe_recipient) * recipient_count, false, (uint8_t **)&jwe->to, err))
     {
         cjose_jwe_release(jwe);
         return NULL;
@@ -1226,20 +1228,20 @@ cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
     }
 
     // validate JWE header
-    for (size_t i = 0; i < jwk_len; i++)
+    for (size_t i = 0; i < recipient_count; i++)
     {
 
-        if (NULL == jwk[i])
+        if (NULL == recipients[i].jwk)
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             cjose_jwe_release(jwe);
             return NULL;
         }
 
-        jwe->to[i].unprotected = json_incref(unprotected_header[i]);
+        jwe->to[i].unprotected = json_incref(recipients[i].unprotected_header);
 
         // make sure we have an alg header
-        if (!_cjose_jwe_validate_alg(protected_header, unprotected_header[i], jwk_len > 1, jwe->to + i, err))
+        if (!_cjose_jwe_validate_alg(protected_header, jwe->to[i].unprotected, recipient_count > 1, jwe->to + i, err))
         {
             cjose_jwe_release(jwe);
             return NULL;
@@ -1255,11 +1257,11 @@ cjose_jwe_t *cjose_jwe_encrypt_full(const cjose_jwk_t **jwk,
 
     jwe->shared_hdr = json_incref(shared_unprotected_header);
 
-    for (size_t i = 0; i < jwk_len; i++)
+    for (size_t i = 0; i < recipient_count; i++)
     {
 
         // build JWE content-encryption key and encrypted key
-        if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, jwk[i], err))
+        if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, recipients[i].jwk, err))
         {
             cjose_jwe_release(jwe);
             return NULL;
@@ -1709,7 +1711,7 @@ _cjose_jwe_import_json_fail:
     return NULL;
 }
 
-uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator, void *data, size_t *content_len, cjose_err *err)
+uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator, void *data, size_t *content_len, cjose_err *err)
 {
 
     uint8_t *cek = 0;
@@ -1735,7 +1737,7 @@ uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator,
         if (!jwe->to[i].fns.decrypt_ek(jwe->to + i, jwe, key, err))
         {
             // if one key failed to decrypt, fail everything.
-            goto _cjose_jwe_decrypt_full_fail;
+            goto _cjose_jwe_decrypt_multi_fail;
         }
 
         if (NULL == cek)
@@ -1749,7 +1751,7 @@ uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator,
             if (cek_len != jwe->cek_len || memcmp(jwe->cek, cek, cek_len))
             {
                 CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-                goto _cjose_jwe_decrypt_full_fail;
+                goto _cjose_jwe_decrypt_multi_fail;
             }
         }
     }
@@ -1757,7 +1759,7 @@ uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator,
     // decrypt JWE encrypted data
     if (!jwe->fns.decrypt_dat(jwe, err))
     {
-        goto _cjose_jwe_decrypt_full_fail;
+        goto _cjose_jwe_decrypt_multi_fail;
     }
 
     // take the plaintext data from the jwe object
@@ -1767,7 +1769,7 @@ uint8_t *cjose_jwe_decrypt_full(cjose_jwe_t *jwe, cjose_key_locator key_locator,
     jwe->dat = NULL;
     jwe->dat_len = 0;
 
-_cjose_jwe_decrypt_full_fail:
+_cjose_jwe_decrypt_multi_fail:
 
     _cjose_release_cek(&cek, cek_len);
 

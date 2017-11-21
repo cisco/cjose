@@ -71,12 +71,12 @@ static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header
     {
 
         ;
-        for (cjose_jwk_t **keys = data; *keys; keys++)
+        for (cjose_jwe_recipient_t *recs = data; recs->jwk; recs++)
         {
-            const char *t_kid = cjose_jwk_get_kid(*keys, NULL);
+            const char *t_kid = cjose_jwk_get_kid(recs->jwk, NULL);
             if (NULL != t_kid && !strcmp(t_kid, kid))
             {
-                return *keys;
+                return recs->jwk;
             }
         }
     }
@@ -885,7 +885,7 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
-static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwk_t **keys)
+static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t * rec)
 {
 
     cjose_jwe_t *jwe;
@@ -897,7 +897,7 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    char *decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, keys, &decoded_len, &err);
+    char *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
                                    "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
@@ -926,12 +926,16 @@ static void _cjose_test_empty_headers(cjose_jwk_t *key)
     // regression test - if we created json without unprotected headers, we must
     // be able to read it back.
 
-    cjose_header_t *unprotected_headers[1] = { NULL };
-
     hdr = cjose_header_new(&err);
     cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err);
     cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256CBC_HS512, &err);
-    jwe = cjose_jwe_encrypt_full((const cjose_jwk_t **)&key, unprotected_headers, 1, hdr, 0, (uint8_t *)"", 1, &err);
+
+    cjose_jwe_recipient_t rec = {
+        .jwk = (const cjose_jwk_t *)key,
+        .unprotected_header = 0
+    };
+
+    jwe = cjose_jwe_encrypt_multi(&rec, 1, hdr, 0, (uint8_t *)"", 1, &err);
     ck_assert_msg(NULL != jwe, "failed to encrypt test data: "
                                "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
@@ -1040,9 +1044,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 
     cjose_err err;
 
-    // struct cjose_jwk_t * pub_key[2];
-    cjose_jwk_t *priv_key[3];
-    cjose_header_t *r_header[2];
+    cjose_jwe_recipient_t rec[2];
 
     for (int i = 0; i < 2; i++)
     {
@@ -1061,16 +1063,19 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                                                                       "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
-        priv_key[i] = jwk;
+        rec[i].jwk = jwk;
 
-        ck_assert_msg((r_header[i] = cjose_header_new(&err)) && cjose_header_set(r_header[i], "kid", kid, &err)
-                          && cjose_header_set(r_header[i], CJOSE_HDR_ALG, algs[i], &err),
+        cjose_header_t * unprotected;
+
+        ck_assert_msg((unprotected = cjose_header_new(&err)) && cjose_header_set(unprotected, "kid", kid, &err)
+                          && cjose_header_set(unprotected, CJOSE_HDR_ALG, algs[i], &err),
                       "failed to set KID into a header: "
                       "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
+        rec[i].unprotected_header = unprotected;
     }
 
-    priv_key[2] = NULL;
+    rec[2].jwk = NULL;
 
     cjose_header_t *protected_header = cjose_header_new(&err);
 
@@ -1079,14 +1084,14 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    cjose_jwe_t *jwe = cjose_jwe_encrypt_full((const cjose_jwk_t **)priv_key, r_header, 2, protected_header, NULL, PLAINTEXT,
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 2, protected_header, NULL, PLAINTEXT,
                                               strlen(PLAINTEXT) + 1, &err);
     ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients:"
                                "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    uint8_t *decoded = cjose_jwe_decrypt_full(jwe, cjose_multi_key_locator, priv_key, &decoded_len, &err);
+    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
                                    "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
@@ -1100,15 +1105,15 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     cjose_jwe_release(jwe);
     cjose_get_dealloc()(decoded);
 
-    _cjose_test_json_serial(multi_json, multi_json, priv_key);
-    _cjose_test_json_serial(single_json, single_flat_json, priv_key);
-    _cjose_test_json_serial(single_flat_json, single_flat_json, priv_key);
-    _cjose_test_empty_headers(priv_key[0]);
+    _cjose_test_json_serial(multi_json, multi_json, rec);
+    _cjose_test_json_serial(single_json, single_flat_json, rec);
+    _cjose_test_json_serial(single_flat_json, single_flat_json, rec);
+    _cjose_test_empty_headers(rec[0].jwk);
 
     for (int i = 0; i < 2; i++)
     {
-        cjose_jwk_release(priv_key[i]);
-        cjose_header_release(r_header[i]);
+        cjose_jwk_release(rec[i].jwk);
+        cjose_header_release(rec[i].unprotected_header);
     }
 
     cjose_header_release(protected_header);
