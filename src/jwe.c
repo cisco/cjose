@@ -53,6 +53,10 @@ _cjose_jwe_encrypt_ek_rsa1_5(struct _cjose_jwe_recipient *recipient, cjose_jwe_t
 static bool
 _cjose_jwe_decrypt_ek_rsa1_5(struct _cjose_jwe_recipient *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
+static bool _cjose_jwe_encrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool _cjose_jwe_decrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
 static bool _cjose_jwe_set_iv_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
 
 static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err);
@@ -303,6 +307,11 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
     {
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa1_5;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa1_5;
+    }
+    if (strcmp(alg, CJOSE_HDR_ALG_ECDH_ES) == 0)
+    {
+        jwe->fns.encrypt_ek = _cjose_jwe_encrypt_ek_ecdh_es;
+        jwe->fns.decrypt_ek = _cjose_jwe_decrypt_ek_ecdh_es;
     }
     if (strcmp(alg, CJOSE_HDR_ALG_DIR) == 0)
     {
@@ -645,6 +654,88 @@ static bool
 _cjose_jwe_decrypt_ek_rsa1_5(struct _cjose_jwe_recipient *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, err);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jwe_encrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    cjose_jwk_t *epk_jwk = NULL;
+    uint8_t *secret = NULL;
+    size_t secret_len = 0;
+    bool result = false;
+
+    cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
+    if (NULL != epk_json)
+    {
+        epk_jwk = cjose_jwk_import_json(epk_json, err);
+    }
+    else
+    {
+        const cjose_jwk_ec_curve crv = cjose_jwk_EC_get_curve(jwk, err);
+        epk_jwk = cjose_jwk_create_EC_random(crv, err);
+    }
+
+    if (NULL == epk_jwk)
+    {
+        // error details already set
+        goto cjose_encrypt_ek_ecdh_es_finish;
+    }
+
+    // perform ECDH
+    if (!cjose_jwk_derive_ecdh_bits(epk_jwk, jwk, &secret, &secret_len, err))
+    {
+        goto cjose_encrypt_ek_ecdh_es_finish;
+    }
+    // perform ConcatKDF
+
+    jwe->part[1].raw = NULL;
+    jwe->part[1].raw_len = 0;
+
+cjose_encrypt_ek_ecdh_es_finish:
+
+    cjose_get_dealloc()(secret);
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jwe_decrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    cjose_jwk_t *epk_jwk = NULL;
+    uint8_t *secret = NULL;
+    size_t secret_len = 0;
+    bool result = false;
+
+    cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
+    if (NULL != epk_json)
+    {
+        epk_jwk = cjose_jwk_import_json(epk_json, err);
+    }
+    else
+    {
+        const cjose_jwk_ec_curve crv = cjose_jwk_EC_get_curve(jwk, err);
+        epk_jwk = cjose_jwk_create_EC_random(crv, err);
+    }
+
+    if (NULL == epk_jwk)
+    {
+        // error details already set
+        goto cjose_decrypt_ek_ecdh_es_finish;
+    }
+
+    // perform ECDH
+    if (!cjose_jwk_derive_ecdh_bits(jwk, epk_jwk, &secret, &secret_len, err))
+    {
+        goto cjose_decrypt_ek_ecdh_es_finish;
+    }
+
+    // perform ConcatKDF
+
+cjose_decrypt_ek_ecdh_es_finish:
+
+    cjose_get_dealloc()(secret);
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
