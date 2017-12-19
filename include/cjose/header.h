@@ -38,6 +38,10 @@ extern const char *CJOSE_HDR_KID;
 /** The Jose "epk" header attribte. */
 extern const char *CJOSE_HDR_EPK;
 
+/** For ECDH-ES algorithms, the PartyU and PartyV values */
+extern const char *CJOSE_HDR_APU;
+extern const char *CJOSE_HDR_APV;
+
 /** The JWA algorithm attribute value for none. */
 extern const char *CJOSE_HDR_ALG_NONE;
 

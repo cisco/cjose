@@ -44,6 +44,9 @@ const char *CJOSE_HDR_KID = "kid";
 
 const char *CJOSE_HDR_EPK = "epk";
 
+const char *CJOSE_HDR_APU = "apu";
+const char *CJOSE_HDR_APV = "apv";
+
 ////////////////////////////////////////////////////////////////////////////////
 cjose_header_t *cjose_header_new(cjose_err *err)
 {
