@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <arpa/inet.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
@@ -156,6 +157,24 @@ static bool _cjose_convert_to_base64(struct _cjose_jwe_int *jwe, cjose_err *err)
     }
 
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static size_t _keylen_from_enc(const char *alg)
+{
+    size_t keylen = 0;
+
+    if (0 == strcmp(alg, CJOSE_HDR_ENC_A256GCM)) {
+        keylen = 256;
+    } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A128CBC_HS256)) {
+        keylen = 256;
+    } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A192CBC_HS384)) {
+        keylen = 384;
+    } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A256CBC_HS512)) {
+        keylen = 512;
+    }
+
+    return keylen;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -662,6 +681,7 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *j
     cjose_jwk_t *epk_jwk = NULL;
     uint8_t *secret = NULL;
     size_t secret_len = 0;
+    uint8_t *derived = NULL;
     bool result = false;
 
     cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
@@ -686,13 +706,23 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *j
     {
         goto cjose_encrypt_ek_ecdh_es_finish;
     }
-    // perform ConcatKDF
 
-    jwe->part[1].raw = NULL;
-    jwe->part[1].raw_len = 0;
+    // perform ConcatKDF
+    // - need to assemble otherInfo from:
+    //   * alg (== {enc})
+    //   * apu (default = "")
+    //   * apv (default = "")
+    //   * keylen (determined from {enc})
+
+    const char *algId = cjose_header_get(jwe->hdr, CJOSE_HDR_ENC, err);
+    const size_t keylen = _keylen_from_enc(algId);
+
+    jwe->part[1].raw = derived;
+    jwe->part[1].raw_len = keylen;
 
 cjose_encrypt_ek_ecdh_es_finish:
 
+    cjose_get_dealloc()(derived);
     cjose_get_dealloc()(secret);
 
     return result;
