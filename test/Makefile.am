@@ -13,6 +13,7 @@ check_cjose_SOURCES = check_cjose.c \
                       check_version.c \
                       check_util.c \
                       check_base64.c \
+                      check_concatkdf.c \
                       check_jwk.c \
                       check_jwe.c \
                       check_jws.c \

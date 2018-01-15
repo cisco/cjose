@@ -29,6 +29,7 @@ int main()
     srunner_add_suite(runner, cjose_version_suite());
     srunner_add_suite(runner, cjose_util_suite());
     srunner_add_suite(runner, cjose_base64_suite());
+    srunner_add_suite(runner, cjose_concatkdf_suite());
     srunner_add_suite(runner, cjose_jwk_suite());
     srunner_add_suite(runner, cjose_jwe_suite());
     srunner_add_suite(runner, cjose_jws_suite());
