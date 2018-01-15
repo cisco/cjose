@@ -13,13 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <arpa/inet.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/hmac.h>
 
+#include "include/concatkdf_int.h"
 #include "include/header_int.h"
 #include "include/jwk_int.h"
 #include "include/jwe_int.h"
@@ -681,49 +681,57 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *j
     cjose_jwk_t *epk_jwk = NULL;
     uint8_t *secret = NULL;
     size_t secret_len = 0;
+    uint8_t *otherinfo = NULL;
+    size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
 
-    cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
-    if (NULL != epk_json)
-    {
-        epk_jwk = cjose_jwk_import_json(epk_json, err);
-    }
-    else
-    {
-        const cjose_jwk_ec_curve crv = cjose_jwk_EC_get_curve(jwk, err);
-        epk_jwk = cjose_jwk_create_EC_random(crv, err);
-    }
-
+    epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
     if (NULL == epk_jwk)
     {
         // error details already set
         goto cjose_encrypt_ek_ecdh_es_finish;
     }
 
-    // perform ECDH
+    // perform ECDH (private=epk_jwk, public=jwk)
     if (!cjose_jwk_derive_ecdh_bits(epk_jwk, jwk, &secret, &secret_len, err))
     {
         goto cjose_encrypt_ek_ecdh_es_finish;
     }
 
     // perform ConcatKDF
-    // - need to assemble otherInfo from:
+    // - assemble otherInfo from:
     //   * alg (== {enc})
     //   * apu (default = "")
     //   * apv (default = "")
     //   * keylen (determined from {enc})
+    cjose_header_t *hdr = jwe->hdr;
+    const char *algId = cjose_header_get(hdr, CJOSE_HDR_ENC, err);
+    const size_t keylen  =_keylen_from_enc(algId);
 
-    const char *algId = cjose_header_get(jwe->hdr, CJOSE_HDR_ENC, err);
-    const size_t keylen = _keylen_from_enc(algId);
+    if (!cjose_concatkdf_create_otherinfo(algId, keylen, hdr, &otherinfo, &otherinfo_len, err))
+    {
+        goto cjose_encrypt_ek_ecdh_es_finish;
+    }
 
-    jwe->part[1].raw = derived;
-    jwe->part[1].raw_len = keylen;
+    const uint8_t *ikm = cjose_jwk_get_keydata(jwk, err);
+    const size_t ikm_len = cjose_jwk_get_keysize(jwk, err) / 8;
+    derived = cjose_concatkdf_derive(keylen, ikm, ikm_len, otherinfo, otherinfo_len, err);
+    if (NULL == derived)
+    {
+        goto cjose_encrypt_ek_ecdh_es_finish;
+    }
+
+    jwe->cek = derived;
+    jwe->cek_len = keylen;
+    jwe->part[1].raw = NULL;
+    jwe->part[1].raw_len = 0;
+    result = true;
 
 cjose_encrypt_ek_ecdh_es_finish:
 
-    cjose_get_dealloc()(derived);
     cjose_get_dealloc()(secret);
+    cjose_get_dealloc()(otherinfo);
 
     return result;
 }
@@ -734,17 +742,21 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *j
     cjose_jwk_t *epk_jwk = NULL;
     uint8_t *secret = NULL;
     size_t secret_len = 0;
+    uint8_t *otherinfo = NULL;
+    size_t otherinfo_len = 0;
+    uint8_t *derived = NULL;
     bool result = false;
 
+    memset(err, 0, sizeof(cjose_err));
     cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
         epk_jwk = cjose_jwk_import_json(epk_json, err);
     }
-    else
+    else if (CJOSE_ERR_NONE == err->code)
     {
-        const cjose_jwk_ec_curve crv = cjose_jwk_EC_get_curve(jwk, err);
-        epk_jwk = cjose_jwk_create_EC_random(crv, err);
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
     if (NULL == epk_jwk)
@@ -753,17 +765,45 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(cjose_jwe_t *jwe, const cjose_jwk_t *j
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
-    // perform ECDH
+    // perform ECDH (private=jwk, public=epk_jwk)
     if (!cjose_jwk_derive_ecdh_bits(jwk, epk_jwk, &secret, &secret_len, err))
     {
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
     // perform ConcatKDF
+    // - assemble otherInfo from:
+    //   * alg (== {enc})
+    //   * apu (default = "")
+    //   * apv (default = "")
+    //   * keylen (determined from {enc})
+    cjose_header_t *hdr = jwe->hdr;
+    const char *algId = cjose_header_get(hdr, CJOSE_HDR_ENC, err);
+    const size_t keylen = _keylen_from_enc(algId);
+
+    if (!cjose_concatkdf_create_otherinfo(algId, keylen, hdr, &otherinfo, &otherinfo_len, err))
+    {
+        goto cjose_decrypt_ek_ecdh_es_finish;
+    }
+
+    const uint8_t *ikm = cjose_jwk_get_keydata(jwk, err);
+    const size_t ikm_len = cjose_jwk_get_keysize(jwk, err) / 8;
+    derived = cjose_concatkdf_derive(keylen, ikm, ikm_len, otherinfo, otherinfo_len, err);
+    if (NULL == derived)
+    {
+        goto cjose_decrypt_ek_ecdh_es_finish;
+    }
+
+    jwe->cek = derived;
+    jwe->cek_len = keylen;
+    jwe->part[1].raw = NULL;
+    jwe->part[1].raw_len = 0;
+    result = true;
 
 cjose_decrypt_ek_ecdh_es_finish:
 
     cjose_get_dealloc()(secret);
+    cjose_get_dealloc()(derived);
 
     return result;
 }
