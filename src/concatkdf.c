@@ -67,9 +67,12 @@ bool cjose_concatkdf_create_otherinfo(const char *alg,
     }
 
     apuLen = (NULL != apuStr) ? strlen(apuStr) : 0;
+    if (apuStr != NULL && !cjose_base64url_decode(apuStr, apuLen, &apu, &apuLen, err))
+    {
+        goto concatkdf_create_otherinfo_finish;
+    }
     apvLen = (NULL != apvStr) ? strlen(apvStr) : 0;
-    if (!(apuStr == NULL || cjose_base64url_decode(apuStr, apuLen, &apu, &apuLen, err)) ||
-        !(apvStr == NULL || cjose_base64url_decode(apvStr, apvLen, &apv, &apvLen, err)))
+    if (apvStr != NULL && !cjose_base64url_decode(apvStr, apvLen, &apv, &apvLen, err))
     {
         goto concatkdf_create_otherinfo_finish;
     }
@@ -130,15 +133,15 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
         goto concatkdf_derive_finish;
     }
 
-    size_t offset = 0;
-    for (int idx = 0; N > idx; idx++)
+    size_t offset = 0, amt = keylen;
+    for (int idx = 1; N >= idx; idx++)
     {
-        uint8_t hash[hashlen];
         uint8_t counter[4];
-        _apply_uint32(idx + 1, counter);
+        _apply_uint32(idx, counter);
 
+        uint8_t hash[hashlen];
         if (1 != EVP_DigestInit_ex(ctx, dgst, NULL) ||
-            1 != EVP_DigestUpdate(ctx, counter, 4) ||
+            1 != EVP_DigestUpdate(ctx, counter, sizeof(counter)) ||
             1 != EVP_DigestUpdate(ctx, ikm, ikmLen) ||
             1 != EVP_DigestUpdate(ctx, otherinfo, otherinfoLen) ||
             1 != EVP_DigestFinal_ex(ctx, hash, NULL))
@@ -148,8 +151,9 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
         }
 
         uint8_t *ptr = buffer + offset;
-        memcpy(ptr, hash, min_len(hashlen, keylen - offset));
+        memcpy(ptr, hash, min_len(hashlen, amt));
         offset += hashlen;
+        amt -= hashlen;
     }
 
     derived = buffer;
