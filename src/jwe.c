@@ -80,7 +80,6 @@ static void _cjose_release_cek(uint8_t **cek, size_t cek_len)
         return;
     }
 
-    fprintf(stderr, "free CEK 0x%zd (%zd)\n", (uintptr_t)*cek, cek_len);
     memset(*cek, 0, cek_len);
     cjose_get_dealloc()(*cek);
     *cek = 0;
@@ -362,7 +361,6 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    fprintf(stderr, "GENERATE A256GCM CEK from 0x%zx\n", (uintptr_t)jwk);
     // 256 bits = 32 bytes
     static const size_t keysize = 32;
 
@@ -396,7 +394,6 @@ static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
         {
             return false;
         }
-        fprintf(stderr, "AES GCM set CEK from 0x%zx\n", (uintptr_t)jwk->keydata);
         memcpy(jwe->cek, jwk->keydata, keysize);
         jwe->cek_len = keysize;
     }
@@ -736,7 +733,6 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
         goto cjose_encrypt_ek_ecdh_es_finish;
     }
 
-    fprintf(stderr, "[ECDH-ES encrypt] set CEK to %zd\n", (uintptr_t)derived);
     jwe->cek = derived;
     jwe->cek_len = keylen;
     recipient->enc_key.raw = NULL;
@@ -746,6 +742,7 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 cjose_encrypt_ek_ecdh_es_finish:
 
     cjose_get_dealloc()(epk_json);
+    cjose_get_dealloc()(epk_jwk);
     cjose_get_dealloc()(secret);
     cjose_get_dealloc()(otherinfo);
 
@@ -811,7 +808,6 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
-    fprintf(stderr, "[ECDH-ES decrypt] set CEK to %zd\n", (uintptr_t)derived);
     jwe->cek = derived;
     jwe->cek_len = keylen;
     recipient->enc_key.raw = NULL;
@@ -820,8 +816,9 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
 cjose_decrypt_ek_ecdh_es_finish:
 
+    cjose_get_dealloc()(epk_jwk);
     cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(derived);
+    cjose_get_dealloc()(otherinfo);
 
     return result;
 }
@@ -1479,42 +1476,27 @@ void cjose_jwe_release(cjose_jwe_t *jwe)
     {
         return;
     }
-    fprintf(stderr, "----- START release JWE (0x%zx) -----\n", (uintptr_t)jwe);
 
-    fprintf(stderr, "free shared protected header\n");
     json_decref(jwe->hdr);
-    fprintf(stderr, "free shared unprotected header\n");
     json_decref(jwe->shared_hdr);
 
-    fprintf(stderr, "free encryption header\n");
     _cjose_dealloc_part(&jwe->enc_header);
-    fprintf(stderr, "free encryption IV\n");
     _cjose_dealloc_part(&jwe->enc_iv);
-    fprintf(stderr, "free encryption ciphertext\n");
     _cjose_dealloc_part(&jwe->enc_ct);
-    fprintf(stderr, "free encryption auth tag\n");
     _cjose_dealloc_part(&jwe->enc_auth_tag);
 
     for (int i = 0; i < jwe->to_count; ++i)
     {
-        fprintf(stderr, "free recipient[%d] unprotected header\n", i);
         json_decref(jwe->to[i].unprotected);
-        fprintf(stderr, "free recipient[%d] encrypted key\n", i);
         _cjose_dealloc_part(&jwe->to[i].enc_key);
     }
 
-    fprintf(stderr, "free 'to' recipients\n");
     cjose_get_dealloc()(jwe->to);
 
-    fprintf(stderr, "free content encryption key\n");
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
-    fprintf(stderr, "free decrypted data\n");
     cjose_get_dealloc()(jwe->dat);
-    fprintf(stderr, "free JWE object\n");
     cjose_get_dealloc()(jwe);
-
-    fprintf(stderr, "----- END release JWE -----\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

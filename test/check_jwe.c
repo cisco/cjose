@@ -157,10 +157,6 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
     char *compact = cjose_jwe_export(jwe1, &err);
     ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
                   err.function, err.line);
-    if (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES) && 0 == strcmp(enc, CJOSE_HDR_ENC_A256GCM))
-    {
-        fprintf(stderr, "JWE COMPACT == %s\n", compact);
-    }
 
     // deserialize the compact representation to a new JWE
     cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
