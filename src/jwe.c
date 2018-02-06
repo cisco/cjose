@@ -741,8 +741,8 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
 cjose_encrypt_ek_ecdh_es_finish:
 
+    cjose_jwk_release(epk_jwk);
     cjose_get_dealloc()(epk_json);
-    cjose_get_dealloc()(epk_jwk);
     cjose_get_dealloc()(secret);
     cjose_get_dealloc()(otherinfo);
 
@@ -764,10 +764,10 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
     bool result = false;
 
     memset(err, 0, sizeof(cjose_err));
-    cjose_header_t *epk_json = cjose_header_get_object(jwe->hdr, CJOSE_HDR_EPK, err);
+    char *epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
-        epk_jwk = cjose_jwk_import_json(epk_json, err);
+        epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
     }
     else if (CJOSE_ERR_NONE == err->code)
     {
@@ -816,7 +816,8 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
 cjose_decrypt_ek_ecdh_es_finish:
 
-    cjose_get_dealloc()(epk_jwk);
+    cjose_jwk_release(epk_jwk);
+    cjose_get_dealloc()(epk_json);
     cjose_get_dealloc()(secret);
     cjose_get_dealloc()(otherinfo);
 
