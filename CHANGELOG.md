@@ -1,6 +1,16 @@
 # Release Notes #
 
-<a name="0.5.0"></a>
+<a name=""></a>
+## [0.6.0](https://github.com/cisco/cjose/0.5.1..0.6.0)  (2018-02-06)
+
+### Update
+
+* support ECDH-ES  ([1250eff10fa178937aea1924887d114c8ba943c2](https://github.com/linuxwolf/cjose/commit/1250eff10fa178937aea1924887d114c8ba943c2))
+* compile with LibreSSL  ([8693c22aabf31313a4002838e124e93879bbb50b](https://github.com/linuxwolf/cjose/commit/8693c22aabf31313a4002838e124e93879bbb50b))
+* Support multiple recipients and JSON serialization for JWE  ([e569ee824fd5af8654fb0054952f6c7b9d038ce6](https://github.com/linuxwolf/cjose/commit/e569ee824fd5af8654fb0054952f6c7b9d038ce6))
+
+
+<a name="0.5.1"></a>
 ## [0.5.1](https://github.com/cisco/cjose/0.5.0..0.5.1) (2017-05-24)
 
 ### Fix
