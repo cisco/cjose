@@ -54,7 +54,7 @@ void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d
 {
     if (rsa == NULL)
         return;
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_key(rsa, (const BIGNUM **)rsa_n, (const BIGNUM **)rsa_e, (const BIGNUM **)rsa_d);
 #else
     *rsa_n = rsa->n;
@@ -78,7 +78,7 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
     if (d && d_len > 0)
         rsa_d = BN_bin2bn(d, d_len, NULL);
 
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
 #else
     rsa->n = rsa_n;
@@ -90,7 +90,7 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
 
 void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
 {
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
 #else
     *p = rsa->p;
@@ -107,7 +107,7 @@ void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
     if (q && q_len > 0)
         rsa_q = BN_bin2bn(q, q_len, NULL);
 
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     RSA_set0_factors(rsa, rsa_p, rsa_q);
 #else
     rsa->p = rsa_p;
@@ -117,7 +117,7 @@ void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
 
 void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
 {
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_crt_params(rsa, (const BIGNUM **)dmp1, (const BIGNUM **)dmq1, (const BIGNUM **)iqmp);
 #else
     *dmp1 = rsa->dmp1;
@@ -138,7 +138,7 @@ void _cjose_jwk_rsa_set_crt(
     if (iqmp && iqmp_len > 0)
         rsa_iqmp = BN_bin2bn(iqmp, iqmp_len, NULL);
 
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp);
 #else
     rsa->dmp1 = rsa_dmp1;

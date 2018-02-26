@@ -875,7 +875,7 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     return true;
 }
 
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
 #define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_AEAD_GET_TAG
 #define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_AEAD_SET_TAG
 #else

@@ -50,7 +50,7 @@ static void cjose_apply_allocs()
 {
     // set upstream
     json_set_alloc_funcs(cjose_get_alloc(), cjose_get_dealloc());
-#if (CJOSE_OPENSSL_11X)
+#if defined(CJOSE_OPENSSL_11X)
     CRYPTO_set_mem_functions(cjose_get_alloc3(), cjose_get_realloc3(), cjose_get_dealloc3());
 #else
     CRYPTO_set_mem_functions(cjose_get_alloc(), cjose_get_realloc(), cjose_get_dealloc());
