@@ -430,14 +430,34 @@ static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
     if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
         keysize = 64;
 
-    // allocate memory for the CEK and fill with random bytes or 0's
-    _cjose_release_cek(&jwe->cek, jwe->cek_len);
-    if (!_cjose_jwe_malloc(keysize, !random, &jwe->cek, err))
+    if (NULL == jwk)
     {
-        return false;
+        // allocate memory for the CEK and fill with random bytes or 0's
+        _cjose_release_cek(&jwe->cek, jwe->cek_len);
+        if (!_cjose_jwe_malloc(keysize, !random, &jwe->cek, err))
+        {
+            return false;
+        }
+        jwe->cek_len = keysize;
     }
-    jwe->cek_len = keysize;
+    else
+    {
+        // if a JWK is provided, it must be a symmetric key of correct size
+        if (CJOSE_JWK_KTY_OCT != cjose_jwk_get_kty(jwk, err) || jwk->keysize != keysize * 8 || NULL == jwk->keydata)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            return false;
+        }
 
+        // copy the key material directly from jwk to the jwe->cek
+        _cjose_release_cek(&jwe->cek, jwe->cek_len);
+        if (!_cjose_jwe_malloc(keysize, false, &jwe->cek, err))
+        {
+            return false;
+        }
+        memcpy(jwe->cek, jwk->keydata, keysize);
+        jwe->cek_len = keysize;
+    }
     return true;
 }
 

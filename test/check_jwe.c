@@ -48,16 +48,23 @@ static const char *JWK_RSA
       "B4peWWFAFZ0LSKPCxAvJnrq69ocmEKEk7ss1Jo062f9pLTQ6cnhMjev3IqLocIFt5Vbsg_PWYpFSR7re6FRbF9EYOM7F2-HRv1idxKCWoyQfBqk\" }";
 
 // a JWK of type EC
-static const char *JWK_EC
-    = "{ \"kty\": \"EC\", "
-      "\"crv\": \"P-256\", "
-      "\"x\": \"DxaAKzwruXJh4IkdieycIJER6w8M1TYMCV3qOa-l9CM\", "
-      "\"y\": \"_kRI1aD7-PMFwhUpXmcRzw6hALF_xdKwADuKOM-xsak\", "
-      "\"d\":\"SOu5eRc40yn5yVrg069VjWNH4wsoErN8_AxmH4cI88s\" }";
+static const char *JWK_EC = "{ \"kty\": \"EC\", "
+                            "\"crv\": \"P-256\", "
+                            "\"x\": \"DxaAKzwruXJh4IkdieycIJER6w8M1TYMCV3qOa-l9CM\", "
+                            "\"y\": \"_kRI1aD7-PMFwhUpXmcRzw6hALF_xdKwADuKOM-xsak\", "
+                            "\"d\":\"SOu5eRc40yn5yVrg069VjWNH4wsoErN8_AxmH4cI88s\" }";
 
 // a JWK of type oct
-static const char *JWK_OCT = "{\"kty\":\"oct\", "
-                             "\"k\":\"ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg\"}";
+static const char *JWK_OCT_16 = "{\"kty\":\"oct\", "
+                                "\"k\":\"3921VrO5TrLvPQ-NFLlghQ\"}";
+static const char *JWK_OCT_24 = "{\"kty\":\"oct\", "
+                                "\"k\":\"dC4ZvqLVuS-esAz331EEd8HiwCBM1dih\"}";
+static const char *JWK_OCT_32 = "{\"kty\":\"oct\", "
+                                "\"k\":\"ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg\"}";
+static const char *JWK_OCT_48 = "{\"kty\":\"oct\", "
+                                "\"k\":\"2xAZsjSXMTg6XtY5AESrM3slgXzUaXHFEaGrALThNPyC_9JeO8Hg4PZpLDdhDIlk\"}";
+static const char *JWK_OCT_64 = "{\"kty\":\"oct\", "
+                                "\"k\":\"Jc2RE4DiwDGZsDTVt0Am3ZI_6IhSuoeQdRaHs_XKl_WnmFkHuvGr8px7h_2rme4rpYGHx93I7jl4p9swfJwlzQ\"}";
 
 // a JWE encrypted with the above JWK_RSA key (using node-jose)
 static const char *JWE_RSA
@@ -98,26 +105,30 @@ START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 
     // import the JWK
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the JWE
     cjose_jwe_t *jwe = cjose_jwe_import(JWE_RSA, strlen(JWE_RSA), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
     size_t plain2_len = 0;
     uint8_t *plain2 = cjose_jwe_decrypt(jwe, jwk, &plain2_len, &err);
-    ck_assert_msg(NULL != plain2, "cjose_jwe_get_plaintext failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != plain2,
+                  "cjose_jwe_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // confirm plain2 == PLAINTEXT
-    ck_assert_msg(plain2_len == strlen(PLAINTEXT), "length of decrypted plaintext does not match length of original, "
-                                                   "expected: %lu, found: %lu",
+    ck_assert_msg(plain2_len == strlen(PLAINTEXT),
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
                   strlen(PLAINTEXT), plain2_len);
     ck_assert_msg(strncmp(PLAINTEXT, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
@@ -132,18 +143,21 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
     cjose_err err;
 
     cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // set header for JWE
     cjose_header_t *hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err), "cjose_header_set failed: "
-                                                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err), "cjose_header_set failed: "
-                                                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // create the JWE
@@ -160,22 +174,25 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
 
     // deserialize the compact representation to a new JWE
     cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
-    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed for algo %s, method %s: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe2,
+                  "cjose_jwe_import failed for algo %s, method %s: "
+                  "%s, file: %s, function: %s, line: %ld",
                   alg, enc, err.message, err.file, err.function, err.line);
 
     // get the decrypted plaintext
     uint8_t *plain2 = NULL;
     size_t plain2_len = 0;
     plain2 = cjose_jwe_decrypt(jwe2, jwk, &plain2_len, &err);
-    ck_assert_msg(NULL != plain2, "cjose_jwe_decrypt failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != plain2,
+                  "cjose_jwe_decrypt failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // confirm plain2 == plain1
     ck_assert(json_equal((json_t *)cjose_jwe_get_protected(jwe1), (json_t *)cjose_jwe_get_protected(jwe2)));
-    ck_assert_msg(plain2_len == strlen(plain1), "length of decrypted plaintext does not match length of original, "
-                                                "expected: %lu, found: %lu",
+    ck_assert_msg(plain2_len == strlen(plain1),
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
                   strlen(plain1), plain2_len);
     ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
@@ -193,15 +210,21 @@ static void _self_encrypt_self_decrypt(const char *plain1)
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, plain1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_48, plain1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_64, plain1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16, plain1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24, plain1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, plain1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, plain1);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain1);
 }
@@ -276,18 +299,21 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_header)
           "bJ4G1xd1DE7W94uoUlcSDx59aSdzTpQzJh1l3lXc6JRUrXTESYgHpMv0O1n0gbIxX8X1ityBlMiccDjfZIKLnwz6hQObvRtRIpxEdq4SYS-w\" }";
 
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // set header for JWE with bad alg
     hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, "Cayley-Purser", &err), "cjose_header_set failed: "
-                                                                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, "Cayley-Purser", &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err), "cjose_header_set failed: "
-                                                                                     "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // create a JWE
@@ -296,12 +322,14 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_header)
     ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jwe_encrypt returned bad err.code");
 
     // set header for JWE with bad enc
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err), "cjose_header_set failed: "
-                                                                                      "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, "Twofish", &err), "cjose_header_set failed: "
-                                                                         "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, "Twofish", &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // create a JWE
@@ -339,20 +367,23 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_key)
 
     // set header for JWE
     hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err), "cjose_header_set failed: "
-                                                                                      "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err), "cjose_header_set failed: "
-                                                                                     "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // attempt encryption with each bad key
     for (int i = 0; NULL != JWK_BAD[i]; ++i)
     {
         cjose_jwk_t *jwk = cjose_jwk_import(JWK_BAD[i], strlen(JWK_BAD[i]), &err);
-        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwk,
+                      "cjose_jwk_import failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         jwe = cjose_jwe_encrypt(jwk, hdr, plain, plain_len, &err);
@@ -388,18 +419,21 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_content)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // set header for JWE
     hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err), "cjose_header_set failed: "
-                                                                                      "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err), "cjose_header_set failed: "
-                                                                                     "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     jwe = cjose_jwe_encrypt(jwk, hdr, NULL, 1024, &err);
@@ -421,20 +455,23 @@ START_TEST(test_cjose_jwe_import_export_compare)
 
     // import the common key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the jwe created with the common key
     cjose_jwe_t *jwe = cjose_jwe_import(JWE_RSA, strlen(JWE_RSA), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // re-export the jwe object
     char *cser = cjose_jwe_export(jwe, &err);
-    ck_assert_msg(NULL != cser, "re-export of imported JWE failed: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != cser,
+                  "re-export of imported JWE failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // compare the re-export to the original serialization
@@ -539,7 +576,14 @@ START_TEST(test_cjose_jwe_import_invalid_serialization)
             "HnszlczfShAOfWA_1nfWzRYzVxtqfv3PXPQguF8A4-VhE_YSPQc6Bnwh_LzliqA-8Vk5WZiAwDN_"
             "WybhPmZg5UnwVh5x7tnBPq82HSuCU4uefjaLBfjYnfRul2UY86HlHlpXVgyZEAvhRFPQwklqcfmlf3lCFz-g6P9wKYj0uncG3T9NUs28Oksy-"
             "o9MdC3aekP-0LszrxQbfwps0nq45dVsnURJCGyT7vwCObUTPDGFCMg.B4xpiaoieUnluhz5U4ivTg",
-            "AAAA.BBBB.CCCC.DDDD", "AAAA.BBBB.CCCC", "AAAA.BBBB", "AAAA", "", "....", "this test is dedicated to swhitsel", NULL };
+            "AAAA.BBBB.CCCC.DDDD",
+            "AAAA.BBBB.CCCC",
+            "AAAA.BBBB",
+            "AAAA",
+            "",
+            "....",
+            "this test is dedicated to swhitsel",
+            NULL };
 
     for (int i = 0; NULL != JWE_BAD[i]; ++i)
     {
@@ -579,14 +623,16 @@ START_TEST(test_cjose_jwe_decrypt_bad_params)
 
     // import the common key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the jwe created with the common key
     cjose_jwe_t *jwe = cjose_jwe_import(JWE_RSA, strlen(JWE_RSA), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // try to decrypt a NULL jwe
@@ -630,26 +676,30 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWK
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_S, strlen(JWK_S), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the JWE
     cjose_jwe_t *jwe = cjose_jwe_import(JWE_S, strlen(JWE_S), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
     size_t plain1_len = 0;
     uint8_t *plain1 = cjose_jwe_decrypt(jwe, jwk, &plain1_len, &err);
-    ck_assert_msg(NULL != plain1, "cjose_jwe_get_plaintext failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != plain1,
+                  "cjose_jwe_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // confirm plain == PLAINTEXT_S
-    ck_assert_msg(plain1_len == strlen(PLAINTEXT_S), "length of decrypted plaintext does not match length of original, "
-                                                     "expected: %lu, found: %lu",
+    ck_assert_msg(plain1_len == strlen(PLAINTEXT_S),
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
                   strlen(PLAINTEXT_S), plain1_len);
     ck_assert_msg(strncmp(PLAINTEXT_S, plain1, plain1_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
@@ -664,8 +714,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWE
     jwe = cjose_jwe_import(JWE_TAMPERED_AT, strlen(JWE_TAMPERED_AT), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
@@ -683,8 +734,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWE
     jwe = cjose_jwe_import(JWE_TAMPERED_CIPHERTEXT, strlen(JWE_TAMPERED_CIPHERTEXT), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
@@ -702,8 +754,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWE
     jwe = cjose_jwe_import(JWE_TAMPERED_IV, strlen(JWE_TAMPERED_IV), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
@@ -721,8 +774,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWE
     jwe = cjose_jwe_import(JWE_TAMPERED_CEK, strlen(JWE_TAMPERED_CEK), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
@@ -740,8 +794,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 
     // import the JWE
     jwe = cjose_jwe_import(JWE_TAMPERED_HDR, strlen(JWE_TAMPERED_HDR), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // decrypt the imported JWE
@@ -865,21 +920,24 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 
         // import the JWK
         cjose_jwk_t *jwk = cjose_jwk_import(JWE_RSA[i].jwk, strlen(JWE_RSA[i].jwk), &err);
-        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwk,
+                      "cjose_jwk_import failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         // import the JWE
         cjose_jwe_t *jwe = cjose_jwe_import(JWE_RSA[i].jwe, strlen(JWE_RSA[i].jwe), &err);
-        ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwe,
+                      "cjose_jwe_import failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         // decrypt the imported JWE
         size_t plain1_len = 0;
         uint8_t *plain1 = cjose_jwe_decrypt(jwe, jwk, &plain1_len, &err);
-        ck_assert_msg(NULL != plain1, "cjose_jwe_get_plaintext failed: "
-                                      "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != plain1,
+                      "cjose_jwe_get_plaintext failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         // confirm plain == PLAINTEXT_S
@@ -897,29 +955,32 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
-static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t * rec)
+static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t *rec)
 {
 
     cjose_jwe_t *jwe;
     cjose_err err;
 
     jwe = cjose_jwe_import_json(json, strlen(json), &err);
-    ck_assert_msg(NULL != jwe, "failed to import multi-recipient json: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "failed to import multi-recipient json: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
     char *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
-    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
-                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != decoded,
+                  "failed to decrypt for multiple recipients: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
                   "decrypted plaintext does not match");
     cjose_get_dealloc()(decoded);
 
     decoded = cjose_jwe_export_json(jwe, &err);
-    ck_assert_msg(NULL != decoded, "failed to serialize JWE into json: "
-                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != decoded,
+                  "failed to serialize JWE into json: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg(strcmp(decoded, match_json) == 0, "serialized json doesn't match expectation");
 
@@ -942,18 +1003,17 @@ static void _cjose_test_empty_headers(cjose_jwk_t *key)
     cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err);
     cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256CBC_HS512, &err);
 
-    cjose_jwe_recipient_t rec = {
-        .jwk = (const cjose_jwk_t *)key,
-        .unprotected_header = 0
-    };
+    cjose_jwe_recipient_t rec = { .jwk = (const cjose_jwk_t *)key, .unprotected_header = 0 };
 
     jwe = cjose_jwe_encrypt_multi(&rec, 1, hdr, 0, (uint8_t *)"", 1, &err);
-    ck_assert_msg(NULL != jwe, "failed to encrypt test data: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "failed to encrypt test data: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     char *json = cjose_jwe_export_json(jwe, &err);
-    ck_assert_msg(NULL != json, "failed to serialize test data: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != json,
+                  "failed to serialize test data: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     cjose_jwe_release(jwe);
@@ -962,13 +1022,15 @@ static void _cjose_test_empty_headers(cjose_jwk_t *key)
     // import the json back
 
     jwe = cjose_jwe_import_json(json, strlen(json), &err);
-    ck_assert_msg(NULL != jwe, "failed to import test data: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwe,
+                  "failed to import test data: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     size_t len;
     char *test = (char *)cjose_jwe_decrypt(jwe, key, &len, &err);
-    ck_assert_msg(NULL != test, "failed to decrypt test data: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != test,
+                  "failed to decrypt test data: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg((len == 1) && (*test == 0), "Decrypted data does not match original");
 
@@ -1064,20 +1126,22 @@ START_TEST(test_cjose_jwe_multiple_recipients)
         char kid[32];
 
         cjose_jwk_t *jwk = cjose_jwk_import(rsa[i], strlen(rsa[i]), &err);
-        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwk,
+                      "cjose_jwk_import failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         memset(kid, 0, 32);
         snprintf(kid, 31, "test-%d", i);
 
-        ck_assert_msg(cjose_jwk_set_kid(jwk, kid, strlen(kid), &err), "cjose_jwk_set_kid failed: "
-                                                                      "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(cjose_jwk_set_kid(jwk, kid, strlen(kid), &err),
+                      "cjose_jwk_set_kid failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         rec[i].jwk = jwk;
 
-        cjose_header_t * unprotected;
+        cjose_header_t *unprotected;
 
         ck_assert_msg((unprotected = cjose_header_new(&err)) && cjose_header_set(unprotected, "kid", kid, &err)
                           && cjose_header_set(unprotected, CJOSE_HDR_ALG, algs[i], &err),
@@ -1096,16 +1160,17 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 2, protected_header, NULL, PLAINTEXT,
-                                              strlen(PLAINTEXT) + 1, &err);
-    ck_assert_msg(NULL != jwe, "failed to encrypt to multiple recipients:"
-                               "%s, file: %s, function: %s, line: %ld",
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 2, protected_header, NULL, PLAINTEXT, strlen(PLAINTEXT) + 1, &err);
+    ck_assert_msg(NULL != jwe,
+                  "failed to encrypt to multiple recipients:"
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
     uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
-    ck_assert_msg(NULL != decoded, "failed to decrypt for multiple recipients: "
-                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != decoded,
+                  "failed to decrypt for multiple recipients: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
                   "decrypted plaintext does not match");
