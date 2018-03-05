@@ -35,7 +35,7 @@ typedef struct _jwe_rec_fntable_int
 typedef struct _jwe_fntable_int
 {
 
-    bool (*set_cek)(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool prealloc, cjose_err *err);
+    bool (*set_cek)(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err);
 
     bool (*set_iv)(cjose_jwe_t *jwe, cjose_err *err);
 
