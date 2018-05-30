@@ -171,6 +171,12 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
         goto _cjose_jws_build_dig_sha_cleanup;
     }
 
+    if (NULL != jws->dig)
+    {
+    	cjose_get_dealloc()(jws->dig);
+    	jws->dig = NULL;
+    }
+
     // allocate buffer for digest
     jws->dig_len = EVP_MD_size(digest_alg);
     jws->dig = (uint8_t *)cjose_get_alloc()(jws->dig_len);
