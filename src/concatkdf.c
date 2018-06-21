@@ -7,11 +7,24 @@
 
 #include "include/concatkdf_int.h"
 
+
+#ifdef _WIN32
+#include <Winsock2.h>
+#include <malloc.h>
+#else
 #include <arpa/inet.h>
+#include <alloca.h>
+#endif
 #include <openssl/evp.h>
 #include <string.h>
 #include <cjose/base64.h>
 #include <cjose/util.h>
+
+#ifdef _WIN32
+#define StackAlloc _alloca
+#else
+#define StackAlloc alloca
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
@@ -139,7 +152,7 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
         uint8_t counter[4];
         _apply_uint32(idx, counter);
 
-        uint8_t hash[hashlen];
+        uint8_t* hash = StackAlloc(hashlen* sizeof(uint8_t));
         if (1 != EVP_DigestInit_ex(ctx, dgst, NULL) ||
             1 != EVP_DigestUpdate(ctx, counter, sizeof(counter)) ||
             1 != EVP_DigestUpdate(ctx, ikm, ikmLen) ||
