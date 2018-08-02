@@ -29,15 +29,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
 {
-    const uint32_t formatted = htonl(value);
-    const uint8_t data[4] = {
-        (formatted >> 0) & 0xff,
-        (formatted >> 8) & 0xff,
-        (formatted >> 16) & 0xff,
-        (formatted >> 24) & 0xff
-    };
-    memcpy(buffer, data, 4);
+    const uint32_t big_endian_int32 = htonl(value);
 
+    memcpy(buffer, &big_endian_int32, 4);
     return buffer + 4;
 }
 
