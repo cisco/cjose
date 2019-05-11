@@ -1962,6 +1962,12 @@ uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator
         }
     }
 
+    if (NULL == jwe->cek)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwe_decrypt_multi_fail;
+    }
+
     // decrypt JWE encrypted data
     if (!jwe->fns.decrypt_dat(jwe, err))
     {
