@@ -1640,7 +1640,7 @@ char *cjose_jwe_export_json(cjose_jwe_t *jwe, cjose_err *err)
         }
     }
 
-    char *json_str = json_dumps(form, 0);
+    char *json_str = json_dumps(form, JSON_PRESERVE_ORDER);
     if (NULL == json_str)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
