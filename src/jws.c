@@ -59,10 +59,10 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
     }
     if (!cjose_base64url_encode((const uint8_t *)hdr_str, strlen(hdr_str), &jws->hdr_b64u, &jws->hdr_b64u_len, err))
     {
-        free(hdr_str);
+        cjose_get_dealloc()(hdr_str);
         return false;
     }
-    free(hdr_str);
+    cjose_get_dealloc()(hdr_str);
 
     return true;
 }

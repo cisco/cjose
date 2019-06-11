@@ -14,7 +14,7 @@
 #include <cjose/header.h>
 
 bool cjose_concatkdf_create_otherinfo(const char *alg,
-                                      size_t keylen,
+                                      const size_t keylen,
                                       cjose_header_t *hdr,
                                       uint8_t **otherinfo, size_t *otherinfoLen,
                                       cjose_err *err);

@@ -229,20 +229,20 @@ static inline bool _encode(const uint8_t *input, size_t inlen, char **output, si
 
 // interface functions
 
-bool cjose_base64_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err)
+bool cjose_base64_encode(const uint8_t *input, const size_t inlen, char **output, size_t *outlen, cjose_err *err)
 {
     return _encode(input, inlen, output, outlen, ALPHABET_B64, err);
 }
-bool cjose_base64url_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err)
+bool cjose_base64url_encode(const uint8_t *input, const size_t inlen, char **output, size_t *outlen, cjose_err *err)
 {
     return _encode(input, inlen, output, outlen, ALPHABET_B64U, err);
 }
 
-bool cjose_base64_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
+bool cjose_base64_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
 {
     return _decode(input, inlen, output, outlen, false, err);
 }
-bool cjose_base64url_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
+bool cjose_base64url_decode(const char *input, const size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
 {
     return _decode(input, inlen, output, outlen, true, err);
 }
