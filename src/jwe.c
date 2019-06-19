@@ -28,7 +28,7 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err);
+static bool _cjose_jwe_set_cek_aes_gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err);
 
 static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err);
 
@@ -62,15 +62,15 @@ _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe,
 static bool
 _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_set_iv_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
+static bool _cjose_jwe_set_iv_aes_gcm(cjose_jwe_t *jwe, cjose_err *err);
 
 static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
+static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
 static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
+static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err);
 
 static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err);
 
@@ -164,7 +164,11 @@ static size_t _keylen_from_enc(const char *alg)
 {
     size_t keylen = 0;
 
-    if (0 == strcmp(alg, CJOSE_HDR_ENC_A256GCM)) {
+    if (0 == strcmp(alg, CJOSE_HDR_ENC_A128GCM)) {
+        keylen = 128;
+    } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A192GCM)) {
+        keylen = 192;
+    } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A256GCM)) {
         keylen = 256;
     } else if (0 == strcmp(alg, CJOSE_HDR_ENC_A128CBC_HS256)) {
         keylen = 256;
@@ -270,12 +274,12 @@ static bool _cjose_jwe_validate_enc(cjose_jwe_t *jwe, cjose_header_t *protected_
         return false;
     }
 
-    if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
+    if ((strcmp(enc, CJOSE_HDR_ENC_A128GCM) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192GCM) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0))
     {
-        jwe->fns.set_cek = _cjose_jwe_set_cek_a256gcm;
-        jwe->fns.set_iv = _cjose_jwe_set_iv_a256gcm;
-        jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_a256gcm;
-        jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_a256gcm;
+        jwe->fns.set_cek = _cjose_jwe_set_cek_aes_gcm;
+        jwe->fns.set_iv = _cjose_jwe_set_iv_aes_gcm;
+        jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_aes_gcm;
+        jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_aes_gcm;
     }
     if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         || (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0))
@@ -361,15 +365,30 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_cek_a256gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err)
+static bool _cjose_jwe_set_cek_aes_gcm(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, bool random, cjose_err *err)
 {
-    // 256 bits = 32 bytes
-    static const size_t keysize = 32;
-
     if (NULL != jwe->cek)
     {
         return true;
     }
+
+    // make sure we have an enc header
+    json_t *enc_obj = json_object_get(jwe->hdr, CJOSE_HDR_ENC);
+    if (NULL == enc_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *enc = json_string_value(enc_obj);
+
+    // determine the CEK key size based on the encryption algorithm
+    size_t keysize = 0;
+    if (strcmp(enc, CJOSE_HDR_ENC_A128GCM) == 0)
+        keysize = 16;
+    if (strcmp(enc, CJOSE_HDR_ENC_A192GCM) == 0)
+        keysize = 24;
+    if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
+        keysize = 32;
 
     // if no JWK is provided, generate a random key
     if (NULL == jwk)
@@ -848,7 +867,7 @@ cjose_decrypt_ek_ecdh_es_finish:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_set_iv_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
+static bool _cjose_jwe_set_iv_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
 {
     // generate IV as random 96 bit value
     cjose_get_dealloc()(jwe->enc_iv.raw);
@@ -907,9 +926,18 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
+static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
     EVP_CIPHER_CTX *ctx = NULL;
+
+    // make sure we have an enc header
+    json_t *enc_obj = json_object_get(jwe->hdr, CJOSE_HDR_ENC);
+    if (NULL == enc_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *enc = json_string_value(enc_obj);
 
     if (NULL == plaintext)
     {
@@ -917,8 +945,16 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plai
         goto _cjose_jwe_encrypt_dat_fail;
     }
 
-    // get A256GCM cipher
-    const EVP_CIPHER *cipher = EVP_aes_256_gcm();
+    // get AES GCM cipher
+    const EVP_CIPHER *cipher = NULL;
+
+    if (strcmp(enc, CJOSE_HDR_ENC_A128GCM) == 0)
+    	cipher = EVP_aes_128_gcm();
+    if (strcmp(enc, CJOSE_HDR_ENC_A192GCM) == 0)
+    	cipher = EVP_aes_192_gcm();
+    if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
+    	cipher = EVP_aes_256_gcm();
+
     if (NULL == cipher)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -934,7 +970,7 @@ static bool _cjose_jwe_encrypt_dat_a256gcm(cjose_jwe_t *jwe, const uint8_t *plai
     }
     EVP_CIPHER_CTX_init(ctx);
 
-    // initialize context for encryption using A256GCM cipher and CEK and IV
+    // initialize context for encryption using AES GCM cipher and CEK and IV
     if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -1197,16 +1233,33 @@ _cjose_jwe_encrypt_dat_aes_cbc_fail:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
+static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
 {
     EVP_CIPHER_CTX *ctx = NULL;
 
-    // get A256GCM cipher
-    const EVP_CIPHER *cipher = EVP_aes_256_gcm();
+    // make sure we have an enc header
+    json_t *enc_obj = json_object_get(jwe->hdr, CJOSE_HDR_ENC);
+    if (NULL == enc_obj)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const char *enc = json_string_value(enc_obj);
+
+    // get AES GCM cipher
+    const EVP_CIPHER *cipher = NULL;
+
+    if (strcmp(enc, CJOSE_HDR_ENC_A128GCM) == 0)
+    	cipher = EVP_aes_128_gcm();
+    if (strcmp(enc, CJOSE_HDR_ENC_A192GCM) == 0)
+    	cipher = EVP_aes_192_gcm();
+    if (strcmp(enc, CJOSE_HDR_ENC_A256GCM) == 0)
+    	cipher = EVP_aes_256_gcm();
+
     if (NULL == cipher)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     // instantiate and initialize a new openssl cipher context
@@ -1214,22 +1267,22 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
     EVP_CIPHER_CTX_init(ctx);
 
-    // initialize context for decryption using A256GCM cipher and CEK and IV
+    // initialize context for decryption using AES GCM cipher and CEK and IV
     if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     // set the expected GCM-mode authentication tag
     if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     // set GCM mode AAD data (hdr_b64u) by setting "out" to NULL
@@ -1238,7 +1291,7 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
         || bytes_decrypted != jwe->enc_header.b64u_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     // allocate buffer for the plaintext
@@ -1246,14 +1299,14 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
     jwe->dat_len = jwe->enc_ct.raw_len;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     // decrypt ciphertext to plaintext buffer
     if (EVP_DecryptUpdate(ctx, jwe->dat, &bytes_decrypted, jwe->enc_ct.raw, jwe->enc_ct.raw_len) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
     jwe->dat_len = bytes_decrypted;
 
@@ -1261,13 +1314,13 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
     if (EVP_DecryptFinal_ex(ctx, NULL, &bytes_decrypted) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+        goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
 
     EVP_CIPHER_CTX_free(ctx);
     return true;
 
-_cjose_jwe_decrypt_dat_a256gcm_fail:
+_cjose_jwe_decrypt_dat_aes_gcm_fail:
     if (NULL != ctx)
     {
         EVP_CIPHER_CTX_free(ctx);

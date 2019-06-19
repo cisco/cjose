@@ -82,7 +82,9 @@ extern const char *CJOSE_HDR_ALG_ES512;
 /** The JWE algorithm attribute value for "dir". */
 extern const char *CJOSE_HDR_ALG_DIR;
 
-/** The JWE content encryption algorithm value for A256GCM. */
+/** The JWE content encryption algorithm value for A128GCM, A192GCM and A256GCM. */
+extern const char *CJOSE_HDR_ENC_A128GCM;
+extern const char *CJOSE_HDR_ENC_A192GCM;
 extern const char *CJOSE_HDR_ENC_A256GCM;
 
 /** The JWE content encryption algorithm value for A128CBC-HS256, A192CBC-HS384 and A256CBC-HS512. */
