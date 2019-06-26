@@ -246,6 +246,142 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt)
 }
 END_TEST
 
+static void _self_encrypt_self_decrypt_with_key_iv(const char *alg, const char *enc, const char *key, size_t iv_len, const char *plain1)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // set header for JWE
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // generate a random IV
+    uint8_t *iv = (uint8_t *)malloc(iv_len);
+    ck_assert_msg(RAND_bytes(iv, iv_len) == 1, "RAND_bytes failed");
+
+    // create the JWE
+    size_t plain1_len = strlen(plain1);
+    cjose_jwe_t *jwe1 = cjose_jwe_encrypt_iv(jwk, hdr, iv, iv_len, plain1, plain1_len, &err);
+    ck_assert_msg(NULL != jwe1, "cjose_jwe_encrypt failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
+                  err.function, err.line);
+    // ck_assert(hdr == cjose_jwe_get_protected(jwe1));
+
+    // get the compact serialization of JWE
+    char *compact = cjose_jwe_export(jwe1, &err);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
+                  err.function, err.line);
+
+    // deserialize the compact representation to a new JWE
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe2,
+                  "cjose_jwe_import failed for algo %s, method %s: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  alg, enc, err.message, err.file, err.function, err.line);
+
+    // get the decrypted plaintext
+    uint8_t *plain2 = NULL;
+    size_t plain2_len = 0;
+    plain2 = cjose_jwe_decrypt(jwe2, jwk, &plain2_len, &err);
+    ck_assert_msg(NULL != plain2,
+                  "cjose_jwe_decrypt failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // confirm plain2 == plain1
+    ck_assert(json_equal((json_t *)cjose_jwe_get_protected(jwe1), (json_t *)cjose_jwe_get_protected(jwe2)));
+    ck_assert_msg(plain2_len == strlen(plain1),
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
+                  strlen(plain1), plain2_len);
+    ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+
+    cjose_get_dealloc()(plain2);
+    cjose_header_release(hdr);
+    free(iv);
+    cjose_jwe_release(jwe1);
+    cjose_jwe_release(jwe2);
+    cjose_jwk_release(jwk);
+    cjose_get_dealloc()(compact);
+}
+
+static void _self_encrypt_self_decrypt_iv(const char *plain1)
+{
+    // Tests for when #85 (A128GCM and A192GCM support) is merged
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A128GCM, JWK_RSA, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A128GCM, JWK_RSA, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A192GCM, JWK_RSA, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A192GCM, JWK_RSA, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 16, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_48, 16, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_64, 16, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16, 16, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24, 16, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, 16, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A128GCM, JWK_EC, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_16, 12, plain1);
+
+    // _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A192GCM, JWK_EC, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, 12, plain1);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, 12, plain1);
+}
+
+START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_iv)
+{
+    _self_encrypt_self_decrypt_iv("Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
+                                  "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
+                                  "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
+                                  "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
+                                  "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
+                                  "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
+                                  "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
+                                  "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
+                                  "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
+                                  "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
+                                  "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
+                                  "eum fugiat quo voluptas nulla pariatur?");
+}
+END_TEST
+
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_short) { _self_encrypt_self_decrypt("Setec Astronomy"); }
 END_TEST
 
@@ -1205,6 +1341,7 @@ Suite *cjose_jwe_suite()
     tcase_set_timeout(tc_jwe, 120.0);
     tcase_add_test(tc_jwe, test_cjose_jwe_node_jose_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_iv);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_short);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_empty);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_large);
