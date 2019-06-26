@@ -1548,8 +1548,13 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-cjose_jwe_t *cjose_jwe_encrypt(
-    const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
+cjose_jwe_t *cjose_jwe_encrypt_iv(const cjose_jwk_t *jwk,
+                                  cjose_header_t *protected_header,
+                                  const uint8_t *iv,
+                                  size_t iv_len,
+                                  const uint8_t *plaintext,
+                                  size_t plaintext_len,
+                                  cjose_err *err)
 {
 
     cjose_jwe_recipient_t rec = {
@@ -1557,17 +1562,26 @@ cjose_jwe_t *cjose_jwe_encrypt(
         .unprotected_header = NULL
     };
 
-    return cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, plaintext, plaintext_len, err);
+    return cjose_jwe_encrypt_multi_iv(&rec, 1, protected_header, NULL, iv, iv_len, plaintext, plaintext_len, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
-                                    size_t recipient_count,
-                                    cjose_header_t *protected_header,
-                                    cjose_header_t *shared_unprotected_header,
-                                    const uint8_t *plaintext,
-                                    size_t plaintext_len,
-                                    cjose_err *err)
+cjose_jwe_t *cjose_jwe_encrypt(
+    const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
+{
+    return cjose_jwe_encrypt_iv(jwk, protected_header, NULL, 0, plaintext, plaintext_len, err);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
+                                        size_t recipient_count,
+                                        cjose_header_t *protected_header,
+                                        cjose_header_t *shared_unprotected_header,
+                                        const uint8_t *iv,
+                                        size_t iv_len,
+                                        const uint8_t *plaintext,
+                                        size_t plaintext_len,
+                                        cjose_err *err)
 {
     cjose_jwe_t *jwe = NULL;
 
@@ -1645,10 +1659,24 @@ cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
     }
 
     // build JWE initialization vector
-    if (!jwe->fns.set_iv(jwe, err))
+    if (iv == NULL)
     {
-        cjose_jwe_release(jwe);
-        return NULL;
+        if (!jwe->fns.set_iv(jwe, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+    }
+    else
+    {
+        cjose_get_dealloc()(jwe->enc_iv.raw);
+        jwe->enc_iv.raw_len = iv_len;
+        if (!_cjose_jwe_malloc(jwe->enc_iv.raw_len, false, &jwe->enc_iv.raw, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+        memcpy(jwe->enc_iv.raw, iv, iv_len);
     }
 
     // build JWE encrypted data and authentication tag
@@ -1661,6 +1689,19 @@ cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
     return jwe;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t *recipients,
+                                     size_t recipient_count,
+                                     cjose_header_t *protected_header,
+                                     cjose_header_t *shared_unprotected_header,
+                                     const uint8_t *plaintext,
+                                     size_t plaintext_len,
+                                     cjose_err *err)
+{
+    return cjose_jwe_encrypt_multi_iv(recipients, recipient_count, protected_header, shared_unprotected_header, NULL, 0, plaintext,
+                                      plaintext_len, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

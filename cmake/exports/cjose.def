@@ -55,7 +55,9 @@ EXPORTS
     cjose_jwe_decrypt
     cjose_jwe_decrypt_multi
     cjose_jwe_encrypt
+    cjose_jwe_encrypt_iv
     cjose_jwe_encrypt_multi
+    cjose_jwe_encrypt_multi_iv
     cjose_jwe_export
     cjose_jwe_export_json
     cjose_jwe_get_protected

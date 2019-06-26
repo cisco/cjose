@@ -55,7 +55,9 @@ _cjose_header_set_raw
 _cjose_jwe_decrypt
 _cjose_jwe_decrypt_multi
 _cjose_jwe_encrypt
+_cjose_jwe_encrypt_iv
 _cjose_jwe_encrypt_multi
+_cjose_jwe_encrypt_multi_iv
 _cjose_jwe_export
 _cjose_jwe_export_json
 _cjose_jwe_get_protected
