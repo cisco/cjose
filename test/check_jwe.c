@@ -1151,8 +1151,6 @@ START_TEST(test_cjose_jwe_multiple_recipients)
         rec[i].unprotected_header = unprotected;
     }
 
-    rec[2].jwk = NULL;
-
     cjose_header_t *protected_header = cjose_header_new(&err);
 
     ck_assert_msg(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err),
