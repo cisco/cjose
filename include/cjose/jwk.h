@@ -186,7 +186,7 @@ typedef struct
  * \b NOTE: The caller MUST call cjose_jwk_release() to release the JWK's
  * resources.
  *
- * \param size The keysize, in bits
+ * \param keysize The keysize, in bits
  * \param e The public exponent
  * \param elen The length of <tt>e</tt>
  * \param err [out] An optional error object which can be used to get additional
