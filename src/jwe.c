@@ -206,7 +206,7 @@ static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose
 static bool _cjose_jwe_build_hdr(cjose_jwe_t *jwe, cjose_err *err)
 {
     // serialize the header
-    char *hdr_str = json_dumps(jwe->hdr, JSON_ENCODE_ANY | JSON_PRESERVE_ORDER);
+    char *hdr_str = json_dumps(jwe->hdr, JSON_ENCODE_ANY | JSON_PRESERVE_ORDER | JSON_COMPACT);
     if (NULL == hdr_str)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);

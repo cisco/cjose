@@ -51,7 +51,7 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
     json_incref(jws->hdr);
 
     // base64url encode the header
-    char *hdr_str = json_dumps(jws->hdr, JSON_ENCODE_ANY | JSON_PRESERVE_ORDER);
+    char *hdr_str = json_dumps(jws->hdr, JSON_ENCODE_ANY | JSON_PRESERVE_ORDER | JSON_COMPACT);
     if (NULL == hdr_str)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
