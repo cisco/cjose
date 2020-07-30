@@ -871,23 +871,25 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
-    const char *enc = json_string_value(enc_obj);
-
     cjose_get_dealloc()(jwe->enc_iv.raw);
-    jwe->enc_iv.raw_len = 0;
 
-    if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
-        jwe->enc_iv.raw_len = 16;
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
-        jwe->enc_iv.raw_len = 24;
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
-        jwe->enc_iv.raw_len = 32;
-
-    if (jwe->enc_iv.raw_len == 0)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
+    // RFC 7516 (https://tools.ietf.org/html/rfc7516) is unclear about 
+    // the size of the IV for AES-CBC. In section 5.1 
+    // (https://tools.ietf.org/html/rfc7516#section-5.1), they state in no. 9.: 
+    // "Generate a random JWE Initialization Vector of the correct size
+    // for the content encryption algorithm"
+    // And in the example in A.2.4 (https://tools.ietf.org/html/rfc7516#appendix-A.2.4)
+    // they provide an example for AES128-CBC, which results (naturally) in the IV size of 128Bit. 
+    //
+    // The CISCO implementation chooses for the size of the IV the key size of the 
+    // cipher algorithm, which seems to be wrong.
+    //
+    // According to RFC 3602 section 3 (https://tools.ietf.org/html/rfc3602#section-3): 
+    // "The IV field MUST be the same size as the block size of the cipher algorithm being used."
+    // And because the block size for AES cipher is always 16 Byte, the IV must be 16 Byte long.
+    //
+    // IV size for AES CBC is always 16 Byte
+    jwe->enc_iv.raw_len = 16;
 
     // generate IV as random iv_size * 8 bit value
     if (!_cjose_jwe_malloc(jwe->enc_iv.raw_len, true, &jwe->enc_iv.raw, err))
