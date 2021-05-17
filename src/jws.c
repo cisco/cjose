@@ -5,6 +5,8 @@
  * Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
  */
 
+#define OPENSSL_API_COMPAT 0x10101000L
+
 #include <cjose/base64.h>
 #include <cjose/header.h>
 #include <cjose/jws.h>

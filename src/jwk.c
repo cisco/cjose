@@ -5,6 +5,8 @@
  * Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
  */
 
+#define OPENSSL_API_COMPAT 0x10101000L
+
 #include "include/jwk_int.h"
 #include "include/util_int.h"
 
