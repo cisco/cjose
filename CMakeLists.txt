@@ -59,8 +59,6 @@ if(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
     GetRootDirForHomebrew(JANSSON)
 endif(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
 
-find_package(OpenSSL 1.0.1 REQUIRED PATHS ${OPENSSL_PACKAGE})
-find_package(Jansson 2.3 REQUIRED PATHS ${JANSSON_PACKAGE})
 find_package(Check 0.9.4)
 
 find_library(RT NAMES rt)
@@ -86,7 +84,7 @@ CHECK_SYMBOL_EXISTS("random" stdlib.h HAVE_RANDOM)
 # Set dependency include directories
 include_directories(
 ${OPENSSL_INCLUDE_DIR}
-${JANSSON_INCLUDE_DIRS}
+${JANSSON_INCLUDE_DIR}
 )
 
 #Generate config file
