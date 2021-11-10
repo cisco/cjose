@@ -59,8 +59,8 @@ if(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
     GetRootDirForHomebrew(JANSSON)
 endif(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
 
-find_package(OpenSSL 1.0.1 REQUIRED)
-find_package(Jansson 2.3 REQUIRED)
+find_package(OpenSSL 1.0.1 REQUIRED PATHS ${OPENSSL_PACKAGE})
+find_package(Jansson 2.3 REQUIRED PATHS ${JANSSON_PACKAGE})
 find_package(Check 0.9.4)
 
 find_library(RT NAMES rt)
