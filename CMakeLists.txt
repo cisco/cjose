@@ -83,8 +83,9 @@ CHECK_SYMBOL_EXISTS("random" stdlib.h HAVE_RANDOM)
 
 # Set dependency include directories
 include_directories(
-${OPENSSL_INCLUDE_DIR}
-${JANSSON_INCLUDE_DIR}
+  ${OPENSSL_INCLUDE_DIR}
+  ${JANSSON_INCLUDE_DIR}
+  ${BUILD_INCLUDES}
 )
 
 #Generate config file
