@@ -1321,7 +1321,7 @@ _decode_json_object_base64url_attribute(json_t *jwk_json, const char *key, uint8
         for (end = str + strlen(str) - 1; *end == '=' && end > str; --end)
             ;
         size_t unpadded_len = end + 1 - str - ((*end == '=') ? 1 : 0);
-        size_t expected_len = ceil(4 * ((float)*buflen / 3));
+        size_t expected_len = (size_t)ceil(4 * ((float)*buflen / 3));
 
         if (expected_len != unpadded_len)
         {
