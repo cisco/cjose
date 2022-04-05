@@ -194,8 +194,8 @@ bool cjose_jwk_release(cjose_jwk_t *jwk)
         jwk->kid = NULL;
 
         // assumes freefunc is set
-        assert(NULL != jwk->fns->free);
-        jwk->fns->free(jwk);
+        assert(NULL != jwk->fns->free_func);
+        jwk->fns->free_func(jwk);
         jwk = NULL;
     }
 
