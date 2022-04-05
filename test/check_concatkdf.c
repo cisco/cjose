@@ -94,7 +94,7 @@ START_TEST(test_cjose_concatkdf_otherinfo_noextra)
     memset(&err, 0, sizeof(cjose_err));
     ck_assert(cjose_concatkdf_create_otherinfo(alg, 256, hdr, &otherinfo, &otherinfoLen, &err));
     actual = otherinfo;
-    ck_assert_uint_eq(otherinfoLen, 23);
+    ck_assert(otherinfoLen == 23);
     ck_assert(_cmp_lendata(&actual, alg, strlen(alg))); // ALG
     ck_assert(_cmp_lendata(&actual, NULL, 0));          // APU
     ck_assert(_cmp_lendata(&actual, NULL, 0));          // APV
@@ -122,7 +122,7 @@ START_TEST(test_cjose_concatkdf_otherinfo_apuapv)
     memset(&err, 0, sizeof(cjose_err));
     ck_assert(cjose_concatkdf_create_otherinfo(alg, 32, hdr, &otherinfo, &otherinfoLen, &err));
     actual = otherinfo;
-    ck_assert_uint_eq(otherinfoLen, 47);
+    ck_assert(otherinfoLen == 47);
     ck_assert(_cmp_lendata(&actual, alg, strlen(alg)));
     ck_assert(_cmp_lendata(&actual, apu, apuLen));
     ck_assert(_cmp_lendata(&actual, apv, apvLen));
