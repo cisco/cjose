@@ -2089,6 +2089,10 @@ uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator
         {
             cek_len = jwe->cek_len;
             cek = cjose_get_alloc()(cek_len);
+            if (!cek) {
+               CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+               return NULL;
+            }
             memcpy(cek, jwe->cek, cek_len);
         }
         else
