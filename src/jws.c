@@ -843,6 +843,7 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
         if (NULL == alg_obj)
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            cjose_jws_release(jws);
             return NULL;
         }
         const char *alg = json_string_value(alg_obj);
