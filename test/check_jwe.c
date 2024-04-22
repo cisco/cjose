@@ -212,7 +212,9 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 {
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
+#endif
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1, plain1_len);
 
@@ -1166,6 +1168,7 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "AlWAyLWybqq6t16VFd7hQd0y6flUK4SlOydB61gwanOsXGOAOv82cHq0E3"
           "eL4HrtZkUuKvnPrMnsUUFlfUdybVzxyjz9JF_XyaY14ardLSjf4L_FNY\" }" },
 
+#ifdef HAVE_RSA_PKCS1_PADDING
         // https://tools.ietf.org/html/rfc7516#appendix-A.2
         // JWE using RSAES-PKCS1-v1_5 and AES_128_CBC_HMAC_SHA_256
         { "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
@@ -1211,6 +1214,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "tUkTRclIfuEPmNsNDPbLoLqqCVznFbvdB7x-Tl-m0l_eFTj2KiqwGqE9PZ"
           "B9nNTwMVvH3VRRSLWACvPnSiwP8N5Usy-WRXS-V7TbpxIhvepTfE0NNo\" }" },
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
         { NULL, NULL, NULL }
     };
 
@@ -1255,6 +1260,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
+#ifdef HAVE_RSA_PKCS1_PADDING
+
 static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t *rec)
 {
 
@@ -1288,6 +1295,8 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
 
     cjose_jwe_release(jwe);
 }
+
+#endif // HAVE_RSA_PKCS1_PADDING
 
 static void _cjose_test_empty_headers(const cjose_jwk_t *key)
 {
@@ -1382,6 +1391,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                     "\"qi\":\"Boxvcq8bIswXo8BPCcZurLjacS0TlUzbs2mLJD3noJKd361fgGoO2XdG94bqkbGg-5wbGDZL2YqGKlA2Y"
                     "j8yU8ZiULaLsm3HadNVxkLTy90j59urbf0MSnMkljACZUfH2yfxVbzgZd0DWS7eDtMBP4VrQ_tQmR_djRaLOMh5yxg\"}" };
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     char *multi_json
         = "{\"protected\": \"eyJlbmMiOiAiQTI1NkdDTSJ9\", \"iv\": \"cGHj6gmN4kC0cLTh\", \"ciphertext\": "
           "\"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_"
@@ -1415,7 +1425,14 @@ START_TEST(test_cjose_jwe_multiple_recipients)
           "b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-"
           "OyENlWxQ\"}";
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
+#ifdef HAVE_RSA_PKCS1_PADDING
     const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA1_5 };
+#else
+    // RSA1_5 is compiled out: exercise the multi-recipient path with RSA-OAEP for both recipients
+    const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA_OAEP };
+#endif
 
     cjose_err err;
 
@@ -1491,9 +1508,11 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     cjose_jwe_release(jwe);
     cjose_get_dealloc()(decoded);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _cjose_test_json_serial(multi_json, multi_json, rec);
     _cjose_test_json_serial(single_json, single_flat_json, rec);
     _cjose_test_json_serial(single_flat_json, single_flat_json, rec);
+#endif
     _cjose_test_empty_headers(rec[0].jwk);
 
     for (int i = 0; i < 2; i++)
