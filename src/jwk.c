@@ -1704,7 +1704,7 @@ static bool _cjose_jwk_evp_key_from_ec_key(const cjose_jwk_t *jwk, EVP_PKEY **ke
 
     // create a blank EVP_PKEY
     *key = EVP_PKEY_new();
-    if (NULL == key)
+    if (NULL == *key)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_evp_key_from_ec_key_fail;
