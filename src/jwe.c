@@ -797,6 +797,13 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
     jwe->cek = derived;
     jwe->cek_len = keylen;
+
+    // empty string may have been allocated upon import
+    if (recipient->enc_key.raw != NULL)
+    {
+        cjose_get_dealloc()(recipient->enc_key.raw);
+    }
+
     recipient->enc_key.raw = NULL;
     recipient->enc_key.raw_len = 0;
     result = true;
@@ -878,6 +885,13 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
     jwe->cek = derived;
     jwe->cek_len = keylen;
+
+    // empty string may have been allocated upon import
+    if (recipient->enc_key.raw != NULL)
+    {
+        cjose_get_dealloc()(recipient->enc_key.raw);
+    }
+
     recipient->enc_key.raw = NULL;
     recipient->enc_key.raw_len = 0;
     result = true;
