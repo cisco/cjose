@@ -1143,7 +1143,7 @@ static bool _RSA_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err 
     BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
     _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
 
-    BIGNUM *rsa_p = NULL, *rsa_q;
+    BIGNUM *rsa_p = NULL, *rsa_q = NULL;
     _cjose_jwk_rsa_get_factors(rsa, &rsa_p, &rsa_q);
 
     BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
