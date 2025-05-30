@@ -14,18 +14,11 @@
 #include <malloc.h>
 #else
 #include <arpa/inet.h>
-#include <alloca.h>
 #endif
 #include <openssl/evp.h>
 #include <string.h>
 #include <cjose/base64.h>
 #include <cjose/util.h>
-
-#ifdef _WIN32
-#define STACK_ALLOC _alloca
-#else
-#define STACK_ALLOC alloca
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
