@@ -136,7 +136,7 @@ static bool _cjose_jws_build_dat(cjose_jws_t *jws, const uint8_t *plaintext, siz
     // copy plaintext data
     jws->dat_len = plaintext_len;
     jws->dat = (uint8_t *)cjose_get_alloc()(jws->dat_len);
-    if (NULL == jws->dat)
+    if ((NULL == jws->dat) && (jws->dat_len > 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
