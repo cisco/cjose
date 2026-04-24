@@ -187,7 +187,7 @@ static size_t _keylen_from_enc(const char *alg)
 static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose_err *err)
 {
     *buffer = (uint8_t *)cjose_get_alloc()(bytes);
-    if (NULL == *buffer)
+    if ((NULL == *buffer) && (bytes > 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
