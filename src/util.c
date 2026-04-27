@@ -92,6 +92,23 @@ cjose_realloc3_fn_t cjose_get_realloc3() { return (!_realloc3) ? cjose_realloc3_
 cjose_dealloc_fn_t cjose_get_dealloc() { return (!_dealloc) ? free : _dealloc; }
 cjose_dealloc3_fn_t cjose_get_dealloc3() { return (!_dealloc3) ? cjose_dealloc3_default : _dealloc3; }
 
+void _cjose_cleanse(void *ptr, size_t len)
+{
+    if (NULL != ptr && 0 != len)
+    {
+        OPENSSL_cleanse(ptr, len);
+    }
+}
+
+void _cjose_cleanse_dealloc(void *ptr, size_t len)
+{
+    if (NULL != ptr)
+    {
+        _cjose_cleanse(ptr, len);
+        cjose_get_dealloc()(ptr);
+    }
+}
+
 int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size)
 {
     return CRYPTO_memcmp(a, b, size);

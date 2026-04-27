@@ -84,8 +84,7 @@ static void _cjose_release_cek(uint8_t **cek, size_t cek_len)
         return;
     }
 
-    memset(*cek, 0, cek_len);
-    cjose_get_dealloc()(*cek);
+    _cjose_cleanse_dealloc(*cek, cek_len);
     *cek = 0;
 }
 
@@ -768,7 +767,7 @@ cjose_encrypt_ek_ecdh_es_finish:
 
     cjose_jwk_release(epk_jwk);
     cjose_get_dealloc()(epk_json);
-    cjose_get_dealloc()(secret);
+    _cjose_cleanse_dealloc(secret, secret_len);
     cjose_get_dealloc()(otherinfo);
 
     return result;
@@ -849,7 +848,7 @@ cjose_decrypt_ek_ecdh_es_finish:
 
     cjose_jwk_release(epk_jwk);
     cjose_get_dealloc()(epk_json);
-    cjose_get_dealloc()(secret);
+    _cjose_cleanse_dealloc(secret, secret_len);
     cjose_get_dealloc()(otherinfo);
 
     return result;

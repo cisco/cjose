@@ -22,6 +22,7 @@
 #include "include/jwk_int.h"
 #include "include/header_int.h"
 #include "include/jws_int.h"
+#include "include/util_int.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
@@ -174,8 +175,8 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
     if (NULL != jws->dig)
     {
-    	cjose_get_dealloc()(jws->dig);
-    	jws->dig = NULL;
+		_cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+		jws->dig = NULL;
     }
 
     // allocate buffer for digest
@@ -709,8 +710,8 @@ void cjose_jws_release(cjose_jws_t *jws)
     cjose_get_dealloc()(jws->hdr_b64u);
     cjose_get_dealloc()(jws->dat);
     cjose_get_dealloc()(jws->dat_b64u);
-    cjose_get_dealloc()(jws->dig);
-    cjose_get_dealloc()(jws->sig);
+    _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+    _cjose_cleanse_dealloc(jws->sig, jws->sig_len);
     cjose_get_dealloc()(jws->sig_b64u);
     cjose_get_dealloc()(jws->cser);
     cjose_get_dealloc()(jws);

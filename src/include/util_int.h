@@ -24,4 +24,7 @@ void *cjose_alloc_wrapped(size_t n);
 void *cjose_realloc_wrapped(void *p, size_t n);
 void cjose_dealloc_wrapped(void *p);
 
+void _cjose_cleanse(void *ptr, size_t len);
+void _cjose_cleanse_dealloc(void *ptr, size_t len);
+
 #endif // SRC_UTIL_INT_H

@@ -378,7 +378,7 @@ static void _oct_free(cjose_jwk_t *jwk)
     jwk->keydata = NULL;
     if (buffer)
     {
-        cjose_get_dealloc()(buffer);
+        _cjose_cleanse_dealloc(buffer, jwk->keysize / 8);
     }
     cjose_get_dealloc()(jwk);
 }
@@ -1743,8 +1743,8 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     }
 
     // happy path
-    cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(ephemeral_key);
+    _cjose_cleanse_dealloc(secret, secret_len);
+    _cjose_cleanse_dealloc(ephemeral_key, ephemeral_key_len);
 
     return jwk_ephemeral_key;
 
@@ -1755,8 +1755,8 @@ _cjose_jwk_derive_shared_secret_fail:
     {
         cjose_jwk_release(jwk_ephemeral_key);
     }
-    cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(ephemeral_key);
+    _cjose_cleanse_dealloc(secret, secret_len);
+    _cjose_cleanse_dealloc(ephemeral_key, ephemeral_key_len);
     return NULL;
 }
 
@@ -1849,7 +1849,7 @@ _cjose_jwk_derive_bits_fail:
     {
         EVP_PKEY_free(pkey_peer);
     }
-    cjose_get_dealloc()(secret);
+    _cjose_cleanse_dealloc(secret, secret_len);
 
     return false;
 }
@@ -1886,8 +1886,10 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
     if (NULL == HMAC(md, prk, prk_len, t, sizeof(t), okm, NULL))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        _cjose_cleanse(prk, sizeof(prk));
         return false;
     }
 
+    _cjose_cleanse(prk, sizeof(prk));
     return true;
 }

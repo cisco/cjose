@@ -6,6 +6,7 @@
  */
 
 #include "include/concatkdf_int.h"
+#include "include/util_int.h"
 
 
 #ifdef _WIN32
@@ -168,8 +169,7 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
 
 concatkdf_derive_finish:
     EVP_MD_CTX_destroy(ctx);
-    cjose_get_dealloc()(buffer);
+    _cjose_cleanse_dealloc(buffer, keylen);
 
     return derived;
 }
-
