@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
 #include <openssl/rsa.h>
@@ -1052,7 +1053,16 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
     uint64_t al = jwe->enc_header.b64u_len * 8;
 
     // concatenate AAD + IV + ciphertext + AAD length field
-    int msg_len = jwe->enc_header.b64u_len + jwe->enc_iv.raw_len + jwe->enc_ct.raw_len + sizeof(uint64_t);
+    size_t msg_len = jwe->enc_header.b64u_len;
+    if (msg_len > SIZE_MAX - jwe->enc_iv.raw_len || msg_len + jwe->enc_iv.raw_len > SIZE_MAX - jwe->enc_ct.raw_len
+        || msg_len + jwe->enc_iv.raw_len + jwe->enc_ct.raw_len > SIZE_MAX - sizeof(uint64_t))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto _cjose_jwe_calc_auth_tag_end;
+    }
+    msg_len += jwe->enc_iv.raw_len;
+    msg_len += jwe->enc_ct.raw_len;
+    msg_len += sizeof(uint64_t);
     if (!_cjose_jwe_malloc(msg_len, false, &msg, err))
     {
         goto _cjose_jwe_calc_auth_tag_end;
@@ -1349,7 +1359,13 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // allocate buffer for the plaintext + one block padding
-    int p_len = jwe->enc_ct.raw_len, f_len = 0;
+    if (jwe->enc_ct.raw_len > INT_MAX || jwe->enc_ct.raw_len > SIZE_MAX - AES_BLOCK_SIZE)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
+    }
+
+    int p_len = (int)jwe->enc_ct.raw_len, f_len = 0;
     cjose_get_dealloc()(jwe->dat);
     jwe->dat_len = p_len + AES_BLOCK_SIZE;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
