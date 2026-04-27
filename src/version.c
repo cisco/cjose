@@ -7,4 +7,4 @@
 
 #include <cjose/version.h>
 
-const char *cjose_version() { return CJOSE_VERSION; }
+const char *cjose_version(void) { return CJOSE_VERSION; }

@@ -109,7 +109,7 @@ void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3, cjose_realloc3_fn_t real
  *
  * \returns The configured allocator function
  */
-cjose_alloc_fn_t cjose_get_alloc();
+cjose_alloc_fn_t cjose_get_alloc(void);
 
 /**
  * Retrieves the configured enhanced allocator function.  If an enhanced
@@ -119,7 +119,7 @@ cjose_alloc_fn_t cjose_get_alloc();
  *
  * \returns The configured enhanced allocator function
  */
-cjose_alloc3_fn_t cjose_get_alloc3();
+cjose_alloc3_fn_t cjose_get_alloc3(void);
 
 /**
  * Retrieve the configured reallocator function. If a reallocator function is
@@ -127,7 +127,7 @@ cjose_alloc3_fn_t cjose_get_alloc3();
  *
  * \returns The configured reallocator function
  */
-cjose_realloc_fn_t cjose_get_realloc();
+cjose_realloc_fn_t cjose_get_realloc(void);
 
 /**
  * Retrieves the configured enhanced reallocator function.  If an enhanced
@@ -137,7 +137,7 @@ cjose_realloc_fn_t cjose_get_realloc();
  *
  * \returns The configured enhanced allocator function
  */
-cjose_realloc3_fn_t cjose_get_realloc3();
+cjose_realloc3_fn_t cjose_get_realloc3(void);
 
 /**
  * Retrieves the configured deallocator function.  If a deallocator function is
@@ -145,7 +145,7 @@ cjose_realloc3_fn_t cjose_get_realloc3();
  *
  * \returns The configured deallocator function
  */
-cjose_dealloc_fn_t cjose_get_dealloc();
+cjose_dealloc_fn_t cjose_get_dealloc(void);
 
 /**
  * Retrieves the configured enhanced deallocator function.  If an enhanced
@@ -155,7 +155,7 @@ cjose_dealloc_fn_t cjose_get_dealloc();
  *
  * \returns The configured enhanced allocator function
  */
-cjose_dealloc3_fn_t cjose_get_dealloc3();
+cjose_dealloc3_fn_t cjose_get_dealloc3(void);
 
 /**
  * Compares the first n bytes of the memory areas s1 and s2 in constant time.

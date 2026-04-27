@@ -29,7 +29,7 @@ extern "C"
  *
  * \returns the implementation version number.
  */
-const char *cjose_version();
+const char *cjose_version(void);
 
 #ifdef __cplusplus
 }
