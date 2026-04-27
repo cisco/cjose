@@ -12,6 +12,7 @@
 #include <cjose/util.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -168,8 +169,13 @@ cjose_jwk_t *cjose_jwk_retain(cjose_jwk_t *jwk, cjose_err *err)
         return NULL;
     }
 
+    if (UINT_MAX == jwk->retained)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
+        return NULL;
+    }
+
     ++(jwk->retained);
-    // TODO: check for overflow
 
     return jwk;
 }
@@ -378,7 +384,7 @@ static void _oct_free(cjose_jwk_t *jwk)
     jwk->keydata = NULL;
     if (buffer)
     {
-        cjose_get_dealloc()(buffer);
+        _cjose_cleanse_dealloc(buffer, jwk->keysize / 8);
     }
     cjose_get_dealloc()(jwk);
 }
@@ -941,7 +947,13 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
 
         if (1 != EC_POINT_set_affine_coordinates_GFp(params, Q, bnX, bnY, NULL))
         {
-            CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto create_EC_failed;
+        }
+
+        if (1 != EC_POINT_is_on_curve(params, Q, NULL))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_EC_failed;
         }
     }
@@ -949,7 +961,13 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
     // always set the public key
     if (1 != EC_KEY_set_public_key(ec, Q))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto create_EC_failed;
+    }
+
+    if (1 != EC_KEY_check_key(ec))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto create_EC_failed;
     }
 
@@ -1731,8 +1749,8 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     }
 
     // happy path
-    cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(ephemeral_key);
+    _cjose_cleanse_dealloc(secret, secret_len);
+    _cjose_cleanse_dealloc(ephemeral_key, ephemeral_key_len);
 
     return jwk_ephemeral_key;
 
@@ -1743,8 +1761,8 @@ _cjose_jwk_derive_shared_secret_fail:
     {
         cjose_jwk_release(jwk_ephemeral_key);
     }
-    cjose_get_dealloc()(secret);
-    cjose_get_dealloc()(ephemeral_key);
+    _cjose_cleanse_dealloc(secret, secret_len);
+    _cjose_cleanse_dealloc(ephemeral_key, ephemeral_key_len);
     return NULL;
 }
 
@@ -1800,7 +1818,7 @@ bool cjose_jwk_derive_ecdh_bits(
 
     // allocate buffer for shared secret
     secret = (uint8_t *)cjose_get_alloc()(secret_len);
-    if (NULL == output)
+    if (NULL == secret)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jwk_derive_bits_fail;
@@ -1837,7 +1855,7 @@ _cjose_jwk_derive_bits_fail:
     {
         EVP_PKEY_free(pkey_peer);
     }
-    cjose_get_dealloc()(secret);
+    _cjose_cleanse_dealloc(secret, secret_len);
 
     return false;
 }
@@ -1874,8 +1892,10 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
     if (NULL == HMAC(md, prk, prk_len, t, sizeof(t), okm, NULL))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        _cjose_cleanse(prk, sizeof(prk));
         return false;
     }
 
+    _cjose_cleanse(prk, sizeof(prk));
     return true;
 }

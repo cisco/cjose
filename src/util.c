@@ -46,7 +46,7 @@ void cjose_dealloc3_default(void *p, const char *file, int line)
     cjose_get_dealloc()(p);
 }
 
-static void cjose_apply_allocs()
+static void cjose_apply_allocs(void)
 {
     // set upstream
     json_set_alloc_funcs(cjose_get_alloc(), cjose_get_dealloc());
@@ -83,24 +83,35 @@ void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3, cjose_realloc3_fn_t real
     cjose_apply_allocs();
 }
 
-cjose_alloc_fn_t cjose_get_alloc() { return (!_alloc) ? malloc : _alloc; }
-cjose_alloc3_fn_t cjose_get_alloc3() { return (!_alloc3) ? cjose_alloc3_default : _alloc3; }
+cjose_alloc_fn_t cjose_get_alloc(void) { return (!_alloc) ? malloc : _alloc; }
+cjose_alloc3_fn_t cjose_get_alloc3(void) { return (!_alloc3) ? cjose_alloc3_default : _alloc3; }
 
-cjose_realloc_fn_t cjose_get_realloc() { return (!_realloc) ? realloc : _realloc; }
-cjose_realloc3_fn_t cjose_get_realloc3() { return (!_realloc3) ? cjose_realloc3_default : _realloc3; }
+cjose_realloc_fn_t cjose_get_realloc(void) { return (!_realloc) ? realloc : _realloc; }
+cjose_realloc3_fn_t cjose_get_realloc3(void) { return (!_realloc3) ? cjose_realloc3_default : _realloc3; }
 
-cjose_dealloc_fn_t cjose_get_dealloc() { return (!_dealloc) ? free : _dealloc; }
-cjose_dealloc3_fn_t cjose_get_dealloc3() { return (!_dealloc3) ? cjose_dealloc3_default : _dealloc3; }
+cjose_dealloc_fn_t cjose_get_dealloc(void) { return (!_dealloc) ? free : _dealloc; }
+cjose_dealloc3_fn_t cjose_get_dealloc3(void) { return (!_dealloc3) ? cjose_dealloc3_default : _dealloc3; }
+
+void _cjose_cleanse(void *ptr, size_t len)
+{
+    if (NULL != ptr && 0 != len)
+    {
+        OPENSSL_cleanse(ptr, len);
+    }
+}
+
+void _cjose_cleanse_dealloc(void *ptr, size_t len)
+{
+    if (NULL != ptr)
+    {
+        _cjose_cleanse(ptr, len);
+        cjose_get_dealloc()(ptr);
+    }
+}
 
 int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size)
 {
-    unsigned char result = 0;
-    for (size_t i = 0; i < size; i++)
-    {
-        result |= a[i] ^ b[i];
-    }
-
-    return result;
+    return CRYPTO_memcmp(a, b, size);
 }
 
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err)

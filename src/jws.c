@@ -14,6 +14,7 @@
 #include <string.h>
 #include <assert.h>
 #include <openssl/evp.h>
+#include <openssl/crypto.h>
 #include <openssl/rsa.h>
 #include <openssl/err.h>
 #include <openssl/hmac.h>
@@ -21,6 +22,7 @@
 #include "include/jwk_int.h"
 #include "include/header_int.h"
 #include "include/jws_int.h"
+#include "include/util_int.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
@@ -42,6 +44,8 @@ static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *
 static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose_err *err)
@@ -70,6 +74,17 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
 {
+    static const char *const supported_crit_headers[] = {
+        "alg",
+        "cty"
+    };
+
+    if (!_cjose_header_validate_crit((cjose_header_t *)jws->hdr, supported_crit_headers,
+                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
+    {
+        return false;
+    }
+
     // make sure we have an alg header
     json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
     if ((NULL == alg_obj) || (!json_is_string(alg_obj)))
@@ -173,8 +188,8 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
     if (NULL != jws->dig)
     {
-    	cjose_get_dealloc()(jws->dig);
-    	jws->dig = NULL;
+		_cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+		jws->dig = NULL;
     }
 
     // allocate buffer for digest
@@ -708,8 +723,8 @@ void cjose_jws_release(cjose_jws_t *jws)
     cjose_get_dealloc()(jws->hdr_b64u);
     cjose_get_dealloc()(jws->dat);
     cjose_get_dealloc()(jws->dat_b64u);
-    cjose_get_dealloc()(jws->dig);
-    cjose_get_dealloc()(jws->sig);
+    _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+    _cjose_cleanse_dealloc(jws->sig, jws->sig_len);
     cjose_get_dealloc()(jws->sig_b64u);
     cjose_get_dealloc()(jws->cser);
     cjose_get_dealloc()(jws);
@@ -737,9 +752,9 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 static bool _cjose_jws_strcpy(char **dst, const char *src, int len, cjose_err *err)
 {
     *dst = (char *)cjose_get_alloc()(len + 1);
-    if (NULL == dst)
+    if (NULL == *dst)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
     }
 
@@ -792,7 +807,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
     // copy and decode header b64u segment
     uint8_t *hdr_str = NULL;
     jws->hdr_b64u_len = d[0];
-    _cjose_jws_strcpy(&jws->hdr_b64u, cser, jws->hdr_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->hdr_b64u, cser, jws->hdr_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->hdr_b64u, jws->hdr_b64u_len, &hdr_str, &len, err) || NULL == hdr_str)
     {
         cjose_jws_release(jws);
@@ -830,7 +849,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
 
     // copy and b64u decode data segment
     jws->dat_b64u_len = d[1] - d[0] - 1;
-    _cjose_jws_strcpy(&jws->dat_b64u, cser + d[0] + 1, jws->dat_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->dat_b64u, cser + d[0] + 1, jws->dat_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->dat_b64u, jws->dat_b64u_len, &jws->dat, &jws->dat_len, err))
     {
         cjose_jws_release(jws);
@@ -839,7 +862,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
 
     // copy and b64u decode signature segment
     jws->sig_b64u_len = cser_len - d[1] - 1;
-    _cjose_jws_strcpy(&jws->sig_b64u, cser + d[1] + 1, jws->sig_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->sig_b64u, cser + d[1] + 1, jws->sig_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->sig_b64u, jws->sig_b64u_len, &jws->sig, &jws->sig_len, err))
     {
         cjose_jws_release(jws);
@@ -972,6 +999,7 @@ _cjose_jws_verify_sig_rs_cleanup:
 static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
     bool retval = false;
+    int diff = 0;
 
     // ensure jwk is OCT
     if (jwk->kty != CJOSE_JWK_KTY_OCT)
@@ -981,7 +1009,12 @@ static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *
     }
 
     // verify decrypted digest matches computed digest
-    if ((cjose_const_memcmp(jws->dig, jws->sig, jws->dig_len) != 0) || (jws->sig_len != jws->dig_len))
+    diff |= (jws->sig_len != jws->dig_len);
+    if (jws->sig_len == jws->dig_len)
+    {
+        diff |= CRYPTO_memcmp(jws->dig, jws->sig, jws->dig_len);
+    }
+    if (diff != 0)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jws_verify_sig_hmac_sha_cleanup;
@@ -1040,6 +1073,49 @@ _cjose_jws_verify_sig_ec_cleanup:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj || !json_is_string(alg_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const char *alg = json_string_value(alg_obj);
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_NONE))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_PS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS512))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RS384))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS512)))
+        && jwk->kty != CJOSE_JWK_KTY_RSA)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_HS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS512)))
+        && jwk->kty != CJOSE_JWK_KTY_OCT)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
+        && jwk->kty != CJOSE_JWK_KTY_EC)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool cjose_jws_verify(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jws || NULL == jwk)
@@ -1050,6 +1126,11 @@ bool cjose_jws_verify(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 
     // validate JWS header
     if (!_cjose_jws_validate_hdr(jws, err))
+    {
+        return false;
+    }
+
+    if (!_cjose_jws_validate_verify_key(jws, jwk, err))
     {
         return false;
     }
