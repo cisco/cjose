@@ -45,6 +45,8 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
 
 static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
+static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
+
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose_err *err)
 {
@@ -1071,6 +1073,49 @@ _cjose_jws_verify_sig_ec_cleanup:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
+    if (NULL == alg_obj || !json_is_string(alg_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const char *alg = json_string_value(alg_obj);
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_NONE))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_PS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS512))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RS384))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS512)))
+        && jwk->kty != CJOSE_JWK_KTY_RSA)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_HS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS512)))
+        && jwk->kty != CJOSE_JWK_KTY_OCT)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
+        && jwk->kty != CJOSE_JWK_KTY_EC)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool cjose_jws_verify(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jws || NULL == jwk)
@@ -1081,6 +1126,11 @@ bool cjose_jws_verify(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 
     // validate JWS header
     if (!_cjose_jws_validate_hdr(jws, err))
+    {
+        return false;
+    }
+
+    if (!_cjose_jws_validate_verify_key(jws, jwk, err))
     {
         return false;
     }

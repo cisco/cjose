@@ -76,6 +76,12 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err);
 
 static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err);
 
+static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
+                                            cjose_header_t *protected_header,
+                                            cjose_header_t *shared_header,
+                                            const cjose_jwk_t *jwk,
+                                            cjose_err *err);
+
 static void _cjose_release_cek(uint8_t **cek, size_t cek_len)
 {
 
@@ -1418,6 +1424,43 @@ _cjose_jwe_decrypt_dat_aes_cbc_fail:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
+                                            cjose_header_t *protected_header,
+                                            cjose_header_t *shared_header,
+                                            const cjose_jwk_t *jwk,
+                                            cjose_err *err)
+{
+    const char *alg = _cjose_jwe_get_from_headers(protected_header, shared_header, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_ALG);
+    if (NULL == alg)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RSA1_5))) && jwk->kty != CJOSE_JWK_KTY_RSA)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_A128KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
+        && jwk->kty != CJOSE_JWK_KTY_OCT)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if ((0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES)) && jwk->kty != CJOSE_JWK_KTY_EC)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 cjose_jwe_t *cjose_jwe_encrypt(
     const cjose_jwk_t *jwk, cjose_header_t *protected_header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
@@ -1979,6 +2022,11 @@ uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator
             continue;
         }
 
+        if (!_cjose_jwe_validate_decrypt_key(jwe->to + i, (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, key, err))
+        {
+            goto _cjose_jwe_decrypt_multi_fail;
+        }
+
         // decrypt JWE content-encryption key from encrypted key
         if (!jwe->to[i].fns.decrypt_ek(jwe->to + i, jwe, key, err))
         {
@@ -2028,6 +2076,11 @@ uint8_t *cjose_jwe_decrypt(cjose_jwe_t *jwe, const cjose_jwk_t *jwk, size_t *con
     if (NULL == jwe || NULL == jwk || NULL == content_len || jwe->to_count > 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    if (!_cjose_jwe_validate_decrypt_key(jwe->to, (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, jwk, err))
+    {
         return NULL;
     }
 
