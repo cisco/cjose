@@ -72,6 +72,17 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
 {
+    static const char *const supported_crit_headers[] = {
+        "alg",
+        "cty"
+    };
+
+    if (!_cjose_header_validate_crit((cjose_header_t *)jws->hdr, supported_crit_headers,
+                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
+    {
+        return false;
+    }
+
     // make sure we have an alg header
     json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
     if ((NULL == alg_obj) || (!json_is_string(alg_obj)))

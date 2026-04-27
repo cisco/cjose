@@ -8,6 +8,10 @@
 #ifndef SRC_HEADER_INT_H
 #define SRC_HEADER_INT_H
 
-// extern const char *CJOSE_HDR_ATTRS[];
+#include <stddef.h>
+
+#include "cjose/header.h"
+
+bool _cjose_header_validate_crit(cjose_header_t *header, const char *const *supported, size_t supported_len, cjose_err *err);
 
 #endif // SRC_HEADER_INT_H

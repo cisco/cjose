@@ -303,6 +303,24 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
                                     _jwe_int_recipient_t *recipient,
                                     cjose_err *err)
 {
+    static const char *const supported_crit_headers[] = {
+        "alg",
+        "enc",
+        "cty",
+        "epk",
+        "apu",
+        "apv"
+    };
+
+    if (!_cjose_header_validate_crit(protected_header, supported_crit_headers,
+                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
+        || !_cjose_header_validate_crit(unprotected_header, supported_crit_headers,
+                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
+        || !_cjose_header_validate_crit((cjose_header_t *)recipient->unprotected, supported_crit_headers,
+                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
+    {
+        return false;
+    }
 
     const char *alg = _cjose_jwe_get_from_headers(protected_header, unprotected_header, (cjose_header_t *)recipient->unprotected,
                                                   CJOSE_HDR_ALG);

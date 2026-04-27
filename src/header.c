@@ -6,6 +6,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <jansson.h>
 #include "cjose/header.h"
 #include "include/header_int.h"
@@ -46,6 +47,59 @@ const char *CJOSE_HDR_EPK = "epk";
 
 const char *CJOSE_HDR_APU = "apu";
 const char *CJOSE_HDR_APV = "apv";
+
+static const char *CJOSE_HDR_CRIT = "crit";
+
+////////////////////////////////////////////////////////////////////////////////
+bool _cjose_header_validate_crit(cjose_header_t *header, const char *const *supported, size_t supported_len, cjose_err *err)
+{
+    if (NULL == header)
+    {
+        return true;
+    }
+
+    json_t *crit = json_object_get((json_t *)header, CJOSE_HDR_CRIT);
+    if (NULL == crit)
+    {
+        return true;
+    }
+
+    if (!json_is_array(crit))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    size_t index = 0;
+    json_t *entry = NULL;
+    json_array_foreach(crit, index, entry)
+    {
+        if (!json_is_string(entry))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            return false;
+        }
+
+        const char *name = json_string_value(entry);
+        bool found = false;
+        for (size_t i = 0; i < supported_len; i++)
+        {
+            if (0 == strcmp(name, supported[i]))
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            return false;
+        }
+    }
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 cjose_header_t *cjose_header_new(cjose_err *err)
