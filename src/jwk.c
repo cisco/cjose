@@ -1818,7 +1818,7 @@ bool cjose_jwk_derive_ecdh_bits(
 
     // allocate buffer for shared secret
     secret = (uint8_t *)cjose_get_alloc()(secret_len);
-    if (NULL == output)
+    if (NULL == secret)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jwk_derive_bits_fail;
