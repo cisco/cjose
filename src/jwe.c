@@ -907,12 +907,9 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     cjose_get_dealloc()(jwe->enc_iv.raw);
     jwe->enc_iv.raw_len = 0;
 
-    if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
+    if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0 || strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0
+        || strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
         jwe->enc_iv.raw_len = 16;
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
-        jwe->enc_iv.raw_len = 24;
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
-        jwe->enc_iv.raw_len = 32;
 
     if (jwe->enc_iv.raw_len == 0)
     {
@@ -1258,6 +1255,12 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
     }
     EVP_CIPHER_CTX_init(ctx);
 
+    if (jwe->enc_iv.raw_len != 12)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto _cjose_jwe_decrypt_dat_a256gcm_fail;
+    }
+
     // initialize context for decryption using A256GCM cipher and CEK and IV
     if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
     {
@@ -1326,6 +1329,12 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
         return false;
     }
     const char *enc = json_string_value(enc_obj);
+
+    if (jwe->enc_iv.raw_len != AES_BLOCK_SIZE)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
 
     // calculate Authentication Tag
     unsigned int tag_len = 0;
