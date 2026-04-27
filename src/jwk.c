@@ -941,7 +941,13 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
 
         if (1 != EC_POINT_set_affine_coordinates_GFp(params, Q, bnX, bnY, NULL))
         {
-            CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto create_EC_failed;
+        }
+
+        if (1 != EC_POINT_is_on_curve(params, Q, NULL))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_EC_failed;
         }
     }
@@ -949,7 +955,13 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
     // always set the public key
     if (1 != EC_KEY_set_public_key(ec, Q))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto create_EC_failed;
+    }
+
+    if (1 != EC_KEY_check_key(ec))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto create_EC_failed;
     }
 

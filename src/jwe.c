@@ -804,6 +804,12 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
+    if (cjose_jwk_EC_get_curve(jwk, err) != cjose_jwk_EC_get_curve(epk_jwk, err))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_ecdh_es_finish;
+    }
+
     // perform ECDH (private=jwk, public=epk_jwk)
     if (!cjose_jwk_derive_ecdh_bits(jwk, epk_jwk, &secret, &secret_len, err))
     {
