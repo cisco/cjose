@@ -74,6 +74,12 @@ static inline bool _decode(const char *input, size_t inlen, uint8_t **output, si
 
     // rlen takes a best guess on size;
     // might be too large for base64url, but never too small.
+    if (inlen > SIZE_MAX / 3)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     size_t rlen = ((inlen * 3) >> 2) + 3;
     uint8_t *buffer = cjose_get_alloc()(sizeof(uint8_t) * rlen);
     if (NULL == buffer)
