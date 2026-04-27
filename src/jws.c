@@ -737,9 +737,9 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 static bool _cjose_jws_strcpy(char **dst, const char *src, int len, cjose_err *err)
 {
     *dst = (char *)cjose_get_alloc()(len + 1);
-    if (NULL == dst)
+    if (NULL == *dst)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
     }
 
@@ -792,7 +792,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
     // copy and decode header b64u segment
     uint8_t *hdr_str = NULL;
     jws->hdr_b64u_len = d[0];
-    _cjose_jws_strcpy(&jws->hdr_b64u, cser, jws->hdr_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->hdr_b64u, cser, jws->hdr_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->hdr_b64u, jws->hdr_b64u_len, &hdr_str, &len, err) || NULL == hdr_str)
     {
         cjose_jws_release(jws);
@@ -830,7 +834,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
 
     // copy and b64u decode data segment
     jws->dat_b64u_len = d[1] - d[0] - 1;
-    _cjose_jws_strcpy(&jws->dat_b64u, cser + d[0] + 1, jws->dat_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->dat_b64u, cser + d[0] + 1, jws->dat_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->dat_b64u, jws->dat_b64u_len, &jws->dat, &jws->dat_len, err))
     {
         cjose_jws_release(jws);
@@ -839,7 +847,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
 
     // copy and b64u decode signature segment
     jws->sig_b64u_len = cser_len - d[1] - 1;
-    _cjose_jws_strcpy(&jws->sig_b64u, cser + d[1] + 1, jws->sig_b64u_len, err);
+    if (!_cjose_jws_strcpy(&jws->sig_b64u, cser + d[1] + 1, jws->sig_b64u_len, err))
+    {
+        cjose_jws_release(jws);
+        return NULL;
+    }
     if (!cjose_base64url_decode(jws->sig_b64u, jws->sig_b64u_len, &jws->sig, &jws->sig_len, err))
     {
         cjose_jws_release(jws);
