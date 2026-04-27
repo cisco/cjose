@@ -14,6 +14,7 @@
 #include <string.h>
 #include <assert.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
@@ -1302,7 +1303,7 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // compare the provided Authentication Tag against our calculation
-    if ((tag_len != jwe->enc_auth_tag.raw_len) || (cjose_const_memcmp(tag, jwe->enc_auth_tag.raw, tag_len) != 0))
+    if ((tag_len != jwe->enc_auth_tag.raw_len) || (CRYPTO_memcmp(tag, jwe->enc_auth_tag.raw, tag_len) != 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;

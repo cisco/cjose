@@ -94,13 +94,7 @@ cjose_dealloc3_fn_t cjose_get_dealloc3() { return (!_dealloc3) ? cjose_dealloc3_
 
 int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size)
 {
-    unsigned char result = 0;
-    for (size_t i = 0; i < size; i++)
-    {
-        result |= a[i] ^ b[i];
-    }
-
-    return result;
+    return CRYPTO_memcmp(a, b, size);
 }
 
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err)

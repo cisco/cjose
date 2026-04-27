@@ -14,6 +14,7 @@
 #include <string.h>
 #include <assert.h>
 #include <openssl/evp.h>
+#include <openssl/crypto.h>
 #include <openssl/rsa.h>
 #include <openssl/err.h>
 #include <openssl/hmac.h>
@@ -984,6 +985,7 @@ _cjose_jws_verify_sig_rs_cleanup:
 static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
     bool retval = false;
+    int diff = 0;
 
     // ensure jwk is OCT
     if (jwk->kty != CJOSE_JWK_KTY_OCT)
@@ -993,7 +995,12 @@ static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *
     }
 
     // verify decrypted digest matches computed digest
-    if ((cjose_const_memcmp(jws->dig, jws->sig, jws->dig_len) != 0) || (jws->sig_len != jws->dig_len))
+    diff |= (jws->sig_len != jws->dig_len);
+    if (jws->sig_len == jws->dig_len)
+    {
+        diff |= CRYPTO_memcmp(jws->dig, jws->sig, jws->dig_len);
+    }
+    if (diff != 0)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jws_verify_sig_hmac_sha_cleanup;
