@@ -809,6 +809,63 @@ START_TEST(test_cjose_jwe_decrypt_aes)
 }
 END_TEST
 
+START_TEST(test_cjose_jwe_decrypt_aes_gcm)
+{
+    cjose_err err;
+
+    const char *key = JWK_OCT_32;
+    const char *plain1 = "Live long and prosper.";
+    char *compact1 = "eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..Du_9fxxV-zrReaWC.aS_rpokeuxkaPc2sykcQDCQuJCYoww.GpeKGEqd8KQ0v6JNea5aSA";
+    char *compact2 = "eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..Du_9fxxV-zrReaWC.aS_rpokeuxkaPc2sykcQDCQuJCYoww.Gp";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    cjose_jwe_t *jwe1 = cjose_jwe_import(compact1, strlen(compact1), &err);
+    ck_assert_msg(NULL != jwe1,
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    uint8_t *plain2 = NULL;
+    size_t plain2_len = 0;
+    plain2 = cjose_jwe_decrypt(jwe1, jwk, &plain2_len, &err);
+    ck_assert_msg(NULL != plain2,
+                  "cjose_jwe_decrypt failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    ck_assert_msg(plain2_len == strlen(plain1),
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
+                  strlen(plain1), plain2_len);
+    ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+
+    cjose_get_dealloc()(plain2);
+    cjose_jwe_release(jwe1);
+
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact2, strlen(compact2), &err);
+    ck_assert_msg(NULL != jwe2,
+                   "cjose_jwe_import failed: "
+                   "%s, file: %s, function: %s, line: %ld",
+                   err.message, err.file, err.function, err.line);
+
+    uint8_t *plain3 = NULL;
+    size_t plain3_len = 0;
+    plain3 = cjose_jwe_decrypt(jwe2, jwk, &plain3_len, &err);
+    ck_assert_msg(NULL == plain3,
+                   "cjose_jwe_decrypt succeeded where it should have failed: "
+                   "%s, file: %s, function: %s, line: %ld",
+                   err.message, err.file, err.function, err.line);
+
+    cjose_jwe_release(jwe2);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_decrypt_rsa)
 {
     struct cjose_jwe_decrypt_rsa
@@ -1210,6 +1267,7 @@ Suite *cjose_jwe_suite()
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_large);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_many);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
+    tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_with_bad_header);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_with_bad_key);
