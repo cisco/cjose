@@ -9,6 +9,7 @@
 #define SRC_UTIL_INT_H
 
 #include <cjose/error.h>
+#include <cjose/cjose_config.h>
 
 #include <jansson.h>
 #include <string.h>
