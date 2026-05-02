@@ -99,6 +99,11 @@ static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header
     return NULL;
 }
 
+static const cjose_jwk_t *cjose_multi_key_locator_none(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
+{
+    return NULL;
+}
+
 START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 {
     cjose_err err;
@@ -1167,7 +1172,13 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
+
+    CJOSE_ERROR(&err, CJOSE_ERR_NONE);
+    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator_none, rec, &decoded_len, &err);
+    ck_assert_msg(NULL == decoded, "did not expect to decode with selected key");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "expected error to be set to CRYPTO");
+
+    decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded,
                   "failed to decrypt for multiple recipients: "
                   "%s, file: %s, function: %s, line: %ld",
