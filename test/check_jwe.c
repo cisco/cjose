@@ -1197,6 +1197,83 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 }
 END_TEST
 
+// build a compact JWE from a valid AES-KW JWE but with the encrypted_key segment
+// replaced by an oversized (attacker-controlled) base64url blob, then confirm that
+// importing parses fine but decryption fails gracefully instead of overflowing the
+// fixed-size CEK buffer in AES_unwrap_key (RFC 3394 wrapped key is always cek_len + 8)
+static void _decrypt_oversized_aes_kw_ek(const char *alg, const char *enc, const char *key)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
+
+    const char *plain = "Setec Astronomy";
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s", err.message);
+
+    // locate the boundaries of the encrypted_key (second) segment
+    char *first_dot = strchr(compact, '.');
+    ck_assert(NULL != first_dot);
+    char *second_dot = strchr(first_dot + 1, '.');
+    ck_assert(NULL != second_dot);
+
+    // craft an oversized encrypted_key: 1024 raw bytes base64url-encoded; this decodes
+    // to far more than any CEK length (16/24/32 ... 64) + 8 bytes
+    uint8_t oversized[1024];
+    memset(oversized, 0x41, sizeof(oversized));
+    char *oversized_b64u = NULL;
+    size_t oversized_b64u_len = 0;
+    ck_assert(cjose_base64url_encode(oversized, sizeof(oversized), &oversized_b64u, &oversized_b64u_len, &err));
+
+    // reassemble: <header>.<oversized_ek>.<iv>.<ciphertext>.<tag>
+    size_t header_len = first_dot - compact;
+    const char *tail = second_dot; // includes the leading '.'
+    size_t tail_len = strlen(tail);
+    size_t tampered_len = header_len + 1 + oversized_b64u_len + tail_len;
+    char *tampered = (char *)malloc(tampered_len + 1);
+    ck_assert(NULL != tampered);
+    memcpy(tampered, compact, header_len);
+    tampered[header_len] = '.';
+    memcpy(tampered + header_len + 1, oversized_b64u, oversized_b64u_len);
+    memcpy(tampered + header_len + 1 + oversized_b64u_len, tail, tail_len);
+    tampered[tampered_len] = '\0';
+
+    // import must still succeed (parsing the oversized segment is legal)
+    cjose_jwe_t *jwe_bad = cjose_jwe_import(tampered, tampered_len, &err);
+    ck_assert_msg(NULL != jwe_bad, "cjose_jwe_import of oversized encrypted_key failed for alg %s: %s", alg, err.message);
+
+    // decryption must fail cleanly (no heap overflow) with CJOSE_ERR_INVALID_ARG
+    size_t plain_len = 0;
+    uint8_t *decrypted = cjose_jwe_decrypt(jwe_bad, jwk, &plain_len, &err);
+    ck_assert_msg(NULL == decrypted, "cjose_jwe_decrypt succeeded on oversized encrypted_key for alg %s", alg);
+    ck_assert_msg(CJOSE_ERR_INVALID_ARG == err.code, "cjose_jwe_decrypt returned wrong err.code %d for alg %s", err.code, alg);
+
+    free(tampered);
+    cjose_get_dealloc()(oversized_b64u);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe_bad);
+    cjose_jwe_release(jwe);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+
+START_TEST(test_cjose_jwe_decrypt_aes_kw_oversized_ek)
+{
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32);
+}
+END_TEST
+
 Suite *cjose_jwe_suite()
 {
     Suite *suite = suite_create("jwe");
@@ -1218,6 +1295,7 @@ Suite *cjose_jwe_suite()
     tcase_add_test(tc_jwe, test_cjose_jwe_import_invalid_serialization);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
+    tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;

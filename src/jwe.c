@@ -591,6 +591,15 @@ _cjose_jwe_decrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, 
         return false;
     }
 
+    // the wrapped key (RFC 3394) is always the plaintext CEK length plus 8 bytes;
+    // enforce this before calling AES_unwrap_key, which would otherwise copy the
+    // attacker-controlled encrypted_key into the fixed-size jwe->cek buffer
+    if (recipient->enc_key.raw_len != jwe->cek_len + 8)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     // AES unwrap the CEK in to jwe->cek
     int len = AES_unwrap_key(&akey, (const unsigned char *)NULL, jwe->cek, (const unsigned char *)recipient->enc_key.raw,
                              recipient->enc_key.raw_len);
