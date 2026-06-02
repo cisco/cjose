@@ -1197,6 +1197,63 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 }
 END_TEST
 
+// regression test for the AES-CBC-HMAC content-encryption key (CEK): it must
+// be generated from fresh random bytes on every encryption. A previous bug
+// zero-filled it (inverted random flag); because AES key wrap is deterministic,
+// that produced a byte-identical encrypted_key on every encryption with the
+// same KEK. Encrypt the same plaintext twice and assert the encrypted_key (the
+// 2nd compact field) differs.
+static void _assert_cbc_cek_random(const char *alg, const char *enc, const char *jwk_str)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(jwk_str, strlen(jwk_str), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert_msg(NULL != hdr, "cjose_header_new failed: %s", err.message);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
+
+    const char *plain = "Setec Astronomy";
+    char ek[2][512];
+
+    for (int i = 0; i < 2; i++)
+    {
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed (%s/%s): %s", alg, enc, err.message);
+
+        char *cser = cjose_jwe_export(jwe, &err);
+        ck_assert_msg(NULL != cser, "cjose_jwe_export failed: %s", err.message);
+
+        // the encrypted_key is the 2nd of the 5 dot-separated compact parts
+        const char *d1 = strchr(cser, '.');
+        const char *d2 = (NULL != d1) ? strchr(d1 + 1, '.') : NULL;
+        ck_assert_msg(NULL != d1 && NULL != d2, "malformed compact serialization");
+        size_t n = (size_t)(d2 - (d1 + 1));
+        ck_assert_msg(n > 0 && n < sizeof(ek[i]), "unexpected encrypted_key length");
+        memcpy(ek[i], d1 + 1, n);
+        ek[i][n] = '\0';
+
+        cjose_get_dealloc()(cser);
+        cjose_jwe_release(jwe);
+    }
+
+    ck_assert_msg(0 != strcmp(ek[0], ek[1]),
+                  "AES-CBC-HMAC CEK is not random: identical encrypted_key across two encryptions (%s/%s)", alg, enc);
+
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+
+START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
+{
+    _assert_cbc_cek_random(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16);
+    _assert_cbc_cek_random(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24);
+    _assert_cbc_cek_random(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32);
+}
+END_TEST
+
 Suite *cjose_jwe_suite()
 {
     Suite *suite = suite_create("jwe");
@@ -1218,6 +1275,7 @@ Suite *cjose_jwe_suite()
     tcase_add_test(tc_jwe, test_cjose_jwe_import_invalid_serialization);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
+    tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;

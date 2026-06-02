@@ -455,11 +455,11 @@ static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
     if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
         keysize = 64;
 
+    // if no JWK is provided, generate a random key
     if (NULL == jwk)
     {
-        // allocate memory for the CEK and fill with random bytes or 0's
         _cjose_release_cek(&jwe->cek, jwe->cek_len);
-        if (!_cjose_jwe_malloc(keysize, !random, &jwe->cek, err))
+        if (!_cjose_jwe_malloc(keysize, random, &jwe->cek, err))
         {
             return false;
         }
