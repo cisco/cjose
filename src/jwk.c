@@ -1749,6 +1749,11 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     // HKDF of the DH shared secret (SHA256, no info, 256 bit expand)
     ephemeral_key_len = 32;
     ephemeral_key = (uint8_t *)cjose_get_alloc()(ephemeral_key_len);
+    if (NULL == ephemeral_key)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _cjose_jwk_derive_shared_secret_fail;
+    }
     if (!cjose_jwk_hkdf(EVP_sha256(), salt, salt_len, (uint8_t *)"", 0, secret, secret_len, ephemeral_key, ephemeral_key_len, err))
     {
         goto _cjose_jwk_derive_shared_secret_fail;
