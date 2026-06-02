@@ -1061,13 +1061,26 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     EC_KEY *ec = keydata->key;
 
     ECDSA_SIG *ecdsa_sig = ECDSA_SIG_new();
+    if (ecdsa_sig == NULL)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ec_cleanup;
+    }
     int key_len = jws->sig_len / 2;
 
 #if defined(CJOSE_OPENSSL_11X)
-    BIGNUM *pr = BN_new(), *ps = BN_new();
+    BIGNUM *pr = BN_new();
+    BIGNUM *ps = BN_new();
+    if (pr == NULL || ps == NULL)
+    {
+        BN_free(pr);
+        BN_free(ps);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ec_cleanup;
+    }
     BN_bin2bn(jws->sig, key_len, pr);
     BN_bin2bn(jws->sig + key_len, key_len, ps);
-    ECDSA_SIG_set0(ecdsa_sig, pr, ps);
+    ECDSA_SIG_set0(ecdsa_sig, pr, ps); // takes ownership of pr and ps
 #else
     BN_bin2bn(jws->sig, key_len, ecdsa_sig->r);
     BN_bin2bn(jws->sig + key_len, key_len, ecdsa_sig->s);
