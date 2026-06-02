@@ -2097,7 +2097,8 @@ uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator
         }
         else
         {
-            if (cek_len != jwe->cek_len || memcmp(jwe->cek, cek, cek_len))
+            // constant-time compare: both operands are secret CEKs
+            if (cek_len != jwe->cek_len || cjose_const_memcmp(jwe->cek, cek, cek_len) != 0)
             {
                 CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
                 goto _cjose_jwe_decrypt_multi_fail;
