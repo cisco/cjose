@@ -1222,7 +1222,7 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
     uint8_t tag[EVP_MAX_MD_SIZE];
     if (_cjose_jwe_calc_auth_tag(enc, jwe, (unsigned char *)&tag, &tag_len, err) == false)
     {
-        return false;
+        goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
     // allocate buffer for the authentication tag
