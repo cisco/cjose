@@ -807,10 +807,11 @@ static bool _EC_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *
     result = true;
 
 _ec_to_string_cleanup:
-    if (buffer)
-    {
-        cjose_get_dealloc()(buffer);
-    }
+    // buffer and b64u hold the raw / base64url-encoded private key 'd';
+    // wipe them before release (b64u is also leaked here without this on
+    // the _cjose_json_stringn failure path)
+    _cjose_cleanse_dealloc(buffer, numsize);
+    _cjose_cleanse_dealloc(b64u, len);
 
     return result;
 }
@@ -1103,16 +1104,12 @@ static inline bool _RSA_json_field(BIGNUM *param, const char *name, json_t *json
     result = true;
 
 RSA_json_field_cleanup:
-    if (b64u)
-    {
-        cjose_get_dealloc()(b64u);
-        b64u = NULL;
-    }
-    if (data)
-    {
-        cjose_get_dealloc()(data);
-        data = NULL;
-    }
+    // data / b64u may hold a private key component (d, p, q, dp, dq, qi);
+    // wipe them before release (harmless for the public n and e)
+    _cjose_cleanse_dealloc(b64u, b64ulen);
+    b64u = NULL;
+    _cjose_cleanse_dealloc(data, datalen);
+    data = NULL;
 
     return result;
 }
@@ -1447,9 +1444,10 @@ import_EC_cleanup:
     {
         cjose_get_dealloc()(y_buffer);
     }
+    // d is the private key -> wipe the decoded copy before release
     if (NULL != d_buffer)
     {
-        cjose_get_dealloc()(d_buffer);
+        _cjose_cleanse_dealloc(d_buffer, d_buflen);
     }
 
     return jwk;
@@ -1555,14 +1553,15 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     jwk = cjose_jwk_create_RSA_spec(&rsa_keyspec, err);
 
 import_RSA_cleanup:
+    // n and e are public; the remaining decoded components are private -> wipe
     cjose_get_dealloc()(n_buffer);
     cjose_get_dealloc()(e_buffer);
-    cjose_get_dealloc()(d_buffer);
-    cjose_get_dealloc()(p_buffer);
-    cjose_get_dealloc()(q_buffer);
-    cjose_get_dealloc()(dp_buffer);
-    cjose_get_dealloc()(dq_buffer);
-    cjose_get_dealloc()(qi_buffer);
+    _cjose_cleanse_dealloc(d_buffer, d_buflen);
+    _cjose_cleanse_dealloc(p_buffer, p_buflen);
+    _cjose_cleanse_dealloc(q_buffer, q_buflen);
+    _cjose_cleanse_dealloc(dp_buffer, dp_buflen);
+    _cjose_cleanse_dealloc(dq_buffer, dq_buflen);
+    _cjose_cleanse_dealloc(qi_buffer, qi_buflen);
 
     return jwk;
 }
@@ -1584,10 +1583,8 @@ static cjose_jwk_t *_cjose_jwk_import_oct(json_t *jwk_json, cjose_err *err)
     jwk = cjose_jwk_create_oct_spec(k_buffer, k_buflen, err);
 
 import_oct_cleanup:
-    if (NULL != k_buffer)
-    {
-        cjose_get_dealloc()(k_buffer);
-    }
+    // k is secret symmetric key material -> wipe the decoded copy
+    _cjose_cleanse_dealloc(k_buffer, k_buflen);
 
     return jwk;
 }
