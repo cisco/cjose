@@ -66,10 +66,16 @@ bool cjose_concatkdf_create_otherinfo(const char *alg,
     uint8_t *apu = NULL, *apv = NULL;
     size_t apuLen = 0, apvLen = 0;
 
-    memset(err, 0, sizeof(cjose_err));
+    // err is optional and may be NULL, so only dereference it when provided.
+    // cjose_header_get() records an error only for an invalid header/attr; for a
+    // valid hdr and the constant APU/APV attrs an absent field just yields NULL.
+    if (NULL != err)
+    {
+        memset(err, 0, sizeof(cjose_err));
+    }
     const char *apuStr = cjose_header_get(hdr, CJOSE_HDR_APU, err);
     const char *apvStr = cjose_header_get(hdr, CJOSE_HDR_APV, err);
-    if (CJOSE_ERR_NONE != err->code)
+    if (NULL != err && CJOSE_ERR_NONE != err->code)
     {
         return false;
     }
