@@ -284,7 +284,7 @@ static bool _cjose_jwe_validate_enc(cjose_jwe_t *jwe, cjose_header_t *protected_
         jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_a256gcm;
         jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_a256gcm;
     }
-    if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    else if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         || (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0))
     {
         jwe->fns.set_cek = _cjose_jwe_set_cek_aes_cbc;
