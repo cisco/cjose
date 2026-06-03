@@ -260,7 +260,11 @@ bool cjose_jwk_set_kid(cjose_jwk_t *jwk, const char *kid, size_t len, cjose_err 
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
     }
-    strncpy(jwk->kid, kid, len + 1);
+    // copy exactly len bytes from the caller-supplied (length-delimited, not
+    // necessarily NUL-terminated) kid and terminate ourselves; strncpy(len + 1)
+    // would read one byte past kid and could leave jwk->kid unterminated.
+    memcpy(jwk->kid, kid, len);
+    jwk->kid[len] = '\0';
     return true;
 }
 
