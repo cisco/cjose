@@ -1326,8 +1326,8 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
     }
 
-    // allocate buffer for the plaintext
-    cjose_get_dealloc()(jwe->dat);
+    // allocate buffer for the plaintext, wiping any previously decrypted data
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
     jwe->dat_len = jwe->enc_ct.raw_len;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
@@ -1440,7 +1440,7 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     int p_len = (int)jwe->enc_ct.raw_len, f_len = 0;
-    cjose_get_dealloc()(jwe->dat);
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
     jwe->dat_len = p_len + AES_BLOCK_SIZE;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
@@ -1653,7 +1653,9 @@ void cjose_jwe_release(cjose_jwe_t *jwe)
 
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
-    cjose_get_dealloc()(jwe->dat);
+    // jwe->dat holds decrypted plaintext when the caller has not taken
+    // ownership of it (e.g. after a failed decrypt); wipe it before release
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
     cjose_get_dealloc()(jwe);
 }
 
