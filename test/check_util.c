@@ -238,6 +238,19 @@ START_TEST(test_cjose_set_allocators_ex)
 }
 END_TEST
 
+// regression: cjose_err_message is public and must not index its message
+// table out of bounds for an out-of-enum error code
+START_TEST(test_cjose_err_message)
+{
+    ck_assert(NULL != cjose_err_message(CJOSE_ERR_NONE));
+    ck_assert(NULL != cjose_err_message(CJOSE_ERR_INVALID_ARG));
+    ck_assert(NULL != cjose_err_message(CJOSE_ERR_INVALID_STATE));
+    ck_assert(NULL != cjose_err_message(CJOSE_ERR_NO_MEMORY));
+    ck_assert(NULL != cjose_err_message(CJOSE_ERR_CRYPTO));
+    ck_assert_str_eq("unknown error", cjose_err_message((cjose_errcode)42));
+}
+END_TEST
+
 Suite *cjose_util_suite(void)
 {
     Suite *suite = suite_create("util");
@@ -245,6 +258,7 @@ Suite *cjose_util_suite(void)
     TCase *tc_util = tcase_create("core");
     tcase_add_test(tc_util, test_cjose_set_allocators);
     tcase_add_test(tc_util, test_cjose_set_allocators_ex);
+    tcase_add_test(tc_util, test_cjose_err_message);
     suite_add_tcase(suite, tc_util);
 
     return suite;
