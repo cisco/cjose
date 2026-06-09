@@ -110,7 +110,13 @@ bool cjose_header_set(cjose_header_t *header, const char *attr, const char *valu
         return false;
     }
 
-    json_object_set_new((json_t *)header, attr, value_obj);
+    // json_object_set_new fails on OOM or an invalid attr key, and releases
+    // value_obj either way; don't report success with the attribute unset
+    if (0 != json_object_set_new((json_t *)header, attr, value_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return false;
+    }
 
     return true;
 }
@@ -152,7 +158,13 @@ bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *
         return false;
     }
 
-    json_object_set_new((json_t *)header, attr, value_obj);
+    // json_object_set_new fails on OOM or an invalid attr key, and releases
+    // value_obj either way; don't report success with the attribute unset
+    if (0 != json_object_set_new((json_t *)header, attr, value_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return false;
+    }
 
     return true;
 }
