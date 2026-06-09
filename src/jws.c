@@ -792,10 +792,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
     }
     memset(jws, 0, sizeof(cjose_jws_t));
 
-    // find the indexes of the dots
-    int idx = 0;
-    int d[2] = { 0, 0 };
-    for (int i = 0; i < cser_len && idx < 2; ++i)
+    // find the indexes of the dots; use size_t to match cser_len, an int
+    // would truncate the offsets for an oversized serialization
+    size_t idx = 0;
+    size_t d[2] = { 0, 0 };
+    for (size_t i = 0; i < cser_len && idx < 2; ++i)
     {
         if (cser[i] == '.')
         {
