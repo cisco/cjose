@@ -1,4 +1,4 @@
-AM_CFLAGS =-std=gnu99 --pedantic -Wall -Werror -g -O2 -I$(top_builddir)/include
+AM_CFLAGS =-std=gnu99 --pedantic -Wall -Werror -g -O2 -DOPENSSL_API_COMPAT=0x10100000L -I$(top_builddir)/include
 
 lib_LTLIBRARIES=libcjose.la
 libcjose_la_CPPFLAGS= -I$(topdir)/include
