@@ -1183,7 +1183,8 @@ static const size_t DEFAULT_E_LEN = 3;
 
 cjose_jwk_t *cjose_jwk_create_RSA_random(size_t keysize, const uint8_t *e, size_t elen, cjose_err *err)
 {
-    if (0 == keysize)
+    // RFC 7518 §3.3 requires minimum 2048-bit RSA modulus for RS*/PS*/RSA-OAEP/RSA1_5
+    if (keysize < 2048)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
@@ -1247,6 +1248,21 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
     }
+
+    // RFC 7518 §3.3 requires minimum 2048-bit RSA modulus for RS*/PS*/RSA-OAEP/RSA1_5
+    BIGNUM *n_bn = BN_bin2bn(spec->n, spec->nlen, NULL);
+    if (NULL == n_bn)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+    if (BN_num_bits(n_bn) < 2048)
+    {
+        BN_free(n_bn);
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+    BN_free(n_bn);
 
     RSA *rsa = NULL;
     rsa = RSA_new();

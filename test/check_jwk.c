@@ -1422,6 +1422,80 @@ START_TEST(test_cjose_jwk_get_and_set_kid)
 }
 END_TEST
 
+// 512-bit RSA test key (modulus and exponent in base64url format)
+// Generated for testing weak RSA key rejection per RFC 7518 §3.3
+const char *RSA_512_n = "kGiKm3yt90sKJPGUF0hBbHJPOPHG5V5CfDe-YZ0E3D7KvXjBT_IJZR6n8ZKnEwYSVXxKJ6rlx5Vvg5gvq1QQ2w";
+const char *RSA_512_e = "AQAB";
+
+START_TEST(test_cjose_jwk_create_RSA_random_weak_keysize)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    uint8_t *e = (uint8_t *)"\x01\x00\x01";
+    size_t elen = 3;
+
+    // Test that 512-bit keys are rejected (< 2048)
+    jwk = cjose_jwk_create_RSA_random(512, e, elen, &err);
+    ck_assert_msg(NULL == jwk, "expected NULL for 512-bit key, but got a cjose_jwk_t");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // Test that 1024-bit keys are rejected (< 2048)
+    jwk = cjose_jwk_create_RSA_random(1024, e, elen, &err);
+    ck_assert_msg(NULL == jwk, "expected NULL for 1024-bit key, but got a cjose_jwk_t");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // Test that 2047-bit keys are rejected (< 2048)
+    jwk = cjose_jwk_create_RSA_random(2047, e, elen, &err);
+    ck_assert_msg(NULL == jwk, "expected NULL for 2047-bit key, but got a cjose_jwk_t");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // Test that 2048-bit keys are accepted (>= 2048)
+    jwk = cjose_jwk_create_RSA_random(2048, e, elen, &err);
+    ck_assert_msg(NULL != jwk, "expected a cjose_jwk_t for 2048-bit key, but got NULL");
+    cjose_jwk_release(jwk);
+
+    // Test that 4096-bit keys are accepted (> 2048)
+    jwk = cjose_jwk_create_RSA_random(4096, e, elen, &err);
+    ck_assert_msg(NULL != jwk, "expected a cjose_jwk_t for 4096-bit key, but got NULL");
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_create_RSA_spec_weak_modulus)
+{
+    cjose_err err;
+    cjose_jwk_rsa_keyspec spec;
+    cjose_jwk_t *jwk = NULL;
+
+    // Test that 512-bit RSA modulus is rejected
+    memset(&spec, 0, sizeof(cjose_jwk_rsa_keyspec));
+    ck_assert(cjose_base64url_decode(RSA_512_e, strlen(RSA_512_e), &spec.e, &spec.elen, &err));
+    ck_assert(cjose_base64url_decode(RSA_512_n, strlen(RSA_512_n), &spec.n, &spec.nlen, &err));
+
+    jwk = cjose_jwk_create_RSA_spec(&spec, &err);
+    ck_assert_msg(NULL == jwk, "expected NULL for 512-bit RSA modulus, but got a cjose_jwk_t");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // Cleanup
+    cjose_get_dealloc()(spec.e);
+    cjose_get_dealloc()(spec.n);
+
+    // Test that 2048-bit RSA modulus (existing test data) is accepted
+    memset(&spec, 0, sizeof(cjose_jwk_rsa_keyspec));
+    ck_assert(cjose_base64url_decode(RSA_e, strlen(RSA_e), &spec.e, &spec.elen, &err));
+    ck_assert(cjose_base64url_decode(RSA_n, strlen(RSA_n), &spec.n, &spec.nlen, &err));
+
+    jwk = cjose_jwk_create_RSA_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk, "expected a cjose_jwk_t for 2048-bit RSA modulus, but got NULL");
+    ck_assert(2048 == jwk->keysize);
+    cjose_jwk_release(jwk);
+
+    // Cleanup
+    cjose_get_dealloc()(spec.e);
+    cjose_get_dealloc()(spec.n);
+}
+END_TEST
+
 Suite *cjose_jwk_suite()
 {
     Suite *suite = suite_create("jwk");
@@ -1431,6 +1505,8 @@ Suite *cjose_jwk_suite()
     tcase_add_test(tc_jwk, test_cjose_jwk_name_for_kty);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random_weak_keysize);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec_weak_modulus);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P384_spec);
