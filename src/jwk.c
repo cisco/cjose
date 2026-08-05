@@ -1384,6 +1384,9 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     uint8_t *x_buffer = NULL;
     uint8_t *y_buffer = NULL;
     uint8_t *d_buffer = NULL;
+    size_t x_buflen = 0;
+    size_t y_buflen = 0;
+    size_t d_buflen = 0;
 
     // get the value of the crv attribute
     const char *crv_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_CRV_STR, err);
@@ -1402,7 +1405,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the x coordinate
-    size_t x_buflen = (size_t)_ec_size_for_curve(crv, err);
+    x_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_X_STR, &x_buffer, &x_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1410,7 +1413,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the y coordinate
-    size_t y_buflen = (size_t)_ec_size_for_curve(crv, err);
+    y_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Y_STR, &y_buffer, &y_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1418,7 +1421,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the private key d
-    size_t d_buflen = (size_t)_ec_size_for_curve(crv, err);
+    d_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1468,9 +1471,16 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     uint8_t *dp_buffer = NULL;
     uint8_t *dq_buffer = NULL;
     uint8_t *qi_buffer = NULL;
+    size_t n_buflen = 0;
+    size_t e_buflen = 0;
+    size_t d_buflen = 0;
+    size_t p_buflen = 0;
+    size_t q_buflen = 0;
+    size_t dp_buflen = 0;
+    size_t dq_buflen = 0;
+    size_t qi_buflen = 0;
 
     // get the decoded value of n (buflen = 0 means no particular expected len)
-    size_t n_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_N_STR, &n_buffer, &n_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1478,7 +1488,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of e
-    size_t e_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_E_STR, &e_buffer, &e_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1486,7 +1495,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of d
-    size_t d_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1494,7 +1502,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of p
-    size_t p_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1502,7 +1509,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of q
-    size_t q_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1510,7 +1516,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of dp
-    size_t dp_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1518,7 +1523,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of dq
-    size_t dq_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1526,7 +1530,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of qi
-    size_t qi_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
