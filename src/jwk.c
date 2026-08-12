@@ -201,7 +201,10 @@ bool _cjose_jwk_rsa_set_crt(
 
 const char *cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
 {
-    if (0 == kty || CJOSE_JWK_KTY_OCT < kty)
+    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_OCT]; a value
+    // below RSA (e.g. a negative sentinel, if the enum is signed) would index
+    // JWK_KTY_NAMES out of bounds
+    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_OCT < kty)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
