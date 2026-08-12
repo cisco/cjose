@@ -93,7 +93,8 @@ bool cjose_concatkdf_create_otherinfo(const char *alg,
     ptr = _apply_lendata((const uint8_t *)alg, algLen, ptr);
     ptr = _apply_lendata(apu, apuLen, ptr);
     ptr = _apply_lendata(apv, apvLen, ptr);
-    ptr = _apply_uint32(keylen, ptr);
+    // final write; the returned (end) pointer is intentionally not stored
+    _apply_uint32(keylen, ptr);
 
     *otherinfoLen = bufferLen;
     *otherinfo = buffer;
