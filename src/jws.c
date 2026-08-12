@@ -854,6 +854,10 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
             cjose_jws_release(jws);
             return NULL;
         }
+
+        // alg=none is accepted (parse-only): clear the validation error
+        // recorded above so a successful import does not leave err populated
+        CJOSE_ERROR(err, CJOSE_ERR_NONE);
     }
 
     // copy and b64u decode data segment
