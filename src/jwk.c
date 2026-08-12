@@ -80,7 +80,16 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
         rsa_d = BN_bin2bn(d, d_len, NULL);
 
 #if defined(CJOSE_OPENSSL_11X)
-    return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
+    if (1 != RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d))
+    {
+        // the setter takes ownership only on success; free the BIGNUMs it
+        // refused (e.g. if a BN_bin2bn above failed) rather than leaking them
+        BN_free(rsa_n);
+        BN_free(rsa_e);
+        BN_free(rsa_d);
+        return false;
+    }
+    return true;
 #else
     rsa->n = rsa_n;
     rsa->e = rsa_e;
@@ -1088,6 +1097,9 @@ static inline cjose_jwk_t *_RSA_new(RSA *rsa, cjose_err *err)
     cjose_jwk_t *jwk = cjose_get_alloc()(sizeof(cjose_jwk_t));
     if (!jwk)
     {
+        // _RSA_new owns rsa on every path; free it here so the callers that
+        // `return _RSA_new(rsa, err)` do not leak it on allocation failure
+        RSA_free(rsa);
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return NULL;
     }
