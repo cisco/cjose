@@ -33,6 +33,13 @@ bool _cjose_header_validate_crit(cjose_header_t *header, const char *const *supp
         return false;
     }
 
+    // RFC 7515 section 4.1.11: if present, the "crit" list MUST NOT be empty
+    if (0 == json_array_size(crit))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     size_t index = 0;
     json_t *entry = NULL;
     json_array_foreach(crit, index, entry)
