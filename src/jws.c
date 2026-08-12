@@ -756,7 +756,7 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_strcpy(char **dst, const char *src, int len, cjose_err *err)
+static bool _cjose_jws_strcpy(char **dst, const char *src, size_t len, cjose_err *err)
 {
     *dst = (char *)cjose_get_alloc()(len + 1);
     if (NULL == *dst)
