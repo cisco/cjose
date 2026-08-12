@@ -148,8 +148,7 @@ static bool _cjose_convert_to_base64(struct _cjose_jwe_int *jwe, cjose_err *err)
 {
 
     if (!_cjose_convert_part(&jwe->enc_header, err) || !_cjose_convert_part(&jwe->enc_iv, err)
-        || !_cjose_convert_part(&jwe->enc_iv, err) || !_cjose_convert_part(&jwe->enc_ct, err)
-        || !_cjose_convert_part(&jwe->enc_auth_tag, err))
+        || !_cjose_convert_part(&jwe->enc_ct, err) || !_cjose_convert_part(&jwe->enc_auth_tag, err))
     {
 
         return false;
