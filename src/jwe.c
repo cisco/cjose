@@ -201,8 +201,10 @@ static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose
             return false;
         }
     }
-    else
+    else if (bytes > 0)
     {
+        // *buffer may be NULL for a zero-byte request (malloc(0)); passing NULL
+        // to memset is undefined even with a zero length, so skip it
         memset(*buffer, 0, bytes);
     }
     return true;
