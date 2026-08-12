@@ -181,6 +181,14 @@ static inline bool _encode(const uint8_t *input, size_t inlen, char **output, si
         return true;
     }
 
+    // guard the ~4/3 size expansion (the +2, the <<2, and the +1 below) against
+    // size_t overflow, mirroring the SIZE_MAX/3 guard on the decode side
+    if (inlen > (SIZE_MAX - 4) / 4 * 3)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     const bool padit = (ALPHABET_B64 == alphabet);
     size_t rlen = (((inlen + 2) / 3) << 2);
     char *base;
