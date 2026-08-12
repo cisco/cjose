@@ -1118,6 +1118,25 @@ START_TEST(test_cjose_jwk_import_invalid)
         "\"e\": \"AQAB\", "
         "\"kid\": \"05F24DC3-59F4-4AC5-9849-F2F5EA8A6F3E\" }",
 
+        // RSA 2048 private key with an incomplete factor set (only 'p',
+        // missing 'q'/'dp'/'dq'/'qi'); must be rejected rather than silently
+        // dropping and leaking the supplied factor
+        "{ \"kty\": \"RSA\", "
+        "\"e\": \"AQAB\", "
+        "\"n\": "
+        "\"zSNO12-ydrm-bheszVm2ZvycKrSV2CN0xqQHPxB4yT8MFlWfopMA2Imt4EkILfPfZPeUYV6lElCjoY_4GBtQOy_"
+        "e4RvDSMC0pqt5X4e6mjQvLsaAClkBmhhCYd-Vn9XIC3rSeAmBpSJDuwq_RTweXSG0hb_bn5FHf1Bl_"
+        "ekEBUsm0Xq4p6N5DjC0ImNP74G0qxBVJzu07qsCJzYpifYYoEYkwIY7S4jqyHv55wiuMt89VTl37y8VFR3ll6RPiPFa4Raiminw5wKNJEmrGEukabibspiC0Xv"
+        "WEMXj_zk0YnVTGAGdZeDPwnjYY6JUOJ9KgcYkiQYb9SXetsjSbyheZw\", "
+        "\"d\": "
+        "\"bixuZapp0PYFXp98gXWTT1CQlycR61lvmFf0RFyWYo9n8H7gE7KcG7AmIHVY3UVDT7jgikMIqQOCPn1SI7BXsNIPBBujEGnfHDywHSyKfdNVG-"
+        "wkTGptP9OTo3kvpP5uSCwY6btBU-1JLyWggJC_RgmaKNNYIyUlny0Q-gOx0x0I-6ipWyLQVdKZBkw6erSODM244sPU9qEmyzVW7Nbmo5PKC1U4w-"
+        "Dt4nBe19TIUHG-ggN_UDRauljbegIIcnEWWeXdJZDdPUHgmIRa2ODN0mfSKl1CB4LJ2eyKlmddGLFiHys44OVwA8LVzrodUixIQP6wQ02AUwlaYU_"
+        "BWLEVoQ\", "
+        "\"p\": "
+        "\"9GRrzfmxrL_WgSKXexO6uc2hWh-lV9bPfBU735uHUFBS2_OOUjtQSYSqm-HK2ND1EIlPZBEEu9ccdshaEVYx79eP5fRnpF8EKEo1W-eeinmn7pQsfR-"
+        "6kFzkKmdBVhUyfpZvWtNuIwNZLu-HEvF2eIVVauQtJCPnjeYFbDyveqk\" }",
+
         // empty object
         "{}",
 

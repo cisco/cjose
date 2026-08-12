@@ -99,7 +99,7 @@ void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
 #endif
 }
 
-void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
+bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
 {
     BIGNUM *rsa_p = NULL, *rsa_q = NULL;
 
@@ -108,12 +108,31 @@ void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
     if (q && q_len > 0)
         rsa_q = BN_bin2bn(q, q_len, NULL);
 
+    // no factors supplied: a valid (n, e, d)-only private key
+    if (NULL == rsa_p && NULL == rsa_q)
+        return true;
+
+    // p and q are required together; reject (and free) an incomplete pair
+    // instead of leaking the BIGNUM the setter refuses to take ownership of
+    if (NULL == rsa_p || NULL == rsa_q)
+    {
+        BN_free(rsa_p);
+        BN_free(rsa_q);
+        return false;
+    }
+
 #if defined(CJOSE_OPENSSL_11X)
-    RSA_set0_factors(rsa, rsa_p, rsa_q);
+    if (1 != RSA_set0_factors(rsa, rsa_p, rsa_q))
+    {
+        BN_free(rsa_p);
+        BN_free(rsa_q);
+        return false;
+    }
 #else
     rsa->p = rsa_p;
     rsa->q = rsa_q;
 #endif
+    return true;
 }
 
 void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
@@ -127,7 +146,7 @@ void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqm
 #endif
 }
 
-void _cjose_jwk_rsa_set_crt(
+bool _cjose_jwk_rsa_set_crt(
     RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *dmq1, size_t dmq1_len, uint8_t *iqmp, size_t iqmp_len)
 {
     BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
@@ -139,13 +158,34 @@ void _cjose_jwk_rsa_set_crt(
     if (iqmp && iqmp_len > 0)
         rsa_iqmp = BN_bin2bn(iqmp, iqmp_len, NULL);
 
+    // no CRT params supplied: nothing to set
+    if (NULL == rsa_dmp1 && NULL == rsa_dmq1 && NULL == rsa_iqmp)
+        return true;
+
+    // the CRT params are required together; reject (and free) an incomplete
+    // set instead of leaking the BIGNUMs the setter refuses to take ownership of
+    if (NULL == rsa_dmp1 || NULL == rsa_dmq1 || NULL == rsa_iqmp)
+    {
+        BN_free(rsa_dmp1);
+        BN_free(rsa_dmq1);
+        BN_free(rsa_iqmp);
+        return false;
+    }
+
 #if defined(CJOSE_OPENSSL_11X)
-    RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp);
+    if (1 != RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp))
+    {
+        BN_free(rsa_dmp1);
+        BN_free(rsa_dmq1);
+        BN_free(rsa_iqmp);
+        return false;
+    }
 #else
     rsa->dmp1 = rsa_dmp1;
     rsa->dmq1 = rsa_dmq1;
     rsa->iqmp = rsa_iqmp;
 #endif
+    return true;
 }
 
 // interface functions -- Generic
@@ -1280,8 +1320,12 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_RSA_spec_failed;
         }
-        _cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen);
-        _cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen);
+        if (!_cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen)
+            || !_cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto create_RSA_spec_failed;
+        }
     }
     else if (hasPub)
     {
