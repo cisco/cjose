@@ -627,6 +627,7 @@ static bool _cjose_jws_build_cser(cjose_jws_t *jws, cjose_err *err)
     // both sign and import should be setting these - but check just in case
     if (NULL == jws->hdr_b64u || NULL == jws->dat_b64u || NULL == jws->sig_b64u)
     {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
         return false;
     }
 
@@ -748,7 +749,10 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 
     if (NULL == jws->cser)
     {
-        _cjose_jws_build_cser(jws, err);
+        if (!_cjose_jws_build_cser(jws, err))
+        {
+            return false;
+        }
     }
 
     *compact = jws->cser;
