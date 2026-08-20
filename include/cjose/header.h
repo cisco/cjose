@@ -24,71 +24,71 @@ extern "C" {
 #endif
 
 /** The JWE algorithm header attribute name. */
-extern const char *CJOSE_HDR_ALG;
+#define CJOSE_HDR_ALG "alg"
 
 /** The JWE content encryption algorithm header attribute name. */
-extern const char *CJOSE_HDR_ENC;
+#define CJOSE_HDR_ENC "enc"
 
 /** The JWE "cty" header attribute. */
-extern const char *CJOSE_HDR_CTY;
+#define CJOSE_HDR_CTY "cty"
 
 /** The Jose "kid" header attribute. */
-extern const char *CJOSE_HDR_KID;
+#define CJOSE_HDR_KID "kid"
 
 /** The Jose "epk" header attribte. */
-extern const char *CJOSE_HDR_EPK;
+#define CJOSE_HDR_EPK "epk"
 
 /** For ECDH-ES algorithms, the PartyU and PartyV values */
-extern const char *CJOSE_HDR_APU;
-extern const char *CJOSE_HDR_APV;
+#define CJOSE_HDR_APU "apu"
+#define CJOSE_HDR_APV "apv"
 
 /** The JWA algorithm attribute value for none. */
-extern const char *CJOSE_HDR_ALG_NONE;
+#define CJOSE_HDR_ALG_NONE "none"
 
 /** The JWE algorithm attribute value of ECDH-ES. */
-extern const char *CJOSE_HDR_ALG_ECDH_ES;
+#define CJOSE_HDR_ALG_ECDH_ES "ECDH-ES"
 
 /** The JWE algorithm attribute value for RSA-OAEP. */
-extern const char *CJOSE_HDR_ALG_RSA_OAEP;
+#define CJOSE_HDR_ALG_RSA_OAEP "RSA-OAEP"
 
 /** The JWE algorithm attribute value for RSA1_5. */
-extern const char *CJOSE_HDR_ALG_RSA1_5;
+#define CJOSE_HDR_ALG_RSA1_5 "RSA1_5"
 
 /** The JWE algorithm attribute value for A128KW, A192KW and A256KW. */
-extern const char *CJOSE_HDR_ALG_A128KW;
-extern const char *CJOSE_HDR_ALG_A192KW;
-extern const char *CJOSE_HDR_ALG_A256KW;
+#define CJOSE_HDR_ALG_A128KW "A128KW"
+#define CJOSE_HDR_ALG_A192KW "A192KW"
+#define CJOSE_HDR_ALG_A256KW "A256KW"
 
 /** The JWS algorithm attribute value for PS256, PS384 and PS512. */
-extern const char *CJOSE_HDR_ALG_PS256;
-extern const char *CJOSE_HDR_ALG_PS384;
-extern const char *CJOSE_HDR_ALG_PS512;
+#define CJOSE_HDR_ALG_PS256 "PS256"
+#define CJOSE_HDR_ALG_PS384 "PS384"
+#define CJOSE_HDR_ALG_PS512 "PS512"
 
 /** The JWS algorithm attribute value for RS256, RS384 and RS512. */
-extern const char *CJOSE_HDR_ALG_RS256;
-extern const char *CJOSE_HDR_ALG_RS384;
-extern const char *CJOSE_HDR_ALG_RS512;
+#define CJOSE_HDR_ALG_RS256 "RS256"
+#define CJOSE_HDR_ALG_RS384 "RS384"
+#define CJOSE_HDR_ALG_RS512 "RS512"
 
 /** The JWS algorithm attribute values for HS256, HS384 and HS512. */
-extern const char *CJOSE_HDR_ALG_HS256;
-extern const char *CJOSE_HDR_ALG_HS384;
-extern const char *CJOSE_HDR_ALG_HS512;
+#define CJOSE_HDR_ALG_HS256 "HS256"
+#define CJOSE_HDR_ALG_HS384 "HS384"
+#define CJOSE_HDR_ALG_HS512 "HS512"
 
 /** The JWS algorithm attribute values for ES256, ES384 and ES512. */
-extern const char *CJOSE_HDR_ALG_ES256;
-extern const char *CJOSE_HDR_ALG_ES384;
-extern const char *CJOSE_HDR_ALG_ES512;
+#define CJOSE_HDR_ALG_ES256 "ES256"
+#define CJOSE_HDR_ALG_ES384 "ES384"
+#define CJOSE_HDR_ALG_ES512 "ES512"
 
 /** The JWE algorithm attribute value for "dir". */
-extern const char *CJOSE_HDR_ALG_DIR;
+#define CJOSE_HDR_ALG_DIR "dir"
 
 /** The JWE content encryption algorithm value for A256GCM. */
-extern const char *CJOSE_HDR_ENC_A256GCM;
+#define CJOSE_HDR_ENC_A256GCM "A256GCM"
 
 /** The JWE content encryption algorithm value for A128CBC-HS256, A192CBC-HS384 and A256CBC-HS512. */
-extern const char *CJOSE_HDR_ENC_A128CBC_HS256;
-extern const char *CJOSE_HDR_ENC_A192CBC_HS384;
-extern const char *CJOSE_HDR_ENC_A256CBC_HS512;
+#define CJOSE_HDR_ENC_A128CBC_HS256 "A128CBC-HS256"
+#define CJOSE_HDR_ENC_A192CBC_HS384 "A192CBC-HS384"
+#define CJOSE_HDR_ENC_A256CBC_HS512 "A256CBC-HS512"
 
 /**
  * An instance of a header object (used when creating JWE/JWS objects).
