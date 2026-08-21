@@ -19,7 +19,7 @@ START_TEST(test_cjose_version_fn)
 }
 END_TEST
 
-Suite *cjose_version_suite()
+Suite *cjose_version_suite(void)
 {
     Suite *suite = suite_create("version");
 

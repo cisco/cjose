@@ -219,7 +219,7 @@ START_TEST(test_cjose_concatkdf_derive_moreinfo)
     ck_assert_bin_eq(derived, expected, keylen);
 }
 END_TEST
-Suite *cjose_concatkdf_suite()
+Suite *cjose_concatkdf_suite(void)
 {
     Suite *suite = suite_create("concatkdf");
 

@@ -255,7 +255,7 @@ START_TEST(test_cjose_jws_sign_with_bad_header)
     // create a JWS
     jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad header");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%i:%s)", err.code, err.message);
 
     cjose_header_release(hdr);
     cjose_jwk_release(jwk);
@@ -309,7 +309,7 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 
         jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
         ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "%d cjose_jws_sign returned bad err.code (%zu:%s)", i, err.code,
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "%d cjose_jws_sign returned bad err.code (%i:%s)", i, err.code,
                       err.message);
 
         cjose_jwk_release(jwk);
@@ -317,7 +317,7 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 
     jws = cjose_jws_sign(NULL, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%i:%s)", err.code, err.message);
 
     cjose_header_release(hdr);
 }
@@ -356,11 +356,11 @@ START_TEST(test_cjose_jws_sign_with_bad_content)
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 1024, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%i:%s)", err.code, err.message);
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 0, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%i:%s)", err.code, err.message);
 
     cjose_jwk_release(jwk);
     cjose_header_release(hdr);
@@ -432,7 +432,7 @@ START_TEST(test_cjose_jws_import_invalid_serialization)
     {
         cjose_jws_t *jws = cjose_jws_import(JWS_BAD[i], strlen(JWS_BAD[i]), &err);
         ck_assert_msg(NULL == jws, "cjose_jws_import of bad JWS succeeded");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_import returned wrong err.code (%zu:%s)", err.code,
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_import returned wrong err.code (%i:%s)", err.code,
                       err.message);
     }
 }
@@ -535,11 +535,11 @@ START_TEST(test_cjose_jws_verify_bad_params)
 
     // try to verify a NULL jws
     ck_assert_msg(!cjose_jws_verify(NULL, jwk, &err), "cjose_jws_verify succeeded with NULL jws");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
 
     // try to verify with a NULL jwk
     ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), "cjose_jws_verify succeeded with NULL jwk");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
 
     // try to verify with bad/wrong/unsupported keys
     for (int i = 0; NULL != JWK_BAD[i]; ++i)
@@ -548,7 +548,7 @@ START_TEST(test_cjose_jws_verify_bad_params)
         ck_assert_msg(NULL != jwk_bad, "cjose_jwk_import failed");
 
         ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), "cjose_jws_verify succeeded with bad jwk");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code,
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code,
                       err.message);
 
         cjose_jwk_release(jwk_bad);
@@ -689,7 +689,7 @@ START_TEST(test_cjose_jws_verify_rs256)
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err), "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
     cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT
@@ -705,7 +705,7 @@ START_TEST(test_cjose_jws_verify_rs256)
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err), "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
 
     cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
@@ -835,7 +835,7 @@ START_TEST(test_cjose_jws_verify_ec256)
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err), "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
     cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT
@@ -850,7 +850,7 @@ START_TEST(test_cjose_jws_verify_ec256)
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err), "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%i:%s)", err.code, err.message);
 
     cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
@@ -921,7 +921,7 @@ START_TEST(test_cjose_jws_none)
 }
 END_TEST
 
-Suite *cjose_jws_suite()
+Suite *cjose_jws_suite(void)
 {
     Suite *suite = suite_create("jws");
 

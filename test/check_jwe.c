@@ -1253,7 +1253,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 
     cjose_err err;
 
-    cjose_jwe_recipient_t rec[2];
+    cjose_jwe_recipient_t rec[3];
 
     for (int i = 0; i < 2; i++)
     {
@@ -1389,7 +1389,7 @@ START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
 }
 END_TEST
 
-Suite *cjose_jwe_suite()
+Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
 

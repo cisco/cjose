@@ -429,7 +429,7 @@ START_TEST(test_cjose_base64url_decode)
 }
 END_TEST
 
-Suite *cjose_base64_suite()
+Suite *cjose_base64_suite(void)
 {
     Suite *suite = suite_create("base64");
 
