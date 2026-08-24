@@ -9,6 +9,7 @@ Implementation of JOSE for C/C++
 ### Build Tools ###
 
 * pkg-config (>= 0.20)
+* CMake (>= 3.22)
 * GNU Make >= 3.81
 * LLVM >= 5.1 or GCC >= 4.5
 * Autoconf (>= 2.69)
@@ -24,6 +25,52 @@ Implementation of JOSE for C/C++
 * Jansson >= 2.3
 
 ## Getting Started ##
+
+### CMake ###
+
+To configure and build with CMake:
+
+    git clone https://github.com/cisco/cjose.git
+    cd cjose
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+
+The CMake build produces both the shared library target `cjose` and the static
+library target `cjose_static`.
+
+To install the libraries, headers, pkg-config file, and CMake package files:
+
+    cmake --install build
+
+Common CMake options:
+
+    -DCJOSE_BUILD_TESTS=ON|OFF: Build unit tests when Check is available
+    -DCJOSE_BUILD_DOCS=ON|OFF: Add the Doxygen documentation target when Doxygen is available
+    -DCJOSE_BUILD_FORMAT_TARGET=ON|OFF: Add the clang-format target when clang-format is available
+    -DCJOSE_INSTALL=ON|OFF: Install cjose targets and package metadata
+
+Dependency overrides:
+
+    -DOPENSSL_ROOT_DIR=/path/to/openssl
+    -DOPENSSL_INCLUDE_DIR=/path/to/openssl/include
+    -DOPENSSL_CRYPTO_LIBRARY=/path/to/libcrypto
+    -DJANSSON_INCLUDE_DIR=/path/to/jansson/include
+    -DJANSSON_LIBRARY=/path/to/libjansson
+
+When building both cjose variants in one CMake build, dependency libraries can
+also be selected per target:
+
+    -DCJOSE_SHARED_OPENSSL_CRYPTO_LIBRARY=/path/to/shared/libcrypto
+    -DCJOSE_STATIC_OPENSSL_CRYPTO_LIBRARY=/path/to/static/libcrypto
+    -DCJOSE_SHARED_JANSSON_LIBRARY=/path/to/shared/libjansson
+    -DCJOSE_STATIC_JANSSON_LIBRARY=/path/to/static/libjansson
+
+On MSVC, `cjose_static` uses the default CMake MSVC runtime selection unless
+this option is enabled:
+
+    -DCJOSE_STATIC_MSVC_STATIC_RUNTIME=ON
+
+### Autotools ###
 
 As with most autoconf/automake projects:
 
@@ -46,7 +93,12 @@ To compile in debug mode (minimal optimization, active asserts, etc), specify th
 
 ## Tests ##
 
-To execute the unit tests:
+To execute the unit tests with CMake:
+
+    cmake --build build
+    ctest --test-dir build --output-on-failure -V
+
+To execute the unit tests with autotools:
 
     make test
 
@@ -54,7 +106,13 @@ If successful, the list of checks will be displayed on the console.  Otherwise, 
 
 ## API Docs ##
 
-To generate Doxygen API documentation:
+To generate Doxygen API documentation with CMake:
+
+    cmake --build build --target doxygen
+
+Which will place the generated documentation in "build/doc/html".
+
+To generate Doxygen API documentation with autotools:
 
     make doxygen
 
@@ -93,4 +151,5 @@ This has been seen on Mac OSX 10.9 when Jansson has been installed via brew.  A 
 ### Before Submitting PR ###
 
 * Run `make clang-format`
+* Or with CMake: `cmake --build build --target clang-format`
 * Run `make test`
