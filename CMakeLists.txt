@@ -15,6 +15,7 @@ include(GNUInstallDirs)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(CJOSE_BUILD_TESTS "Build cjose unit tests when Check is available" ON)
+option(CJOSE_BUILD_DOCS "Add cjose Doxygen documentation target when Doxygen is available" ON)
 option(CJOSE_INSTALL "Install cjose targets and package metadata" ON)
 
 if(MSVC)
@@ -235,6 +236,35 @@ if(CJOSE_BUILD_TESTS)
     endif()
 endif()
 
+if(CJOSE_BUILD_DOCS)
+    find_package(Doxygen QUIET)
+
+    if(Doxygen_FOUND)
+        set(CJOSE_DOXYGEN_INPUT)
+        foreach(header IN LISTS CJOSE_PUBLIC_HEADERS)
+            list(APPEND CJOSE_DOXYGEN_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/${header}")
+        endforeach()
+        list(APPEND CJOSE_DOXYGEN_INPUT "${CJOSE_GENERATED_PUBLIC_HEADER}")
+
+        set(DOXYGEN_PROJECT_NAME "CJOSE")
+        set(DOXYGEN_PROJECT_NUMBER "${PROJECT_VERSION}")
+        set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doc")
+        set(DOXYGEN_GENERATE_HTML YES)
+        set(DOXYGEN_HTML_OUTPUT html)
+        set(DOXYGEN_GENERATE_LATEX NO)
+        set(DOXYGEN_GENERATE_MAN NO)
+        set(DOXYGEN_HAVE_DOT NO)
+        set(DOXYGEN_WARN_IF_UNDOCUMENTED NO)
+
+        doxygen_add_docs(doxygen
+            ${CJOSE_DOXYGEN_INPUT}
+            USE_STAMP_FILE
+            COMMENT "Generate cjose API documentation")
+    else()
+        message(STATUS "Doxygen not found; cjose documentation target will not be built")
+    endif()
+endif()
+
 if(CJOSE_INSTALL)
     set(prefix "${CMAKE_INSTALL_PREFIX}")
     set(exec_prefix "\${prefix}")
@@ -257,6 +287,12 @@ if(CJOSE_INSTALL)
 
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cjose.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+
+    if(CJOSE_BUILD_DOCS AND Doxygen_FOUND)
+        install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doc/html"
+            DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+            OPTIONAL)
+    endif()
 
     write_basic_package_version_file(
         "${CMAKE_CURRENT_BINARY_DIR}/cjoseConfigVersion.cmake"
