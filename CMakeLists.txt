@@ -16,6 +16,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(CJOSE_BUILD_TESTS "Build cjose unit tests when Check is available" ON)
 option(CJOSE_BUILD_DOCS "Add cjose Doxygen documentation target when Doxygen is available" ON)
+option(CJOSE_BUILD_FORMAT_TARGET "Add cjose clang-format target when clang-format is available" ON)
 option(CJOSE_INSTALL "Install cjose targets and package metadata" ON)
 
 if(MSVC)
@@ -262,6 +263,25 @@ if(CJOSE_BUILD_DOCS)
             COMMENT "Generate cjose API documentation")
     else()
         message(STATUS "Doxygen not found; cjose documentation target will not be built")
+    endif()
+endif()
+
+if(CJOSE_BUILD_FORMAT_TARGET)
+    find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+    if(CLANG_FORMAT_EXECUTABLE)
+        file(GLOB_RECURSE CJOSE_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/*.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/*.h")
+
+        add_custom_target(clang-format
+            COMMAND "${CLANG_FORMAT_EXECUTABLE}" -i ${CJOSE_CLANG_FORMAT_SOURCES}
+            COMMENT "Format cjose source files with clang-format"
+            VERBATIM)
+    else()
+        message(STATUS "clang-format not found; clang-format target will not be built")
     endif()
 endif()
 
