@@ -30,7 +30,7 @@ set(CJOSE_SHARED_JANSSON_LIBRARY "" CACHE FILEPATH "Jansson library for cjose")
 set(CJOSE_STATIC_JANSSON_LIBRARY "" CACHE FILEPATH "Jansson library for cjose_static")
 
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
-find_package(Jansson 2.3 REQUIRED)
+find_package(jansson 2.3 REQUIRED)
 
 cmake_push_check_state(RESET)
 set(CMAKE_REQUIRED_INCLUDES "${OPENSSL_INCLUDE_DIR}")
@@ -152,8 +152,8 @@ endfunction()
 
 cjose_link_dependency(cjose PUBLIC OpenSSL::Crypto CJOSE_SHARED_OPENSSL_CRYPTO_LIBRARY "${OPENSSL_INCLUDE_DIR}")
 cjose_link_dependency(cjose_static PUBLIC OpenSSL::Crypto CJOSE_STATIC_OPENSSL_CRYPTO_LIBRARY "${OPENSSL_INCLUDE_DIR}")
-cjose_link_dependency(cjose PRIVATE Jansson::Jansson CJOSE_SHARED_JANSSON_LIBRARY "${JANSSON_INCLUDE_DIR}")
-cjose_link_dependency(cjose_static PRIVATE Jansson::Jansson CJOSE_STATIC_JANSSON_LIBRARY "${JANSSON_INCLUDE_DIR}")
+cjose_link_dependency(cjose PRIVATE jansson::jansson CJOSE_SHARED_JANSSON_LIBRARY "${JANSSON_INCLUDE_DIR}")
+cjose_link_dependency(cjose_static PRIVATE jansson::jansson CJOSE_STATIC_JANSSON_LIBRARY "${JANSSON_INCLUDE_DIR}")
 
 set_target_properties(cjose PROPERTIES
     EXPORT_NAME cjose)
@@ -225,6 +225,7 @@ if(CJOSE_BUILD_TESTS)
 
             target_link_libraries(check_cjose PRIVATE
                 cjose_static
+                jansson::jansson
                 ${CHECK_LINK_LIBRARIES}
                 ${CHECK_LIBRARIES})
 
@@ -331,6 +332,6 @@ if(CJOSE_INSTALL)
     install(FILES
         "${CMAKE_CURRENT_BINARY_DIR}/cjoseConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/cjoseConfigVersion.cmake"
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindJansson.cmake"
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findjansson.cmake"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cjose")
 endif()

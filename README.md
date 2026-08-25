@@ -35,6 +35,13 @@ To configure and build with CMake:
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build
 
+When using vcpkg, install the dependency ports and configure with the vcpkg
+toolchain file:
+
+    vcpkg install openssl jansson
+    cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+    cmake --build build
+
 The CMake build produces both the shared library target `cjose` and the static
 library target `cjose_static`.
 
