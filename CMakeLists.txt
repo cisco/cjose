@@ -23,6 +23,7 @@ if(MSVC)
     option(CJOSE_STATIC_MSVC_STATIC_RUNTIME "Use static CRT (/MT) for cjose_static" OFF)
 endif()
 
+# Optional settings for specifying OpenSSL and Jansson libraries to link against. If not specified, the libraries found by find_package will be used.
 set(CJOSE_SHARED_OPENSSL_CRYPTO_LIBRARY "" CACHE FILEPATH "OpenSSL Crypto library for cjose")
 set(CJOSE_STATIC_OPENSSL_CRYPTO_LIBRARY "" CACHE FILEPATH "OpenSSL Crypto library for cjose_static")
 set(CJOSE_SHARED_JANSSON_LIBRARY "" CACHE FILEPATH "Jansson library for cjose")
@@ -255,7 +256,6 @@ if(CJOSE_BUILD_DOCS)
         set(DOXYGEN_GENERATE_LATEX NO)
         set(DOXYGEN_GENERATE_MAN NO)
         set(DOXYGEN_HAVE_DOT NO)
-        set(DOXYGEN_WARN_IF_UNDOCUMENTED NO)
 
         doxygen_add_docs(doxygen
             ${CJOSE_DOXYGEN_INPUT}
