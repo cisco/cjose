@@ -62,7 +62,7 @@ point CMake at it:
 
 To run the unit tests:
 
-    ctest --test-dir build --output-on-failure
+    ctest --test-dir build --output-on-failure -V
 
 ## API Docs ##
 
