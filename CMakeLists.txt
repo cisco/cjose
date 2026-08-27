@@ -314,6 +314,22 @@ if(CJOSE_BUILD_TESTS)
     endif()
 
     if(NOT _cjose_check_target)
+        # Manual fallback, using any hints pkg-config gathered above.
+        find_path(CHECK_INCLUDE_DIR NAMES check.h
+            HINTS ${CHECK_INCLUDEDIR} ${CHECK_INCLUDE_DIRS})
+        find_library(CHECK_LIBRARY NAMES check libcheck
+            HINTS ${CHECK_LIBDIR} ${CHECK_LIBRARY_DIRS})
+        mark_as_advanced(CHECK_INCLUDE_DIR CHECK_LIBRARY)
+        if(CHECK_INCLUDE_DIR AND CHECK_LIBRARY)
+            add_library(Check::check UNKNOWN IMPORTED)
+            set_target_properties(Check::check PROPERTIES
+                IMPORTED_LOCATION "${CHECK_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${CHECK_INCLUDE_DIR}")
+            set(_cjose_check_target Check::check)
+        endif()
+    endif()
+
+    if(NOT _cjose_check_target)
         message(WARNING "Check (>= 0.9.4) not found; skipping cjose unit tests.")
     else()
         set(CJOSE_TEST_SOURCES
