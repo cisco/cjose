@@ -11,6 +11,15 @@ doc/Doxyfile
 **/*.pkg-tag
 **/*.img-tag
 
+# CMake build directories and artifacts
+/build/
+/build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+_deps/
+
 # Object files
 *.o
 *.lo
