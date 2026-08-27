@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23...4.3)
+cmake_minimum_required(VERSION 3.22)
 
 project(cjose
     VERSION 0.6.1
@@ -131,21 +131,14 @@ target_link_libraries(cjose_objects PRIVATE
     OpenSSL::Crypto
     Jansson::Jansson)
 
-# Base dirs for the public header FILE_SET (they also become the include dirs).
-set(CJOSE_HEADER_BASE_DIRS
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${CJOSE_GENERATED_INCLUDE_DIR}")
-
-# The extra build-tree include lets the umbrella header's quoted
-# `#include "version.h"` resolve; once installed the headers already sit together.
-function(cjose_configure_public_headers target)
-    target_sources(${target} PUBLIC
-        FILE_SET cjose_headers TYPE HEADERS
-            BASE_DIRS ${CJOSE_HEADER_BASE_DIRS}
-            FILES ${CJOSE_PUBLIC_HEADERS})
-    target_include_directories(${target} PUBLIC
-        "$<BUILD_INTERFACE:${CJOSE_GENERATED_INCLUDE_DIR}/cjose>")
-endfunction()
+# Public include usage requirements. The generated .../cjose dir is exposed in
+# the build tree only so the umbrella header's quoted `#include "version.h"`
+# resolves; once installed all headers sit together under include/cjose.
+set(CJOSE_PUBLIC_INCLUDES
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<BUILD_INTERFACE:${CJOSE_GENERATED_INCLUDE_DIR}>"
+    "$<BUILD_INTERFACE:${CJOSE_GENERATED_INCLUDE_DIR}/cjose>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
 set(CJOSE_INSTALL_TARGETS "")
 
@@ -156,7 +149,7 @@ if(CJOSE_BUILD_STATIC)
     add_library(cjose_static STATIC $<TARGET_OBJECTS:cjose_objects>)
     add_library(cjose::cjose_static ALIAS cjose_static)
 
-    cjose_configure_public_headers(cjose_static)
+    target_include_directories(cjose_static PUBLIC ${CJOSE_PUBLIC_INCLUDES})
     target_link_libraries(cjose_static PUBLIC OpenSSL::Crypto Jansson::Jansson)
 
     # Ship the archive as libcjose.a; on Windows keep the target's default name
@@ -175,7 +168,7 @@ if(CJOSE_BUILD_SHARED)
     add_library(cjose_shared SHARED $<TARGET_OBJECTS:cjose_objects>)
     add_library(cjose::cjose_shared ALIAS cjose_shared)
 
-    cjose_configure_public_headers(cjose_shared)
+    target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
     target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson)
 
     set_target_properties(cjose_shared PROPERTIES
@@ -225,6 +218,9 @@ if(CJOSE_BUILD_SHARED)
 
     # --- Apple: ship the dynamic library as a framework. ---
     if(APPLE AND NOT CJOSE_MACOS_DYLIB)
+        target_sources(cjose_shared PRIVATE ${CJOSE_PUBLIC_HEADERS})
+        set_source_files_properties(${CJOSE_PUBLIC_HEADERS} PROPERTIES
+            MACOSX_PACKAGE_LOCATION Headers/cjose)
         set_target_properties(cjose_shared PROPERTIES
             FRAMEWORK TRUE
             FRAMEWORK_VERSION A
@@ -245,7 +241,14 @@ install(TARGETS ${CJOSE_INSTALL_TARGETS}
     LIBRARY   DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE   DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     FRAMEWORK DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    FILE_SET cjose_headers DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+    INCLUDES  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+
+# Install the public headers (a framework also bundles its own copy).
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/cjose"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    FILES_MATCHING PATTERN "*.h")
+install(FILES "${CJOSE_GENERATED_INCLUDE_DIR}/cjose/version.h"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/cjose")
 
 # ---------------------------------------------------------------------------
 # pkg-config
