@@ -46,6 +46,10 @@ endif()
 find_package(OpenSSL 1.0.1 REQUIRED)
 find_package(Jansson 2.3 REQUIRED)
 
+if(WIN32)
+    set(CJOSE_PLATFORM_LIBRARIES ws2_32)
+endif()
+
 # Optional Cisco "Fundamental EC" OpenSSL extension (openssl/fec.h).
 include(CheckIncludeFile)
 include(CMakePushCheckState)
@@ -113,7 +117,7 @@ if(CJOSE_HAVE_OPENSSL_FEC_H)
     target_compile_definitions(cjose_objects PRIVATE HAVE_OPENSSL_FEC_H=1)
 endif()
 if(MSVC)
-    target_compile_options(cjose_objects PRIVATE /W3 /WX)
+    target_compile_options(cjose_objects PRIVATE /W3 /WX /wd4267)
     # Silence MSVC's noise about "insecure" CRT functions used by portable C.
     target_compile_definitions(cjose_objects PRIVATE
         _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
@@ -150,7 +154,7 @@ if(CJOSE_BUILD_STATIC)
     add_library(cjose::cjose_static ALIAS cjose_static)
 
     target_include_directories(cjose_static PUBLIC ${CJOSE_PUBLIC_INCLUDES})
-    target_link_libraries(cjose_static PUBLIC OpenSSL::Crypto Jansson::Jansson)
+    target_link_libraries(cjose_static PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
 
     # Ship the archive as libcjose.a; on Windows keep the target's default name
     # (cjose_static) so it doesn't clash with the DLL's "cjose.lib" import lib.
@@ -169,7 +173,7 @@ if(CJOSE_BUILD_SHARED)
     add_library(cjose::cjose_shared ALIAS cjose_shared)
 
     target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
-    target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson)
+    target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
 
     set_target_properties(cjose_shared PROPERTIES
         OUTPUT_NAME cjose
@@ -355,7 +359,8 @@ if(CJOSE_BUILD_TESTS)
         target_link_libraries(check_cjose PRIVATE
             ${_cjose_check_target}
             OpenSSL::Crypto
-            Jansson::Jansson)
+            Jansson::Jansson
+            ${CJOSE_PLATFORM_LIBRARIES})
 
         set_target_properties(check_cjose PROPERTIES
             C_STANDARD 99

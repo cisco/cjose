@@ -8,8 +8,8 @@ Implementation of JOSE for C/C++
 
 ### Build Tools ###
 
-* CMake (>= 3.23)
-* A C99 compiler (LLVM/Clang >= 5.1 or GCC >= 4.5)
+* CMake (>= 3.22)
+* A C99 compiler (LLVM/Clang >= 5.1, GCC >= 4.5 or MSVC >= 14)
 * Check (>= 0.9.4) - unit testing (e.g. check-devel)
 * Doxygen (>= 1.8) - API documentation (optional)
 * clang-format - source formatting (optional)

@@ -13,6 +13,11 @@
 #include <jansson.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err);
 json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err);
 
