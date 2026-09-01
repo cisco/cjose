@@ -166,11 +166,9 @@ START_TEST(test_cjose_jwk_create_RSA_random)
 {
     cjose_err err;
     cjose_jwk_t *jwk = NULL;
-    uint8_t *e = NULL;
-    size_t elen = 0;
+    static const uint8_t e[] = "\x01\x00\x01";
+    size_t elen = sizeof(e) - 1;
 
-    e = (uint8_t *)"\x01\x00\x01";
-    elen = 3;
     jwk = cjose_jwk_create_RSA_random(2048, e, elen, &err);
     ck_assert(NULL != jwk);
     ck_assert(1 == jwk->retained);
@@ -182,9 +180,7 @@ START_TEST(test_cjose_jwk_create_RSA_random)
 
     cjose_jwk_release(jwk);
 
-    e = NULL;
-    elen = 0;
-    jwk = cjose_jwk_create_RSA_random(2048, e, elen, &err);
+    jwk = cjose_jwk_create_RSA_random(2048, NULL, 0, &err);
     ck_assert(NULL != jwk);
     ck_assert(1 == jwk->retained);
     ck_assert(CJOSE_JWK_KTY_RSA == jwk->kty);
@@ -350,7 +346,7 @@ START_TEST(test_cjose_jwk_create_EC_P521_random)
 }
 END_TEST
 
-const uint8_t *OCT_KEY = "pKE-eSbyFqPdtA5WzazKFg";
+const char *OCT_KEY = "pKE-eSbyFqPdtA5WzazKFg";
 START_TEST(test_cjose_jwk_create_oct_spec)
 {
     cjose_err err;
@@ -1305,13 +1301,14 @@ START_TEST(test_cjose_jwk_hkdf)
 {
     cjose_err err;
 
-    const char *ikm = "source key material";
-    size_t ikm_len = strlen(ikm);
+    static const uint8_t ikm[] = "source key material";
+    static const uint8_t empty[] = "";
+    size_t ikm_len = sizeof(ikm) - 1;
 
     size_t ephemeral_key_len = 32;
-    uint8_t *ephemeral_key = (uint8_t *)malloc(ephemeral_key_len);
+    uint8_t *ephemeral_key = malloc(ephemeral_key_len);
     bool ok
-        = cjose_jwk_hkdf(EVP_sha256(), (uint8_t *)"", 0, (uint8_t *)"", 0, ikm, ikm_len, ephemeral_key, ephemeral_key_len, &err);
+        = cjose_jwk_hkdf(EVP_sha256(), empty, 0, empty, 0, ikm, ikm_len, ephemeral_key, ephemeral_key_len, &err);
     ck_assert_msg(ok, "Failed to compute HKDF");
 
     // the following is the expected output of HKDF with the ikm given above,
@@ -1431,8 +1428,8 @@ START_TEST(test_cjose_jwk_create_RSA_random_weak_keysize)
 {
     cjose_err err;
     cjose_jwk_t *jwk = NULL;
-    uint8_t *e = (uint8_t *)"\x01\x00\x01";
-    size_t elen = 3;
+    static const uint8_t e[] = "\x01\x00\x01";
+    size_t elen = sizeof(e) - 1;
 
     // Test that 512-bit keys are rejected (< 2048)
     jwk = cjose_jwk_create_RSA_random(512, e, elen, &err);

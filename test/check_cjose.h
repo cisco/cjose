@@ -2,12 +2,8 @@
  *
  */
 
- #ifdef __GNUC__
-// the check unit test framework headers are noisy, disable these warnings
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#endif
+#include <stdint.h>
+#include <string.h>
 
 #include <check.h>
 
@@ -28,11 +24,11 @@ Suite *cjose_concatkdf_suite();
 #define _ck_assert_bin(X, OP, Y, LEN)                                                                                            \
     do                                                                                                                           \
     {                                                                                                                            \
-        const uint8_t *_chk_x = (X);                                                                                             \
-        const uint8_t *_chk_y = (Y);                                                                                             \
+        const void *_chk_x = (X);                                                                                                \
+        const void *_chk_y = (Y);                                                                                                \
         const size_t _chk_len = (LEN);                                                                                           \
         ck_assert_msg(0 OP memcmp(_chk_x, _chk_y, _chk_len),                                                                     \
-                      "Assertion '" #X #OP #Y "' failed: " #LEN "==%z, " #X "==0x%zx, " #Y "==0x%zx",                           \
+                      "Assertion '" #X #OP #Y "' failed: " #LEN "==%zu, " #X "==%p, " #Y "==%p",                                 \
                       _chk_len, _chk_x, _chk_y);                                                                                 \
     } while (0);
 

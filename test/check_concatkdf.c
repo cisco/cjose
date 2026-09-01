@@ -9,6 +9,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
 #include <cjose/base64.h>
 #include <cjose/error.h>
 #include <cjose/header.h>
@@ -65,7 +70,7 @@ static bool _cmp_uint32(uint8_t **actual, uint32_t expected)
     (*actual) += 4;
     return result;
 }
-static bool _cmp_lendata(uint8_t **actual, uint8_t *expected, size_t len)
+static bool _cmp_lendata(uint8_t **actual, const void *expected, size_t len)
 {
     bool result = _cmp_uint32(actual, len);
     if (result && NULL != expected)
@@ -101,10 +106,10 @@ START_TEST(test_cjose_concatkdf_otherinfo_apuapv)
 {
     cjose_err err;
 
-    const uint8_t *apu = "expected apu";
-    const size_t apuLen = strlen((const char *)apu);
-    const uint8_t *apv = "expected apv";
-    const size_t apvLen = strlen((const char *)apv);
+    static const uint8_t apu[] = "expected apu";
+    const size_t apuLen = sizeof(apu) - 1;
+    static const uint8_t apv[] = "expected apv";
+    const size_t apvLen = sizeof(apv) - 1;
     cjose_header_t *hdr = _create_otherinfo_header(apu, apuLen, apv, apvLen, &err);
     uint8_t *otherinfo = NULL;
     size_t otherinfoLen = 0;
@@ -202,9 +207,9 @@ START_TEST(test_cjose_concatkdf_derive_moreinfo)
 
     const char *alg = "A256GCM";
     const size_t keylen = 32;
-    cjose_header_t *hdr = _create_otherinfo_header("expected apu", strlen("expected apu"),
-                                                   "expected apv", strlen("expected apv"),
-                                                   &err);
+    static const uint8_t apu[] = "expected apu";
+    static const uint8_t apv[] = "expected apv";
+    cjose_header_t *hdr = _create_otherinfo_header(apu, sizeof(apu) - 1, apv, sizeof(apv) - 1, &err);
     cjose_concatkdf_create_otherinfo(alg, keylen, hdr, &otherinfo, &otherinfoLen, &err);
     derived = cjose_concatkdf_derive(keylen, ikm, ikmLen, otherinfo, otherinfoLen, &err);
     ck_assert(NULL != derived);

@@ -63,10 +63,6 @@ static const char *JWS_COMMON
       "whF9FnGng7bmU8qjNPiXCWfQ-n74gopAVzd3KDJ5ai7q66voRc9pCKJVbsaIMHIqcl9OPiMdY5Hz3_PgBalR2632HOdpUlIMvnMOL3EQICvyBwxaYPbhMcCpEc3_"
       "4K-sywOGiCSp9KlaLcRq0knZtAT0ynJszaiOwfR-W18PEFLfGclpeR6e_gop9mq69t36wK7KRUjrQ";
 
-// the plaintext payload of the above JWS_COMMON
-static const char *PLAIN_COMMON = "If you reveal your secrets to the wind, you should not blame the "
-                                  "wind for revealing them to the trees. — Kahlil Gibran";
-
 static const char *_self_get_jwk_by_alg(const char *alg)
 {
     if ((strcmp(alg, CJOSE_HDR_ALG_HS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS384) == 0)
@@ -78,61 +74,68 @@ static const char *_self_get_jwk_by_alg(const char *alg)
     return JWK_COMMON;
 }
 
-static void _self_sign_self_verify(const char *plain1, const char *alg, cjose_err *err)
+static void _self_sign_self_verify(const uint8_t *plain1, size_t plain1_len, const char *alg, cjose_err *err)
 {
     const char *s_jwk = _self_get_jwk_by_alg(alg);
     cjose_jwk_t *jwk = cjose_jwk_import(s_jwk, strlen(s_jwk), err);
 
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // set header for JWS
     cjose_header_t *hdr = cjose_header_new(err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, err), "cjose_header_set failed: "
-                                                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // create the JWS
-    size_t plain1_len = strlen(plain1);
     cjose_jws_t *jws1 = cjose_jws_sign(jwk, hdr, plain1, plain1_len, err);
-    ck_assert_msg(NULL != jws1, "cjose_jws_sign failed: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws1,
+                  "cjose_jws_sign failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
     ck_assert(hdr == cjose_jws_get_protected(jws1));
 
     // get the compact serialization of JWS
     const char *compact = NULL;
-    ck_assert_msg(cjose_jws_export(jws1, &compact, err), "cjose_jws_export failed: "
-                                                         "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_export(jws1, &compact, err),
+                  "cjose_jws_export failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // deserialize the compact representation to a new JWS
     cjose_jws_t *jws2 = cjose_jws_import(compact, strlen(compact), err);
-    ck_assert_msg(NULL != jws2, "cjose_jws_import failed: "
-                                "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws2,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // verify the deserialized JWS
-    ck_assert_msg(cjose_jws_verify(jws2, jwk, err), "cjose_jws_verify failed: "
-                                                    "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_verify(jws2, jwk, err),
+                  "cjose_jws_verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // get the verified plaintext
     uint8_t *plain2 = NULL;
     size_t plain2_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws2, &plain2, &plain2_len, err), "cjose_jws_get_plaintext failed: "
-                                                                            "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws2, &plain2, &plain2_len, err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err->message, err->file, err->function, err->line);
 
     // confirm equal headers
     ck_assert(json_equal((json_t *)cjose_jws_get_protected(jws1), (json_t *)cjose_jws_get_protected(jws2)));
 
     // confirm plain2 == plain1
-    ck_assert_msg(plain2_len == strlen(plain1), "length of verified plaintext does not match length of original, "
-                                                "expected: %lu, found: %lu",
-                  strlen(plain1), plain2_len);
-    ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "verified plaintext does not match signed plaintext");
+    ck_assert_msg(plain2_len == plain1_len,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  plain1_len, plain2_len);
+    ck_assert_msg(memcmp(plain1, plain2, plain2_len) == 0, "verified plaintext does not match signed plaintext");
 
     cjose_header_release(hdr);
     cjose_jws_release(jws1);
@@ -140,57 +143,44 @@ static void _self_sign_self_verify(const char *plain1, const char *alg, cjose_er
     cjose_jwk_release(jwk);
 }
 
+static void _self_sign_self_verify_all_algs(const uint8_t *plain, size_t plain_len, cjose_err *err)
+{
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_PS256, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_PS384, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_PS512, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_RS256, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_RS384, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_RS512, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_HS256, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_HS384, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_HS512, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES256, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES384, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES512, err);
+}
+
 START_TEST(test_cjose_jws_self_sign_self_verify)
 {
     cjose_err err;
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_PS256, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_PS384, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_PS512, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_RS256, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_RS384, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_RS512, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_HS256, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_HS384, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_HS512, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_ES256, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_ES384, &err);
-    _self_sign_self_verify(PLAIN_COMMON, CJOSE_HDR_ALG_ES512, &err);
+    static const uint8_t plain[] = "If you reveal your secrets to the wind, you should not blame the "
+                                   "wind for revealing them to the trees. — Kahlil Gibran";
+    _self_sign_self_verify_all_algs(plain, sizeof(plain) - 1, &err);
 }
 END_TEST
 
 START_TEST(test_cjose_jws_self_sign_self_verify_short)
 {
     cjose_err err;
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_PS256, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_PS384, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_PS512, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_RS256, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_RS384, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_RS512, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_HS256, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_HS384, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_HS512, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_ES256, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_ES384, &err);
-    _self_sign_self_verify("Setec Astronomy", CJOSE_HDR_ALG_ES512, &err);
+    static const uint8_t plain[] = "Setec Astronomy";
+    _self_sign_self_verify_all_algs(plain, sizeof(plain) - 1, &err);
 }
 END_TEST
 
 START_TEST(test_cjose_jws_self_sign_self_verify_empty)
 {
     cjose_err err;
-    _self_sign_self_verify("", CJOSE_HDR_ALG_PS256, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_PS384, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_PS512, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_RS256, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_RS384, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_RS512, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_HS256, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_HS384, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_HS512, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_ES256, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_ES384, &err);
-    _self_sign_self_verify("", CJOSE_HDR_ALG_ES512, &err);
+    static const uint8_t plain[] = "";
+    _self_sign_self_verify_all_algs(plain, sizeof(plain) - 1, &err);
 }
 END_TEST
 
@@ -202,21 +192,10 @@ START_TEST(test_cjose_jws_self_sign_self_verify_many)
     for (int i = 0; i < 100; ++i)
     {
         size_t len = random() % 1024;
-        char *plain = (char *)malloc(len);
+        uint8_t *plain = malloc(len);
         ck_assert_msg(RAND_bytes(plain, len) == 1, "RAND_bytes failed");
         plain[len - 1] = 0;
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_PS256, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_PS384, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_PS512, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_RS256, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_RS384, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_RS512, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_HS256, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_HS384, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_HS512, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_ES256, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_ES384, &err);
-        _self_sign_self_verify(plain, CJOSE_HDR_ALG_ES512, &err);
+        _self_sign_self_verify_all_algs(plain, len, &err);
         free(plain);
     }
 }
@@ -228,8 +207,8 @@ START_TEST(test_cjose_jws_sign_with_bad_header)
     cjose_header_t *hdr = NULL;
     cjose_jws_t *jws = NULL;
 
-    static const char *plain = "The mind is everything. What you think you become.";
-    size_t plain_len = strlen(plain);
+    static const uint8_t plain[] = "The mind is everything. What you think you become.";
+    size_t plain_len = sizeof(plain) - 1;
 
     static const char *JWK
         = "{ \"kty\": \"RSA\", "
@@ -242,20 +221,22 @@ START_TEST(test_cjose_jws_sign_with_bad_header)
           "bJ4G1xd1DE7W94uoUlcSDx59aSdzTpQzJh1l3lXc6JRUrXTESYgHpMv0O1n0gbIxX8X1ityBlMiccDjfZIKLnwz6hQObvRtRIpxEdq4SYS-w\" }";
 
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // set header for JWS with bad alg
     hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, "Cayley-Purser", &err), "cjose_header_set failed: "
-                                                                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, "Cayley-Purser", &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // create a JWS
     jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad header");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%u:%s)", err.code, err.message);
 
     cjose_header_release(hdr);
     cjose_jwk_release(jwk);
@@ -268,8 +249,8 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
     cjose_header_t *hdr = NULL;
     cjose_jws_t *jws = NULL;
 
-    static const char *plain = "The mind is everything. What you think you become.";
-    size_t plain_len = strlen(plain);
+    static const uint8_t plain[] = "The mind is everything. What you think you become.";
+    size_t plain_len = sizeof(plain) - 1;
 
     // some bad keys to test with
     static const char *JWK_BAD[] = {
@@ -295,21 +276,23 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 
     // set header for JWS
     hdr = cjose_header_new(&err);
-    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PS256, &err), "cjose_header_set failed: "
-                                                                                   "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PS256, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // attempt signion with each bad key
     for (int i = 0; NULL != JWK_BAD[i]; ++i)
     {
         cjose_jwk_t *jwk = cjose_jwk_import(JWK_BAD[i], strlen(JWK_BAD[i]), &err);
-        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwk,
+                      "cjose_jwk_import failed: "
+                      "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
         jws = cjose_jws_sign(jwk, hdr, plain, plain_len, &err);
         ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "%d cjose_jws_sign returned bad err.code (%zu:%s)", i, err.code,
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "%d cjose_jws_sign returned bad err.code (%u:%s)", i, err.code,
                       err.message);
 
         cjose_jwk_release(jwk);
@@ -317,7 +300,7 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 
     jws = cjose_jws_sign(NULL, hdr, plain, plain_len, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with bad key");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%u:%s)", err.code, err.message);
 
     cjose_header_release(hdr);
 }
@@ -346,8 +329,9 @@ START_TEST(test_cjose_jws_sign_with_bad_content)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // set header for JWS
@@ -356,11 +340,11 @@ START_TEST(test_cjose_jws_sign_with_bad_content)
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 1024, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%u:%s)", err.code, err.message);
 
     jws = cjose_jws_sign(jwk, hdr, NULL, 0, &err);
     ck_assert_msg(NULL == jws, "cjose_jws_sign created with NULL plaintext");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign returned bad err.code (%u:%s)", err.code, err.message);
 
     cjose_jwk_release(jwk);
     cjose_header_release(hdr);
@@ -373,20 +357,23 @@ START_TEST(test_cjose_jws_import_export_compare)
 
     // import the common key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_COMMON, strlen(JWK_COMMON), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the jws created with the common key
     cjose_jws_t *jws = cjose_jws_import(JWS_COMMON, strlen(JWS_COMMON), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // re-export the jws object
     const char *cser = NULL;
-    ck_assert_msg(cjose_jws_export(jws, &cser, &err), "re-export of imported JWS faied: "
-                                                      "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_export(jws, &cser, &err),
+                  "re-export of imported JWS faied: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // compare the re-export to the original serialization
@@ -426,14 +413,17 @@ START_TEST(test_cjose_jws_import_invalid_serialization)
             "TUUqjAa8QGAV9dVcSQzYDE1sJjvAYlpjWVb_ksiWaNo9CuoT14V08Q9kbfMlSncDS7bTILU6ywYVXnU2-X6I-_"
             "M0s2JCE8Mx4nBoUcZXtjlh2mn4iNpshG4N3EiCbCMZnHc4wRo5Pwt3GpppyutpLZlpBcXKJk42dNpKvQnxzYulig6OIgNwv6c9SEW-3qG2FJW-"
             "eFcTuFSCnAqTYBU2V-l5pa2huoHzbwHp2PeXANz4ckyJ1SGVGHHjEPIr5UXBS2HfSTxVVLHZzm1NXDs9_mqzCtpvg",
-            "AAAA.BBBB", "AAAA", "", "..", NULL };
+            "AAAA.BBBB",
+            "AAAA",
+            "",
+            "..",
+            NULL };
 
     for (int i = 0; NULL != JWS_BAD[i]; ++i)
     {
         cjose_jws_t *jws = cjose_jws_import(JWS_BAD[i], strlen(JWS_BAD[i]), &err);
         ck_assert_msg(NULL == jws, "cjose_jws_import of bad JWS succeeded");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_import returned wrong err.code (%zu:%s)", err.code,
-                      err.message);
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_import returned wrong err.code (%u:%s)", err.code, err.message);
     }
 }
 END_TEST
@@ -444,14 +434,16 @@ START_TEST(test_cjose_jws_import_get_plain_before_verify)
 
     // import the jws created with the common key
     cjose_jws_t *jws = cjose_jws_import(JWS_COMMON, strlen(JWS_COMMON), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     uint8_t *plaintext = NULL;
     size_t plaintext_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws, &plaintext, &plaintext_len, &err), "cjose_jws_get_plaintext before verify failed: "
-                                                                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws, &plaintext, &plaintext_len, &err),
+                  "cjose_jws_get_plaintext before verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     cjose_jws_release(jws);
@@ -464,31 +456,36 @@ START_TEST(test_cjose_jws_import_get_plain_after_verify)
 
     // import the common key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_COMMON, strlen(JWK_COMMON), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the jws created with the common key
     cjose_jws_t *jws = cjose_jws_import(JWS_COMMON, strlen(JWS_COMMON), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // verify the imported jws
-    ck_assert_msg(cjose_jws_verify(jws, jwk, &err), "cjose_jws_verify failed: "
-                                                    "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_verify(jws, jwk, &err),
+                  "cjose_jws_verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // get plaintext from imported and verified jws
     uint8_t *plaintext = NULL;
     size_t plaintext_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws, &plaintext, &plaintext_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws, &plaintext, &plaintext_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // compare the verified plaintext to the expected value
-    ck_assert_msg(strncmp(PLAIN_COMMON, plaintext, strlen(PLAIN_COMMON)) == 0,
-                  "verified plaintext from JWS doesn't match the original");
+    static const uint8_t plain[] = "If you reveal your secrets to the wind, you should not blame the "
+                                   "wind for revealing them to the trees. — Kahlil Gibran";
+    ck_assert_msg(memcmp(plain, plaintext, sizeof(plain) - 1) == 0, "verified plaintext from JWS doesn't match the original");
 
     cjose_jws_release(jws);
     cjose_jwk_release(jwk);
@@ -523,23 +520,25 @@ START_TEST(test_cjose_jws_verify_bad_params)
 
     // import the common key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_COMMON, strlen(JWK_COMMON), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // import the jws created with the common key
     cjose_jws_t *jws = cjose_jws_import(JWS_COMMON, strlen(JWS_COMMON), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // try to verify a NULL jws
     ck_assert_msg(!cjose_jws_verify(NULL, jwk, &err), "cjose_jws_verify succeeded with NULL jws");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
 
     // try to verify with a NULL jwk
     ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), "cjose_jws_verify succeeded with NULL jwk");
-    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
 
     // try to verify with bad/wrong/unsupported keys
     for (int i = 0; NULL != JWK_BAD[i]; ++i)
@@ -548,8 +547,7 @@ START_TEST(test_cjose_jws_verify_bad_params)
         ck_assert_msg(NULL != jwk_bad, "cjose_jwk_import failed");
 
         ck_assert_msg(!cjose_jws_verify(jws, NULL, &err), "cjose_jws_verify succeeded with bad jwk");
-        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code,
-                      err.message);
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
 
         cjose_jwk_release(jwk_bad);
     }
@@ -569,8 +567,9 @@ START_TEST(test_cjose_jws_verify_hs256)
                              "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
     cjose_jws_t *jws = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     static const char *JWK = "{ \"kty\": \"oct\", "
@@ -578,8 +577,9 @@ START_TEST(test_cjose_jws_verify_hs256)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // verify the deserialized JWS
@@ -588,19 +588,21 @@ START_TEST(test_cjose_jws_verify_hs256)
     // get the verified plaintext
     uint8_t *plain = NULL;
     size_t plain_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                          "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    static const char *PLAINTEXT = "{\"iss\":\"joe\",\r\n"
-                                   " \"exp\":1300819380,\r\n"
-                                   " \"http://example.com/is_root\":true}";
+    static const uint8_t PLAINTEXT[] = "{\"iss\":\"joe\",\r\n"
+                                       " \"exp\":1300819380,\r\n"
+                                       " \"http://example.com/is_root\":true}";
 
     // confirm plain == PLAINTEXT
-    ck_assert_msg(plain_len == strlen(PLAINTEXT), "length of verified plaintext does not match length of original, "
-                                                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext: %s", plain);
+    ck_assert_msg(plain_len == sizeof(PLAINTEXT) - 1,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext");
 
     cjose_jwk_release(jwk);
     cjose_jws_release(jws);
@@ -620,8 +622,9 @@ START_TEST(test_cjose_jws_verify_rs256)
           "eOkHWEsqtFZESc6BfI7noOPqvhJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrBp0igcN_IoypGlUPQGe77Rw";
 
     cjose_jws_t *jws_ok = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws_ok, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_ok,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     static const char *JWK
@@ -648,31 +651,35 @@ START_TEST(test_cjose_jws_verify_rs256)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // verify the deserialized JWS
-    ck_assert_msg(cjose_jws_verify(jws_ok, jwk, &err), "cjose_jws_verify failed: "
-                                                       "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_verify(jws_ok, jwk, &err),
+                  "cjose_jws_verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // get the verified plaintext
     uint8_t *plain = NULL;
     size_t plain_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws_ok, &plain, &plain_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                             "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws_ok, &plain, &plain_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    static const char *PLAINTEXT = "{\"iss\":\"joe\",\r\n"
-                                   " \"exp\":1300819380,\r\n"
-                                   " \"http://example.com/is_root\":true}";
+    static const uint8_t PLAINTEXT[] = "{\"iss\":\"joe\",\r\n"
+                                       " \"exp\":1300819380,\r\n"
+                                       " \"http://example.com/is_root\":true}";
 
     // confirm plain == PLAINTEXT
-    ck_assert_msg(plain_len == strlen(PLAINTEXT), "length of verified plaintext does not match length of original, "
-                                                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext: %s", plain);
+    ck_assert_msg(plain_len == sizeof(PLAINTEXT) - 1,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext");
 
     cjose_jws_release(jws_ok);
 
@@ -684,12 +691,13 @@ START_TEST(test_cjose_jws_verify_rs256)
           "eOkHWEsqtFZESc6BfI7noOPqvhJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrBp0igcN_IoypGlUPQGe77RW";
 
     cjose_jws_t *jws_ts = cjose_jws_import(JWS_TAMPERED_SIG, strlen(JWS_TAMPERED_SIG), &err);
-    ck_assert_msg(NULL != jws_ts, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_ts,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err), "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
     cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT
@@ -700,12 +708,13 @@ START_TEST(test_cjose_jws_verify_rs256)
           "eOkHWEsqtFZESc6BfI7noOPqvhJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrBp0igcN_IoypGlUPQGe77Rw";
 
     cjose_jws_t *jws_tc = cjose_jws_import(JWS_TAMPERED_CONTENT, strlen(JWS_TAMPERED_CONTENT), &err);
-    ck_assert_msg(NULL != jws_tc, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_tc,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err), "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
 
     cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
@@ -726,8 +735,9 @@ START_TEST(test_cjose_jws_verify_rs384)
                              "dHgNasVXa2bQ";
 
     cjose_jws_t *jws = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     static const char *JWK
@@ -740,31 +750,35 @@ START_TEST(test_cjose_jws_verify_rs384)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // verify the deserialized JWS
-    ck_assert_msg(cjose_jws_verify(jws, jwk, &err), "cjose_jws_verify failed: "
-                                                    "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_verify(jws, jwk, &err),
+                  "cjose_jws_verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // get the verified plaintext
     uint8_t *plain = NULL;
     size_t plain_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                          "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    static const char *PLAINTEXT
+    static const uint8_t PLAINTEXT[]
         = "{\"sub\":\"joe\",\"aud\":\"ac_oic_client\",\"jti\":\"fjuqrC0ifjwt15ctA7ubD8\",\"iss\":\"https:\\/\\/"
           "localhost:9031\",\"iat\":1468828206,\"exp\":1468828506,\"nonce\":\"jUJfCxvtpcap21Z2Agqyz4IPUUUfw4Ik3beVK9nZcJ4\"}";
 
     // confirm plain == PLAINTEXT
-    ck_assert_msg(plain_len == strlen(PLAINTEXT), "length of verified plaintext does not match length of original, "
-                                                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext: %s", plain);
+    ck_assert_msg(plain_len == sizeof(PLAINTEXT) - 1,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext");
 
     cjose_jwk_release(jwk);
     cjose_jws_release(jws);
@@ -782,8 +796,9 @@ START_TEST(test_cjose_jws_verify_ec256)
                              "KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3iA";
 
     cjose_jws_t *jws_ok = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws_ok, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_ok,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     static const char *JWK = "{ \"kty\": \"EC\","
@@ -795,31 +810,35 @@ START_TEST(test_cjose_jws_verify_ec256)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // verify the deserialized JWS
-    ck_assert_msg(cjose_jws_verify(jws_ok, jwk, &err), "cjose_jws_verify failed: "
-                                                       "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_verify(jws_ok, jwk, &err),
+                  "cjose_jws_verify failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // get the verified plaintext
     uint8_t *plain = NULL;
     size_t plain_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws_ok, &plain, &plain_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                             "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws_ok, &plain, &plain_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    static const char *PLAINTEXT
+    static const uint8_t PLAINTEXT[]
         = "{\"sub\":\"joe\",\"aud\":\"ac_oic_client\",\"jti\":\"detnUiSaSKIiIAotvtg5wW\",\"iss\":\"https:\\/\\/"
           "localhost:9031\",\"iat\":1469030950,\"exp\":1469031250,\"nonce\":\"o35O02-V3JhIruJGGJVU8jTPh6-HJQ83XJfApYLkkdw\"}";
 
     // confirm plain == PLAINTEXT
-    ck_assert_msg(plain_len == strlen(PLAINTEXT), "length of verified plaintext does not match length of original, "
-                                                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext: %s", plain);
+    ck_assert_msg(plain_len == sizeof(PLAINTEXT) - 1,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext");
 
     cjose_jws_release(jws_ok);
 
@@ -830,12 +849,13 @@ START_TEST(test_cjose_jws_verify_ec256)
                                           "h9lPser01eYoK-VMlJoUabKFQ9tT_KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3ia";
 
     cjose_jws_t *jws_ts = cjose_jws_import(JWS_TAMPERED_SIG, strlen(JWS_TAMPERED_SIG), &err);
-    ck_assert_msg(NULL != jws_ts, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_ts,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_ts, jwk, &err), "cjose_jws_verify succeeded with tampered signature");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
     cjose_jws_release(jws_ts);
 
     static const char *JWS_TAMPERED_CONTENT
@@ -845,12 +865,13 @@ START_TEST(test_cjose_jws_verify_ec256)
           "TGtrZHcifQ.o9bb_yW6-h9lPser01eYoK-VMlJoUabKFQ9tT_KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3iA";
 
     cjose_jws_t *jws_tc = cjose_jws_import(JWS_TAMPERED_CONTENT, strlen(JWS_TAMPERED_CONTENT), &err);
-    ck_assert_msg(NULL != jws_tc, "cjose_jws_import failed: "
-                                  "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws_tc,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     ck_assert_msg(!cjose_jws_verify(jws_tc, jwk, &err), "cjose_jws_verify succeeded with tampered content");
-    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%zu:%s)", err.code, err.message);
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "cjose_jws_verify returned wrong err.code (%u:%s)", err.code, err.message);
 
     cjose_jws_release(jws_tc);
     cjose_jwk_release(jwk);
@@ -868,8 +889,9 @@ START_TEST(test_cjose_jws_none)
                              ".";
 
     cjose_jws_t *jws = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     static const char *JWK = "{ \"kty\": \"EC\","
@@ -881,26 +903,29 @@ START_TEST(test_cjose_jws_none)
 
     // import the key
     cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // get the plaintext
     uint8_t *plain = NULL;
     size_t plain_len = 0;
-    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err), "cjose_jws_get_plaintext failed: "
-                                                                          "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(cjose_jws_get_plaintext(jws, &plain, &plain_len, &err),
+                  "cjose_jws_get_plaintext failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    static const char *PLAINTEXT = "{\"iss\":\"joe\",\r\n"
-                                   " \"exp\":1300819380,\r\n"
-                                   " \"http://example.com/is_root\":true}";
+    static const uint8_t PLAINTEXT[] = "{\"iss\":\"joe\",\r\n"
+                                       " \"exp\":1300819380,\r\n"
+                                       " \"http://example.com/is_root\":true}";
 
     // confirm plain == PLAINTEXT
-    ck_assert_msg(plain_len == strlen(PLAINTEXT), "length of verified plaintext does not match length of original, "
-                                                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext: %s", plain);
+    ck_assert_msg(plain_len == sizeof(PLAINTEXT) - 1,
+                  "length of verified plaintext does not match length of original, "
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain, plain_len) == 0, "verified plaintext does not match signed plaintext");
 
     // try to verify the unsecured JWS
     ck_assert_msg(!cjose_jws_verify(jws, jwk, &err), "cjose_jws_verify succeeded for unsecured JWT");
@@ -908,12 +933,13 @@ START_TEST(test_cjose_jws_none)
     cjose_jws_release(jws);
 
     jws = cjose_jws_import(JWS, strlen(JWS), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: "
-                               "%s, file: %s, function: %s, line: %ld",
+    ck_assert_msg(NULL != jws,
+                  "cjose_jws_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
     // try to sign the unsecured JWS
-    ck_assert_msg(!cjose_jws_sign(jwk, (cjose_header_t *)jws->hdr, PLAINTEXT, strlen(PLAINTEXT), &err),
+    ck_assert_msg(!cjose_jws_sign(jwk, (cjose_header_t *)jws->hdr, PLAINTEXT, sizeof(PLAINTEXT) - 1, &err),
                   "cjose_jws_sign succeeded for unsecured JWT");
 
     cjose_jws_release(jws);
