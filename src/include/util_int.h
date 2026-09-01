@@ -13,6 +13,14 @@
 #include <jansson.h>
 #include <string.h>
 
+// ssize_t is POSIX; MSVC has no equivalent typedef of its own.
+#ifdef _MSC_VER
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#else
+#include <sys/types.h>
+#endif
+
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err);
 json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err);
 

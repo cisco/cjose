@@ -55,13 +55,7 @@ void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d
 {
     if (rsa == NULL)
         return;
-#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_key(rsa, (const BIGNUM **)rsa_n, (const BIGNUM **)rsa_e, (const BIGNUM **)rsa_d);
-#else
-    *rsa_n = rsa->n;
-    *rsa_e = rsa->e;
-    *rsa_d = rsa->d;
-#endif
 }
 
 bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e_len, uint8_t *d, size_t d_len)
@@ -79,24 +73,12 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
     if (d && d_len > 0)
         rsa_d = BN_bin2bn(d, d_len, NULL);
 
-#if defined(CJOSE_OPENSSL_11X)
     return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
-#else
-    rsa->n = rsa_n;
-    rsa->e = rsa_e;
-    rsa->d = rsa_d;
-    return true;
-#endif
 }
 
 void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
 {
-#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
-#else
-    *p = rsa->p;
-    *q = rsa->q;
-#endif
 }
 
 void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
@@ -108,23 +90,12 @@ void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
     if (q && q_len > 0)
         rsa_q = BN_bin2bn(q, q_len, NULL);
 
-#if defined(CJOSE_OPENSSL_11X)
     RSA_set0_factors(rsa, rsa_p, rsa_q);
-#else
-    rsa->p = rsa_p;
-    rsa->q = rsa_q;
-#endif
 }
 
 void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
 {
-#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_crt_params(rsa, (const BIGNUM **)dmp1, (const BIGNUM **)dmq1, (const BIGNUM **)iqmp);
-#else
-    *dmp1 = rsa->dmp1;
-    *dmq1 = rsa->dmq1;
-    *iqmp = rsa->iqmp;
-#endif
 }
 
 void _cjose_jwk_rsa_set_crt(
@@ -139,13 +110,7 @@ void _cjose_jwk_rsa_set_crt(
     if (iqmp && iqmp_len > 0)
         rsa_iqmp = BN_bin2bn(iqmp, iqmp_len, NULL);
 
-#if defined(CJOSE_OPENSSL_11X)
     RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp);
-#else
-    rsa->dmp1 = rsa_dmp1;
-    rsa->dmq1 = rsa_dmq1;
-    rsa->iqmp = rsa_iqmp;
-#endif
 }
 
 // interface functions -- Generic
@@ -689,7 +654,7 @@ static bool _EC_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *e
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _ec_to_string_cleanup;
     }
-    if (1 != EC_POINT_get_affine_coordinates_GFp(params, pub, bnX, bnY, NULL))
+    if (1 != EC_POINT_get_affine_coordinates(params, pub, bnX, bnY, NULL))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _ec_to_string_cleanup;
@@ -945,7 +910,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
             goto create_EC_failed;
         }
 
-        if (1 != EC_POINT_set_affine_coordinates_GFp(params, Q, bnX, bnY, NULL))
+        if (1 != EC_POINT_set_affine_coordinates(params, Q, bnX, bnY, NULL))
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_EC_failed;
