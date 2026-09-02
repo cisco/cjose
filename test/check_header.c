@@ -103,7 +103,7 @@ START_TEST(test_cjose_header_set_get_raw)
 }
 END_TEST
 
-Suite *cjose_header_suite()
+Suite *cjose_header_suite(void)
 {
     Suite *suite = suite_create("header");
 

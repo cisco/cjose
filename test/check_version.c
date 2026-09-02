@@ -2,11 +2,9 @@
  *
  */
 
-// the check unit test framework headers are noisy, disable these warnings
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#include "check_cjose.h"
 
 #include <stdlib.h>
-#include <check.h>
 #include <cjose/version.h>
 
 START_TEST(test_cjose_version_define) { ck_assert_str_eq(CJOSE_VERSION, VERSION); }
@@ -19,7 +17,7 @@ START_TEST(test_cjose_version_fn)
 }
 END_TEST
 
-Suite *cjose_version_suite()
+Suite *cjose_version_suite(void)
 {
     Suite *suite = suite_create("version");
 
