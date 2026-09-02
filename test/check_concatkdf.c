@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <cjose/base64.h>
 #include <cjose/error.h>
 #include <cjose/header.h>

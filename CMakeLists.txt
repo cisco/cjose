@@ -46,6 +46,10 @@ endif()
 find_package(OpenSSL 3.0 REQUIRED)
 find_package(Jansson 2.3 REQUIRED)
 
+if(WIN32)
+    set(CJOSE_PLATFORM_LIBRARIES ws2_32)
+endif()
+
 # Optional Cisco "Fundamental EC" OpenSSL extension (openssl/fec.h).
 include(CheckIncludeFile)
 include(CMakePushCheckState)
@@ -108,17 +112,12 @@ set_target_properties(cjose_objects PROPERTIES
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS ON)
 
-# Deliberately pinned to the 1.1.0 API level, not raised: this hides OpenSSL's
-# "deprecated" attribute for anything deprecated after 1.1.0, which is exactly
-# what keeps -Werror from failing on the RSA/EC_KEY/AES-KW/HMAC_CTX calls this
-# library intentionally still makes against OpenSSL 3.x (deprecated there, but
-# fully functional). Do not bump this without first replacing those calls.
 target_compile_definitions(cjose_objects PRIVATE OPENSSL_API_COMPAT=0x10100000L)
 if(CJOSE_HAVE_OPENSSL_FEC_H)
     target_compile_definitions(cjose_objects PRIVATE HAVE_OPENSSL_FEC_H=1)
 endif()
 if(MSVC)
-    target_compile_options(cjose_objects PRIVATE /W3 /WX)
+    target_compile_options(cjose_objects PRIVATE /W3 /WX /wd4267)
     # Silence MSVC's noise about "insecure" CRT functions used by portable C.
     target_compile_definitions(cjose_objects PRIVATE
         _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
@@ -135,15 +134,6 @@ target_include_directories(cjose_objects PRIVATE
 target_link_libraries(cjose_objects PRIVATE
     OpenSSL::Crypto
     Jansson::Jansson)
-
-# concatkdf.c uses htonl(), which on Windows lives in Winsock, not the CRT.
-# cjose_static/cjose_shared/check_cjose consume cjose_objects via
-# $<TARGET_OBJECTS:...>, which does not pull in its link libraries, so each
-# final linked target below also needs this.
-set(CJOSE_PLATFORM_LIBS "")
-if(WIN32)
-    list(APPEND CJOSE_PLATFORM_LIBS ws2_32)
-endif()
 
 # Public include usage requirements. The generated .../cjose dir is exposed in
 # the build tree only so the umbrella header's quoted `#include "version.h"`
@@ -164,7 +154,7 @@ if(CJOSE_BUILD_STATIC)
     add_library(cjose::cjose_static ALIAS cjose_static)
 
     target_include_directories(cjose_static PUBLIC ${CJOSE_PUBLIC_INCLUDES})
-    target_link_libraries(cjose_static PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBS})
+    target_link_libraries(cjose_static PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
 
     # Ship the archive as libcjose.a; on Windows keep the target's default name
     # (cjose_static) so it doesn't clash with the DLL's "cjose.lib" import lib.
@@ -183,7 +173,7 @@ if(CJOSE_BUILD_SHARED)
     add_library(cjose::cjose_shared ALIAS cjose_shared)
 
     target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
-    target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBS})
+    target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
 
     set_target_properties(cjose_shared PROPERTIES
         OUTPUT_NAME cjose
@@ -370,13 +360,12 @@ if(CJOSE_BUILD_TESTS)
             ${_cjose_check_target}
             OpenSSL::Crypto
             Jansson::Jansson
-            ${CJOSE_PLATFORM_LIBS})
+            ${CJOSE_PLATFORM_LIBRARIES})
 
         set_target_properties(check_cjose PROPERTIES
             C_STANDARD 99
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS ON)
-        # See the comment on cjose_objects' OPENSSL_API_COMPAT define above.
         target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
         if(MSVC)
             target_compile_options(check_cjose PRIVATE /W3)
