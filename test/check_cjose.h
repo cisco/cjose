@@ -11,15 +11,15 @@
 #define random rand
 #endif
 
-Suite *cjose_version_suite();
-Suite *cjose_util_suite();
-Suite *cjose_base64_suite();
-Suite *cjose_jwk_suite();
-Suite *cjose_jwe_suite();
-Suite *cjose_jws_suite();
-Suite *cjose_header_suite();
-Suite *cjose_utils_suite();
-Suite *cjose_concatkdf_suite();
+Suite *cjose_version_suite(void);
+Suite *cjose_util_suite(void);
+Suite *cjose_base64_suite(void);
+Suite *cjose_jwk_suite(void);
+Suite *cjose_jwe_suite(void);
+Suite *cjose_jws_suite(void);
+Suite *cjose_header_suite(void);
+Suite *cjose_utils_suite(void);
+Suite *cjose_concatkdf_suite(void);
 
 #define _ck_assert_bin(X, OP, Y, LEN)                                                                                            \
     do                                                                                                                           \

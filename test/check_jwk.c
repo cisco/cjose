@@ -1493,7 +1493,7 @@ START_TEST(test_cjose_jwk_create_RSA_spec_weak_modulus)
 }
 END_TEST
 
-Suite *cjose_jwk_suite()
+Suite *cjose_jwk_suite(void)
 {
     Suite *suite = suite_create("jwk");
 

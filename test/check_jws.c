@@ -947,7 +947,7 @@ START_TEST(test_cjose_jws_none)
 }
 END_TEST
 
-Suite *cjose_jws_suite()
+Suite *cjose_jws_suite(void)
 {
     Suite *suite = suite_create("jws");
 

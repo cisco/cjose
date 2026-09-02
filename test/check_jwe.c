@@ -1401,7 +1401,7 @@ START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
 }
 END_TEST
 
-Suite *cjose_jwe_suite()
+Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
 
