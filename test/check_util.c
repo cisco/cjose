@@ -30,7 +30,7 @@ static void test_dealloc(void *ptr)
     free(ptr);
 }
 
-static void test_alloc_reset()
+static void test_alloc_reset(void)
 {
     _test_alloc_in_amt = 0;
     _test_alloc_in_ptr = _test_alloc_out_ptr = NULL;
@@ -110,7 +110,7 @@ static void *_test_alloc3_in_ptr;
 static const char *_test_alloc3_in_file;
 static int _test_alloc3_in_line;
 static void *_test_alloc3_out_ptr;
-static void test_alloc3_reset()
+static void test_alloc3_reset(void)
 {
     test_alloc_reset();
     _test_alloc3_in_amt = 0;
@@ -238,7 +238,7 @@ START_TEST(test_cjose_set_allocators_ex)
 }
 END_TEST
 
-Suite *cjose_util_suite()
+Suite *cjose_util_suite(void)
 {
     Suite *suite = suite_create("util");
 

@@ -368,11 +368,11 @@ if(CJOSE_BUILD_TESTS)
             C_EXTENSIONS ON)
         target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
         if(MSVC)
-            target_compile_options(check_cjose PRIVATE /W3)
+            target_compile_options(check_cjose PRIVATE /W3 /WX /wd4267)
             target_compile_definitions(check_cjose PRIVATE
                 _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
         else()
-            target_compile_options(check_cjose PRIVATE -pedantic -Wall)
+            target_compile_options(check_cjose PRIVATE -pedantic -Wall -Werror)
         endif()
 
         target_compile_definitions(check_cjose PRIVATE VERSION="${PROJECT_VERSION}")

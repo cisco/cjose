@@ -16,26 +16,6 @@ extern "C" {
 #endif
 
 /**
- * Temporarily disable compiler warnings, if possible (>=gcc-4.6).
- *
- * In some cases (particularly within macros), certain compiler warnings are
- * unavoidable.  In order to allow these warnings to be treated as errors in
- * most cases, these macros will disable particular warnings only during
- * specific points in the compilation.
- */
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
-#define GCC_END_IGNORED_WARNING _Pragma("GCC diagnostic pop")
-
-#define GCC_BEGIN_IGNORED_WARNING_ADDRESS \
-    _Pragma("GCC diagnostic push");       \
-    _Pragma("GCC diagnostic ignored \"-Waddress\"")
-#define GCC_END_IGNORED_WARNING_ADDRESS GCC_END_IGNORED_WARNING
-#else
-#define GCC_BEGIN_IGNORED_WARNING_ADDRESS
-#define GCC_END_IGNORED_WARNING_ADDRESS
-#endif /* defined(__GNUC__) && (__GNUC__ > 3) && (__GNUC_MINOR__ > 5) */
-
-/**
  * Enumeration of defined error codes.
  */
 typedef enum {
@@ -98,17 +78,20 @@ const char *cjose_err_message(cjose_errcode code);
  * \param err The pointer to the error context, or NULL if none
  * \param errcode The error code
  */
-#define CJOSE_ERROR(err, errcode)                      \
-    GCC_BEGIN_IGNORED_WARNING_ADDRESS                  \
-    if ((err) != NULL && (errcode) != CJOSE_ERR_NONE)  \
-    {                                                  \
-        (err)->code = (errcode);                       \
-        (err)->message = cjose_err_message((errcode)); \
-        (err)->function = __func__;                    \
-        (err)->file = __FILE__;                        \
-        (err)->line = __LINE__;                        \
-    }                                                  \
-    GCC_END_IGNORED_WARNING_ADDRESS
+#define CJOSE_ERROR(err, errcode)                                                \
+    do                                                                           \
+    {                                                                            \
+        cjose_err *cjose_error_target_ = (err);                                  \
+        cjose_errcode cjose_error_code_ = (errcode);                             \
+        if (cjose_error_target_ != NULL && cjose_error_code_ != CJOSE_ERR_NONE)  \
+        {                                                                        \
+            cjose_error_target_->code = cjose_error_code_;                       \
+            cjose_error_target_->message = cjose_err_message(cjose_error_code_); \
+            cjose_error_target_->function = __func__;                            \
+            cjose_error_target_->file = __FILE__;                                \
+            cjose_error_target_->line = __LINE__;                                \
+        }                                                                        \
+    } while (0)
 
 #ifdef __cplusplus
 }

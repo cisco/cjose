@@ -76,8 +76,8 @@ static const char *JWE_RSA
       "ncDTXjkxSQjbHOAV1JByh61G-WFuEC1UItyib0AOq9R.Mlo2kQF8Zn2hwwdDl_4Lnw";
 
 // the plaintext payload of the above JWE object(s)
-static const char *PLAINTEXT = "If you reveal your secrets to the wind, you should not blame the "
-                               "wind for revealing them to the trees. — Kahlil Gibran";
+static const char PLAINTEXT[] = "If you reveal your secrets to the wind, you should not blame the "
+                                "wind for revealing them to the trees. — Kahlil Gibran";
 
 static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
 {
@@ -126,11 +126,11 @@ START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
                   err.message, err.file, err.function, err.line);
 
     // confirm plain2 == PLAINTEXT
-    ck_assert_msg(plain2_len == strlen(PLAINTEXT),
+    ck_assert_msg(plain2_len == sizeof(PLAINTEXT) - 1,
                   "length of decrypted plaintext does not match length of original, "
-                  "expected: %lu, found: %lu",
-                  strlen(PLAINTEXT), plain2_len);
-    ck_assert_msg(strncmp(PLAINTEXT, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+                  "expected: %zu, found: %zu",
+                  sizeof(PLAINTEXT) - 1, plain2_len);
+    ck_assert_msg(memcmp(PLAINTEXT, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
     cjose_get_dealloc()(plain2);
     cjose_jwk_release(jwk);
@@ -138,7 +138,7 @@ START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 }
 END_TEST
 
-static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const char *plain1)
+static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const uint8_t *plain1, size_t plain1_len)
 {
     cjose_err err;
 
@@ -161,7 +161,6 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
                   err.message, err.file, err.function, err.line);
 
     // create the JWE
-    size_t plain1_len = strlen(plain1);
     cjose_jwe_t *jwe1 = cjose_jwe_encrypt(jwk, hdr, plain1, plain1_len, &err);
     ck_assert_msg(NULL != jwe1, "cjose_jwe_encrypt failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
                   err.function, err.line);
@@ -190,11 +189,11 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
 
     // confirm plain2 == plain1
     ck_assert(json_equal((json_t *)cjose_jwe_get_protected(jwe1), (json_t *)cjose_jwe_get_protected(jwe2)));
-    ck_assert_msg(plain2_len == strlen(plain1),
+    ck_assert_msg(plain2_len == plain1_len,
                   "length of decrypted plaintext does not match length of original, "
-                  "expected: %lu, found: %lu",
-                  strlen(plain1), plain2_len);
-    ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+                  "expected: %zu, found: %zu",
+                  plain1_len, plain2_len);
+    ck_assert_msg(memcmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
     cjose_get_dealloc()(plain2);
     cjose_header_release(hdr);
@@ -204,59 +203,68 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
     cjose_get_dealloc()(compact);
 }
 
-static void _self_encrypt_self_decrypt(const char *plain1)
+static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 {
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_48, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_48, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_64, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_64, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, plain1, plain1_len);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain1, plain1_len);
 }
 
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt)
 {
-    _self_encrypt_self_decrypt("Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
-                               "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
-                               "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
-                               "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
-                               "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
-                               "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
-                               "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
-                               "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
-                               "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
-                               "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
-                               "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
-                               "eum fugiat quo voluptas nulla pariatur?");
+    static const uint8_t plain[] = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
+                                   "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
+                                   "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
+                                   "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
+                                   "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
+                                   "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
+                                   "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
+                                   "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
+                                   "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
+                                   "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
+                                   "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
+                                   "eum fugiat quo voluptas nulla pariatur?";
+    _self_encrypt_self_decrypt(plain, sizeof(plain) - 1);
 }
 END_TEST
 
-START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_short) { _self_encrypt_self_decrypt("Setec Astronomy"); }
+START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_short)
+{
+    static const uint8_t plain[] = "Setec Astronomy";
+    _self_encrypt_self_decrypt(plain, sizeof(plain) - 1);
+}
 END_TEST
 
-START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty) { _self_encrypt_self_decrypt(""); }
+START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
+{
+    static const uint8_t plain[] = "";
+    _self_encrypt_self_decrypt(plain, sizeof(plain) - 1);
+}
 END_TEST
 
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_large)
 {
     // encrypt and decrypt a 4MB buffer of z's
     size_t len = 1024 * 4096;
-    char *plain = (char *)malloc(len);
+    char *plain = malloc(len);
     memset(plain, 'z', len);
     plain[len - 1] = 0;
     // _self_encrypt_self_decrypt(plain);
@@ -270,10 +278,10 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_many)
     for (int i = 0; i < 100; ++i)
     {
         size_t len = random() % 1024;
-        char *plain = (char *)malloc(len);
+        uint8_t *plain = malloc(len);
         ck_assert_msg(RAND_bytes(plain, len) == 1, "RAND_bytes failed");
         plain[len - 1] = 0;
-        _self_encrypt_self_decrypt(plain);
+        _self_encrypt_self_decrypt(plain, len);
         free(plain);
     }
 }
@@ -285,8 +293,8 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_header)
     cjose_jwe_t *jwe = NULL;
     cjose_err err;
 
-    static const char *plain = "The mind is everything. What you think you become.";
-    size_t plain_len = strlen(plain);
+    static const uint8_t plain[] = "The mind is everything. What you think you become.";
+    size_t plain_len = sizeof(plain) - 1;
 
     static const char *JWK
         = "{ \"kty\": \"RSA\", "
@@ -348,8 +356,8 @@ START_TEST(test_cjose_jwe_encrypt_with_bad_key)
     cjose_jwe_t *jwe = NULL;
     cjose_err err;
 
-    static const char *plain = "The mind is everything. What you think you become.";
-    size_t plain_len = strlen(plain);
+    static const uint8_t plain[] = "The mind is everything. What you think you become.";
+    size_t plain_len = sizeof(plain) - 1;
 
     // some bad keys to test with
     static const char *JWK_BAD[] = {
@@ -699,9 +707,9 @@ START_TEST(test_cjose_jwe_decrypt_aes)
     // confirm plain == PLAINTEXT_S
     ck_assert_msg(plain1_len == strlen(PLAINTEXT_S),
                   "length of decrypted plaintext does not match length of original, "
-                  "expected: %lu, found: %lu",
+                  "expected: %zu, found: %zu",
                   strlen(PLAINTEXT_S), plain1_len);
-    ck_assert_msg(strncmp(PLAINTEXT_S, plain1, plain1_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+    ck_assert_msg(memcmp(PLAINTEXT_S, plain1, plain1_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
     cjose_get_dealloc()(plain1);
     cjose_jwe_release(jwe);
@@ -815,7 +823,8 @@ START_TEST(test_cjose_jwe_decrypt_aes_gcm)
 
     const char *key = JWK_OCT_32;
     const char *plain1 = "Live long and prosper.";
-    char *compact1 = "eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..Du_9fxxV-zrReaWC.aS_rpokeuxkaPc2sykcQDCQuJCYoww.GpeKGEqd8KQ0v6JNea5aSA";
+    char *compact1
+        = "eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..Du_9fxxV-zrReaWC.aS_rpokeuxkaPc2sykcQDCQuJCYoww.GpeKGEqd8KQ0v6JNea5aSA";
     char *compact2 = "eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..Du_9fxxV-zrReaWC.aS_rpokeuxkaPc2sykcQDCQuJCYoww.Gp";
 
     cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
@@ -840,26 +849,26 @@ START_TEST(test_cjose_jwe_decrypt_aes_gcm)
 
     ck_assert_msg(plain2_len == strlen(plain1),
                   "length of decrypted plaintext does not match length of original, "
-                  "expected: %lu, found: %lu",
+                  "expected: %zu, found: %zu",
                   strlen(plain1), plain2_len);
-    ck_assert_msg(strncmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+    ck_assert_msg(memcmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
 
     cjose_get_dealloc()(plain2);
     cjose_jwe_release(jwe1);
 
     cjose_jwe_t *jwe2 = cjose_jwe_import(compact2, strlen(compact2), &err);
     ck_assert_msg(NULL != jwe2,
-                   "cjose_jwe_import failed: "
-                   "%s, file: %s, function: %s, line: %ld",
-                   err.message, err.file, err.function, err.line);
+                  "cjose_jwe_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
 
     uint8_t *plain3 = NULL;
     size_t plain3_len = 0;
     plain3 = cjose_jwe_decrypt(jwe2, jwk, &plain3_len, &err);
     ck_assert_msg(NULL == plain3,
-                   "cjose_jwe_decrypt succeeded where it should have failed: "
-                   "%s, file: %s, function: %s, line: %ld",
-                   err.message, err.file, err.function, err.line);
+                  "cjose_jwe_decrypt succeeded where it should have failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
 
     cjose_jwe_release(jwe2);
     cjose_jwk_release(jwk);
@@ -881,8 +890,8 @@ static void _decrypt_oversized_aes_kw_ek(const char *alg, const char *enc, const
     ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
     ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
 
-    const char *plain = "Setec Astronomy";
-    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+    static const uint8_t plain[] = "Setec Astronomy";
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
     ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
 
     char *compact = cjose_jwe_export(jwe, &err);
@@ -907,7 +916,7 @@ static void _decrypt_oversized_aes_kw_ek(const char *alg, const char *enc, const
     const char *tail = second_dot; // includes the leading '.'
     size_t tail_len = strlen(tail);
     size_t tampered_len = header_len + 1 + oversized_b64u_len + tail_len;
-    char *tampered = (char *)malloc(tampered_len + 1);
+    char *tampered = malloc(tampered_len + 1);
     ck_assert(NULL != tampered);
     memcpy(tampered, compact, header_len);
     tampered[header_len] = '.';
@@ -1078,9 +1087,9 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
         // confirm plain == PLAINTEXT_S
         ck_assert_msg(plain1_len == strlen(JWE_RSA[i].plaintext),
                       "length of decrypted plaintext does not match length of original, "
-                      "expected: %lu, found: %lu",
+                      "expected: %zu, found: %zu",
                       strlen(JWE_RSA[i].plaintext), plain1_len);
-        ck_assert_msg(strncmp(JWE_RSA[i].plaintext, plain1, plain1_len) == 0,
+        ck_assert_msg(memcmp(JWE_RSA[i].plaintext, plain1, plain1_len) == 0,
                       "decrypted plaintext does not match encrypted plaintext");
 
         cjose_get_dealloc()(plain1);
@@ -1103,28 +1112,28 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    char *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
+    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded,
                   "failed to decrypt for multiple recipients: "
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
-    ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
+    ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == sizeof(PLAINTEXT),
                   "decrypted plaintext does not match");
     cjose_get_dealloc()(decoded);
 
-    decoded = cjose_jwe_export_json(jwe, &err);
-    ck_assert_msg(NULL != decoded,
+    char *encoded = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != encoded,
                   "failed to serialize JWE into json: "
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
-    ck_assert_msg(strcmp(decoded, match_json) == 0, "serialized json doesn't match expectation");
+    ck_assert_msg(strcmp(encoded, match_json) == 0, "serialized json doesn't match expectation");
 
-    cjose_get_dealloc()(decoded);
+    cjose_get_dealloc()(encoded);
 
     cjose_jwe_release(jwe);
 }
 
-static void _cjose_test_empty_headers(cjose_jwk_t *key)
+static void _cjose_test_empty_headers(const cjose_jwk_t *key)
 {
 
     cjose_jwe_t *jwe;
@@ -1138,9 +1147,10 @@ static void _cjose_test_empty_headers(cjose_jwk_t *key)
     cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err);
     cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256CBC_HS512, &err);
 
-    cjose_jwe_recipient_t rec = { .jwk = (const cjose_jwk_t *)key, .unprotected_header = 0 };
+    cjose_jwe_recipient_t rec = { .jwk = key, .unprotected_header = 0 };
 
-    jwe = cjose_jwe_encrypt_multi(&rec, 1, hdr, 0, (uint8_t *)"", 1, &err);
+    static const uint8_t plain[] = "";
+    jwe = cjose_jwe_encrypt_multi(&rec, 1, hdr, 0, plain, sizeof(plain), &err);
     ck_assert_msg(NULL != jwe,
                   "failed to encrypt test data: "
                   "%s, file: %s, function: %s, line: %ld",
@@ -1162,7 +1172,7 @@ static void _cjose_test_empty_headers(cjose_jwk_t *key)
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
     size_t len;
-    char *test = (char *)cjose_jwe_decrypt(jwe, key, &len, &err);
+    uint8_t *test = cjose_jwe_decrypt(jwe, key, &len, &err);
     ck_assert_msg(NULL != test,
                   "failed to decrypt test data: "
                   "%s, file: %s, function: %s, line: %ld",
@@ -1254,6 +1264,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     cjose_err err;
 
     cjose_jwe_recipient_t rec[2];
+    cjose_jwk_t *jwks[2] = { NULL, NULL };
 
     for (int i = 0; i < 2; i++)
     {
@@ -1274,6 +1285,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                       "%s, file: %s, function: %s, line: %ld",
                       err.message, err.file, err.function, err.line);
 
+        jwks[i] = jwk;
         rec[i].jwk = jwk;
 
         cjose_header_t *unprotected;
@@ -1293,7 +1305,9 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
 
-    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 2, protected_header, NULL, PLAINTEXT, strlen(PLAINTEXT) + 1, &err);
+    static const uint8_t plaintext[] = "If you reveal your secrets to the wind, you should not blame the "
+                                       "wind for revealing them to the trees. — Kahlil Gibran";
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 2, protected_header, NULL, plaintext, sizeof(plaintext), &err);
     ck_assert_msg(NULL != jwe,
                   "failed to encrypt to multiple recipients:"
                   "%s, file: %s, function: %s, line: %ld",
@@ -1305,7 +1319,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   "failed to decrypt for multiple recipients: "
                   "%s, file: %s, function: %s, line: %ld",
                   err.message, err.file, err.function, err.line);
-    ck_assert_msg(memcmp(decoded, PLAINTEXT, decoded_len) == 0 && decoded_len == strlen(PLAINTEXT) + 1,
+    ck_assert_msg(memcmp(decoded, plaintext, decoded_len) == 0 && decoded_len == sizeof(plaintext),
                   "decrypted plaintext does not match");
 
     char *ser = cjose_jwe_export(jwe, &err);
@@ -1322,7 +1336,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
 
     for (int i = 0; i < 2; i++)
     {
-        cjose_jwk_release(rec[i].jwk);
+        cjose_jwk_release(jwks[i]);
         cjose_header_release(rec[i].unprotected_header);
     }
 
@@ -1348,12 +1362,12 @@ static void _assert_cbc_cek_random(const char *alg, const char *enc, const char 
     ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
     ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
 
-    const char *plain = "Setec Astronomy";
     char ek[2][512];
 
+    static const uint8_t plain[] = "Setec Astronomy";
     for (int i = 0; i < 2; i++)
     {
-        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
         ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed (%s/%s): %s", alg, enc, err.message);
 
         char *cser = cjose_jwe_export(jwe, &err);
@@ -1387,7 +1401,7 @@ START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
 }
 END_TEST
 
-Suite *cjose_jwe_suite()
+Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
 

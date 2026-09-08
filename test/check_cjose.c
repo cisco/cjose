@@ -8,14 +8,14 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 
-Suite *cjose_suite()
+Suite *cjose_suite(void)
 {
     Suite *suite = suite_create("CJOSE");
 
     return suite;
 }
 
-int main()
+int main(void)
 {
     // initialize "OpenSSL" crypto
     ERR_load_crypto_strings();
