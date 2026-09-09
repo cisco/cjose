@@ -133,7 +133,8 @@ libcjose_la_LIBADD =
 am_libcjose_la_OBJECTS = libcjose_la-version.lo libcjose_la-util.lo \
 	libcjose_la-base64.lo libcjose_la-concatkdf.lo \
 	libcjose_la-jwk.lo libcjose_la-jwe.lo libcjose_la-jws.lo \
-	libcjose_la-header.lo libcjose_la-error.lo
+	libcjose_la-header.lo libcjose_la-header_compat.lo \
+	libcjose_la-error.lo
 libcjose_la_OBJECTS = $(am_libcjose_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -160,6 +161,7 @@ am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/libcjose_la-base64.Plo \
 	./$(DEPDIR)/libcjose_la-concatkdf.Plo \
 	./$(DEPDIR)/libcjose_la-error.Plo \
+	./$(DEPDIR)/libcjose_la-header_compat.Plo \
 	./$(DEPDIR)/libcjose_la-header.Plo \
 	./$(DEPDIR)/libcjose_la-jwe.Plo \
 	./$(DEPDIR)/libcjose_la-jwk.Plo \
@@ -370,6 +372,7 @@ libcjose_la_SOURCES = version.c \
                     jwe.c \
                     jws.c \
                     header.c \
+                    header_compat.c \
                     error.c \
 					include/concatkdf_int.h \
 					include/header_int.h \
@@ -459,6 +462,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-base64.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-concatkdf.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-error.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-header_compat.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-header.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-jwe.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcjose_la-jwk.Plo@am__quote@ # am--include-marker
@@ -548,6 +552,13 @@ libcjose_la-header.lo: header.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='header.c' object='libcjose_la-header.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libcjose_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libcjose_la-header.lo `test -f 'header.c' || echo '$(srcdir)/'`header.c
+
+libcjose_la-header_compat.lo: header_compat.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libcjose_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libcjose_la-header_compat.lo -MD -MP -MF $(DEPDIR)/libcjose_la-header_compat.Tpo -c -o libcjose_la-header_compat.lo `test -f 'header_compat.c' || echo '$(srcdir)/'`header_compat.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libcjose_la-header_compat.Tpo $(DEPDIR)/libcjose_la-header_compat.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='header_compat.c' object='libcjose_la-header_compat.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libcjose_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libcjose_la-header_compat.lo `test -f 'header_compat.c' || echo '$(srcdir)/'`header_compat.c
 
 libcjose_la-error.lo: error.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libcjose_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libcjose_la-error.lo -MD -MP -MF $(DEPDIR)/libcjose_la-error.Tpo -c -o libcjose_la-error.lo `test -f 'error.c' || echo '$(srcdir)/'`error.c
@@ -694,6 +705,7 @@ distclean: distclean-am
 		-rm -f ./$(DEPDIR)/libcjose_la-base64.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-concatkdf.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-error.Plo
+	-rm -f ./$(DEPDIR)/libcjose_la-header_compat.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-header.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-jwe.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-jwk.Plo
@@ -748,6 +760,7 @@ maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/libcjose_la-base64.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-concatkdf.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-error.Plo
+	-rm -f ./$(DEPDIR)/libcjose_la-header_compat.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-header.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-jwe.Plo
 	-rm -f ./$(DEPDIR)/libcjose_la-jwk.Plo

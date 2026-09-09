@@ -80,6 +80,7 @@ set(CJOSE_SOURCES
     src/jwe.c
     src/jws.c
     src/header.c
+    src/header_compat.c
     src/error.c)
 
 set(CJOSE_INTERNAL_HEADERS
