@@ -1537,6 +1537,74 @@ START_TEST(test_cjose_jwe_ecdh_es_null_err)
 }
 END_TEST
 
+// regression: cjose_jwe_import_json() must parse the shared "unprotected"
+// header that cjose_jwe_export_json() writes (RFC 7516 section 7.2.1); an
+// "alg" that lives there was dropped on import, so the JWE could no longer
+// be decrypted and a re-export lost the header
+START_TEST(test_cjose_jwe_import_json_shared_unprotected)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(NULL != protected_header);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    // "alg" goes into the per-recipient unprotected header, not the protected one
+    cjose_header_t *unprotected_header = cjose_header_new(&err);
+    ck_assert(NULL != unprotected_header);
+    ck_assert(cjose_header_set(unprotected_header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err));
+
+    cjose_jwe_recipient_t rec = { .jwk = jwk, .unprotected_header = unprotected_header };
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+
+    // the single-recipient JSON serialization is flattened, so the recipient
+    // header is emitted as a top-level "header" member; rename it to
+    // "unprotected" so that "alg" is only available from the shared
+    // unprotected header
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != json, "cjose_jwe_export_json failed: %s", err.message);
+    static const char *from = "\"header\"";
+    static const char *to = "\"unprotected\"";
+    char *at = strstr(json, from);
+    ck_assert_msg(NULL != at, "exported JSON lacks a \"header\" member: %s", json);
+    ck_assert_msg(NULL == strstr(at + strlen(from), from), "exported JSON has more than one \"header\" member: %s", json);
+    size_t shared_len = strlen(json) - strlen(from) + strlen(to);
+    char *shared_json = (char *)cjose_get_alloc()(shared_len + 1);
+    ck_assert(NULL != shared_json);
+    memcpy(shared_json, json, at - json);
+    memcpy(shared_json + (at - json), to, strlen(to));
+    strcpy(shared_json + (at - json) + strlen(to), at + strlen(from));
+
+    cjose_jwe_t *jwe2 = cjose_jwe_import_json(shared_json, shared_len, &err);
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import_json failed: %s", err.message);
+
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed with alg in the shared unprotected header: %s", err.message);
+    ck_assert(plain_len == strlen(PLAINTEXT));
+    ck_assert(memcmp(PLAINTEXT, plain, plain_len) == 0);
+
+    // the shared header must survive a re-export as well
+    char *json2 = cjose_jwe_export_json(jwe2, &err);
+    ck_assert_msg(NULL != json2, "cjose_jwe_export_json failed: %s", err.message);
+    ck_assert_msg(NULL != strstr(json2, to), "re-exported JSON lost the shared unprotected header: %s", json2);
+
+    cjose_get_dealloc()(json2);
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe2);
+    cjose_get_dealloc()(shared_json);
+    cjose_get_dealloc()(json);
+    cjose_jwe_release(jwe);
+    cjose_header_release(unprotected_header);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1562,6 +1630,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
+    tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
     suite_add_tcase(suite, tc_jwe);
 
