@@ -322,7 +322,7 @@ if(CJOSE_BUILD_TESTS)
     if(NOT _cjose_check_target)
         find_package(PkgConfig QUIET)
         if(PkgConfig_FOUND)
-            pkg_check_modules(CHECK QUIET check>=0.9.4 IMPORTED_TARGET)
+            pkg_check_modules(CHECK QUIET check>=0.12.0 IMPORTED_TARGET)
             if(TARGET PkgConfig::CHECK)
                 set(_cjose_check_target PkgConfig::CHECK)
             endif()
@@ -346,7 +346,7 @@ if(CJOSE_BUILD_TESTS)
     endif()
 
     if(NOT _cjose_check_target)
-        message(WARNING "Check (>= 0.9.4) not found; skipping cjose unit tests.")
+        message(WARNING "Check (>= 0.12.0) not found; skipping cjose unit tests.")
     else()
         set(CJOSE_TEST_SOURCES
             test/check_cjose.c
