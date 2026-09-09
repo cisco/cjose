@@ -1,5 +1,20 @@
 # Release Notes #
 
+<a name="0.7.0"></a>
+## [0.7.0](https://github.com/cisco/cjose/0.6.3..0.7.0)  (2026-09-09)
+
+### Update
+
+* Add cjose_jwe_encrypt_iv and cjose_jwe_encrypt_multi_iv for a caller-supplied IV ([7edf9d1c4d39f1826794d12d757510a9a2b959f8](https://github.com/cisco/cjose/commit/7edf9d1c4d39f1826794d12d757510a9a2b959f8))
+* Compact JWS protected header, stable key order, scalar raw header values ([81a77af47dc16cbc19649f9f03482907bb4e51f9](https://github.com/cisco/cjose/commit/81a77af47dc16cbc19649f9f03482907bb4e51f9))
+* Add A128GCM and A192GCM content encryption ([26935516d61cc23bc3684a9fbba90d88159b5126](https://github.com/cisco/cjose/commit/26935516d61cc23bc3684a9fbba90d88159b5126))
+* Make RSA1_5 (RSAES-PKCS1-v1_5) key encryption a build-time opt-in, off by default ([8819d3a26ed96765956c3fc009a7ce8c0f188352](https://github.com/cisco/cjose/commit/8819d3a26ed96765956c3fc009a7ce8c0f188352))
+
+### Fix
+
+* Drop the meaningless const from cjose_jwk_EC_get_curve, fix doc contracts ([5242c55c6f52a34268bb6eb643fe7c7455d534c1](https://github.com/cisco/cjose/commit/5242c55c6f52a34268bb6eb643fe7c7455d534c1))
+* Cleanup warnings about \param lines in header files ([6a25846d42a408936d6b2abdc039c43706b7fc55](https://github.com/cisco/cjose/commit/6a25846d42a408936d6b2abdc039c43706b7fc55))
+
 <a name="0.6.3"></a>
 ## [0.6.3](https://github.com/cisco/cjose/0.6.1..0.6.3)  (2026-09-09)
 
