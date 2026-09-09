@@ -450,10 +450,17 @@ static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
     size_t keysize = 0;
     if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
         keysize = 32;
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    else if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         keysize = 48;
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    else if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
         keysize = 64;
+
+    // reject an unrecognized enc rather than proceeding with a zero-length CEK
+    if (0 == keysize)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
 
     // if no JWK is provided, generate a random key
     if (NULL == jwk)
