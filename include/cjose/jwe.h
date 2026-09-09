@@ -29,9 +29,10 @@ extern "C" {
 /**
  * Supplemental structure to represent JWE recipients
  */
-typedef struct {
+typedef struct
+{
     /** Key to use for this recipient */
-    const cjose_jwk_t * jwk;
+    const cjose_jwk_t *jwk;
     /** Additional unprotected header for this recipient */
     cjose_header_t *unprotected_header;
 } cjose_jwe_recipient_t;
@@ -115,13 +116,13 @@ cjose_jwe_t *cjose_jwe_encrypt_iv(const cjose_jwk_t *jwk,
  *        information in the event of an error.
  * \returns a newly generated JWE with the given plaintext as the payload.
  */
-cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
-                                    size_t recipient_count,
-                                    cjose_header_t *protected_header,
-                                    cjose_header_t *shared_unprotected_header,
-                                    const uint8_t *plaintext,
-                                    size_t plaintext_len,
-                                    cjose_err *err);
+cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t *recipients,
+                                     size_t recipient_count,
+                                     cjose_header_t *protected_header,
+                                     cjose_header_t *shared_unprotected_header,
+                                     const uint8_t *plaintext,
+                                     size_t plaintext_len,
+                                     cjose_err *err);
 
 /**
  * Creates a new JWE by encrypting the given plaintext with multiple keys and a

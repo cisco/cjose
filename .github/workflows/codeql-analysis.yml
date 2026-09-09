@@ -6,7 +6,11 @@ on:
     branches: [master]
 
 jobs:
+  format:
+    uses: ./.github/workflows/format.yml
+
   analyze:
+    needs: format
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
