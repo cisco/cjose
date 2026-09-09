@@ -99,6 +99,11 @@ static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header
     return NULL;
 }
 
+static const cjose_jwk_t *cjose_multi_key_locator_none(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
+{
+    return NULL;
+}
+
 START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 {
     cjose_err err;
@@ -1314,7 +1319,13 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
+
+    CJOSE_ERROR(&err, CJOSE_ERR_NONE);
+    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator_none, rec, &decoded_len, &err);
+    ck_assert_msg(NULL == decoded, "did not expect to decode with selected key");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "expected error to be set to CRYPTO");
+
+    decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded,
                   "failed to decrypt for multiple recipients: "
                   "%s, file: %s, function: %s, line: %ld",
@@ -1487,6 +1498,45 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
 }
 END_TEST
 
+// regression: ECDH-ES key agreement must not dereference a NULL cjose_err.
+// cjose_concatkdf_create_otherinfo() used to memset(err, ...) unconditionally,
+// crashing when the public JWE API was invoked with a NULL err argument.
+START_TEST(test_cjose_jwe_ecdh_es_null_err)
+{
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_EC, strlen(JWK_EC), NULL);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed for EC key");
+
+    cjose_header_t *hdr = cjose_header_new(NULL);
+    ck_assert_msg(NULL != hdr, "cjose_header_new failed");
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, NULL));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
+
+    // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (ECDH-ES) failed with NULL err");
+
+    char *compact = cjose_jwe_export(jwe, NULL);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
+
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
+
+    // decrypt with a NULL err: again exercises the ConcatKDF path
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (ECDH-ES) failed with NULL err");
+    ck_assert(plain_len == strlen(PLAINTEXT));
+    ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
+
+    cjose_get_dealloc()(plain);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe);
+    cjose_jwe_release(jwe2);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1512,6 +1562,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;

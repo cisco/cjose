@@ -148,8 +148,7 @@ static bool _cjose_convert_to_base64(struct _cjose_jwe_int *jwe, cjose_err *err)
 {
 
     if (!_cjose_convert_part(&jwe->enc_header, err) || !_cjose_convert_part(&jwe->enc_iv, err)
-        || !_cjose_convert_part(&jwe->enc_iv, err) || !_cjose_convert_part(&jwe->enc_ct, err)
-        || !_cjose_convert_part(&jwe->enc_auth_tag, err))
+        || !_cjose_convert_part(&jwe->enc_ct, err) || !_cjose_convert_part(&jwe->enc_auth_tag, err))
     {
 
         return false;
@@ -188,7 +187,7 @@ static size_t _keylen_from_enc(const char *alg)
 static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose_err *err)
 {
     *buffer = (uint8_t *)cjose_get_alloc()(bytes);
-    if (NULL == *buffer)
+    if ((NULL == *buffer) && (bytes > 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
@@ -202,8 +201,10 @@ static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose
             return false;
         }
     }
-    else
+    else if (bytes > 0)
     {
+        // *buffer may be NULL for a zero-byte request (malloc(0)); passing NULL
+        // to memset is undefined even with a zero length, so skip it
         memset(*buffer, 0, bytes);
     }
     return true;
@@ -830,6 +831,13 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
     jwe->cek = derived;
     jwe->cek_len = keylen;
+
+    // empty string may have been allocated upon import
+    if (recipient->enc_key.raw != NULL)
+    {
+        cjose_get_dealloc()(recipient->enc_key.raw);
+    }
+
     recipient->enc_key.raw = NULL;
     recipient->enc_key.raw_len = 0;
     result = true;
@@ -858,6 +866,14 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
     uint8_t *derived = NULL;
     bool result = false;
 
+    // err is optional in the public API, but the logic below inspects
+    // err->code to distinguish an absent EPK header from a real failure;
+    // fall back to a local error object when the caller did not supply one
+    cjose_err local_err;
+    if (NULL == err)
+    {
+        err = &local_err;
+    }
     memset(err, 0, sizeof(cjose_err));
     char *epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
@@ -911,6 +927,13 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient,
 
     jwe->cek = derived;
     jwe->cek_len = keylen;
+
+    // empty string may have been allocated upon import
+    if (recipient->enc_key.raw != NULL)
+    {
+        cjose_get_dealloc()(recipient->enc_key.raw);
+    }
+
     recipient->enc_key.raw = NULL;
     recipient->enc_key.raw_len = 0;
     result = true;
@@ -1255,7 +1278,7 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
     uint8_t tag[EVP_MAX_MD_SIZE];
     if (_cjose_jwe_calc_auth_tag(enc, jwe, (unsigned char *)&tag, &tag_len, err) == false)
     {
-        return false;
+        goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
 
     // allocate buffer for the authentication tag
@@ -1337,8 +1360,8 @@ static bool _cjose_jwe_decrypt_dat_a256gcm(cjose_jwe_t *jwe, cjose_err *err)
         goto _cjose_jwe_decrypt_dat_a256gcm_fail;
     }
 
-    // allocate buffer for the plaintext
-    cjose_get_dealloc()(jwe->dat);
+    // allocate buffer for the plaintext, wiping any previously decrypted data
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
     jwe->dat_len = jwe->enc_ct.raw_len;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
@@ -1451,8 +1474,10 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     int p_len = (int)jwe->enc_ct.raw_len, f_len = 0;
-    cjose_get_dealloc()(jwe->dat);
-    jwe->dat_len = p_len + AES_BLOCK_SIZE;
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
+    // size the buffer in size_t; p_len + AES_BLOCK_SIZE would overflow int when
+    // raw_len is near INT_MAX (raw_len is already bounded above)
+    jwe->dat_len = jwe->enc_ct.raw_len + AES_BLOCK_SIZE;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
@@ -1664,7 +1689,9 @@ void cjose_jwe_release(cjose_jwe_t *jwe)
 
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
 
-    cjose_get_dealloc()(jwe->dat);
+    // jwe->dat holds decrypted plaintext when the caller has not taken
+    // ownership of it (e.g. after a failed decrypt); wipe it before release
+    _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
     cjose_get_dealloc()(jwe);
 }
 
@@ -2013,6 +2040,20 @@ cjose_jwe_t *cjose_jwe_import_json(const char *cser, size_t cser_len, cjose_err 
         goto _cjose_jwe_import_json_fail;
     }
 
+    // the shared unprotected header, if present, must be a JSON object; retain
+    // it so the per-recipient effective-header lookups (and cjose_jwe_export_json)
+    // see it, mirroring the "unprotected" member written on export
+    json_t *shared_unprotected = json_object_get(form, "unprotected");
+    if (NULL != shared_unprotected)
+    {
+        if (!json_is_object(shared_unprotected))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto _cjose_jwe_import_json_fail;
+        }
+        jwe->shared_hdr = json_incref(shared_unprotected);
+    }
+
     if (NULL == recipients)
     {
 
@@ -2100,16 +2141,27 @@ uint8_t *cjose_jwe_decrypt_multi(cjose_jwe_t *jwe, cjose_key_locator key_locator
         {
             cek_len = jwe->cek_len;
             cek = cjose_get_alloc()(cek_len);
+            if (!cek) {
+               CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+               return NULL;
+            }
             memcpy(cek, jwe->cek, cek_len);
         }
         else
         {
-            if (cek_len != jwe->cek_len || memcmp(jwe->cek, cek, cek_len))
+            // constant-time compare: both operands are secret CEKs
+            if (cek_len != jwe->cek_len || cjose_const_memcmp(jwe->cek, cek, cek_len) != 0)
             {
                 CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
                 goto _cjose_jwe_decrypt_multi_fail;
             }
         }
+    }
+
+    if (NULL == jwe->cek)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jwe_decrypt_multi_fail;
     }
 
     // decrypt JWE encrypted data

@@ -11,11 +11,9 @@
 #include <cjose/base64.h>
 #include <cjose/util.h>
 
-#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <stdio.h>
 
 #include <openssl/bn.h>
@@ -80,7 +78,16 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
         rsa_d = BN_bin2bn(d, d_len, NULL);
 
 #if defined(CJOSE_OPENSSL_11X)
-    return RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d) == 1;
+    if (1 != RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d))
+    {
+        // the setter takes ownership only on success; free the BIGNUMs it
+        // refused (e.g. if a BN_bin2bn above failed) rather than leaking them
+        BN_free(rsa_n);
+        BN_free(rsa_e);
+        BN_free(rsa_d);
+        return false;
+    }
+    return true;
 #else
     rsa->n = rsa_n;
     rsa->e = rsa_e;
@@ -99,7 +106,7 @@ void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
 #endif
 }
 
-void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
+bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
 {
     BIGNUM *rsa_p = NULL, *rsa_q = NULL;
 
@@ -108,12 +115,31 @@ void _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
     if (q && q_len > 0)
         rsa_q = BN_bin2bn(q, q_len, NULL);
 
+    // no factors supplied: a valid (n, e, d)-only private key
+    if (NULL == rsa_p && NULL == rsa_q)
+        return true;
+
+    // p and q are required together; reject (and free) an incomplete pair
+    // instead of leaking the BIGNUM the setter refuses to take ownership of
+    if (NULL == rsa_p || NULL == rsa_q)
+    {
+        BN_free(rsa_p);
+        BN_free(rsa_q);
+        return false;
+    }
+
 #if defined(CJOSE_OPENSSL_11X)
-    RSA_set0_factors(rsa, rsa_p, rsa_q);
+    if (1 != RSA_set0_factors(rsa, rsa_p, rsa_q))
+    {
+        BN_free(rsa_p);
+        BN_free(rsa_q);
+        return false;
+    }
 #else
     rsa->p = rsa_p;
     rsa->q = rsa_q;
 #endif
+    return true;
 }
 
 void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
@@ -127,7 +153,7 @@ void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqm
 #endif
 }
 
-void _cjose_jwk_rsa_set_crt(
+bool _cjose_jwk_rsa_set_crt(
     RSA *rsa, uint8_t *dmp1, size_t dmp1_len, uint8_t *dmq1, size_t dmq1_len, uint8_t *iqmp, size_t iqmp_len)
 {
     BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
@@ -139,20 +165,44 @@ void _cjose_jwk_rsa_set_crt(
     if (iqmp && iqmp_len > 0)
         rsa_iqmp = BN_bin2bn(iqmp, iqmp_len, NULL);
 
+    // no CRT params supplied: nothing to set
+    if (NULL == rsa_dmp1 && NULL == rsa_dmq1 && NULL == rsa_iqmp)
+        return true;
+
+    // the CRT params are required together; reject (and free) an incomplete
+    // set instead of leaking the BIGNUMs the setter refuses to take ownership of
+    if (NULL == rsa_dmp1 || NULL == rsa_dmq1 || NULL == rsa_iqmp)
+    {
+        BN_free(rsa_dmp1);
+        BN_free(rsa_dmq1);
+        BN_free(rsa_iqmp);
+        return false;
+    }
+
 #if defined(CJOSE_OPENSSL_11X)
-    RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp);
+    if (1 != RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp))
+    {
+        BN_free(rsa_dmp1);
+        BN_free(rsa_dmq1);
+        BN_free(rsa_iqmp);
+        return false;
+    }
 #else
     rsa->dmp1 = rsa_dmp1;
     rsa->dmq1 = rsa_dmq1;
     rsa->iqmp = rsa_iqmp;
 #endif
+    return true;
 }
 
 // interface functions -- Generic
 
 const char *cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
 {
-    if (0 == kty || CJOSE_JWK_KTY_OCT < kty)
+    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_OCT]; a value
+    // below RSA (e.g. a negative sentinel, if the enum is signed) would index
+    // JWK_KTY_NAMES out of bounds
+    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_OCT < kty)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
@@ -194,8 +244,10 @@ bool cjose_jwk_release(cjose_jwk_t *jwk)
         jwk->kid = NULL;
 
         // assumes freefunc is set
-        assert(NULL != jwk->fns->free);
-        jwk->fns->free(jwk);
+        if (NULL != jwk->fns->free_func)
+        {
+            jwk->fns->free_func(jwk);
+        }
         jwk = NULL;
     }
 
@@ -260,7 +312,11 @@ bool cjose_jwk_set_kid(cjose_jwk_t *jwk, const char *kid, size_t len, cjose_err 
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
     }
-    strncpy(jwk->kid, kid, len + 1);
+    // copy exactly len bytes from the caller-supplied (length-delimited, not
+    // necessarily NUL-terminated) kid and terminate ourselves; strncpy(len + 1)
+    // would read one byte past kid and could leave jwk->kid unterminated.
+    memcpy(jwk->kid, kid, len);
+    jwk->kid[len] = '\0';
     return true;
 }
 
@@ -405,7 +461,8 @@ static bool _oct_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err 
     }
 
     field = _cjose_json_stringn(k, klen, err);
-    cjose_get_dealloc()(k);
+    // k holds the base64url-encoded symmetric key; wipe it before release
+    _cjose_cleanse_dealloc(k, klen);
     k = NULL;
     if (!field)
     {
@@ -801,16 +858,15 @@ static bool _EC_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *
     json_object_set(json, "d", field);
     json_decref(field);
     field = NULL;
-    cjose_get_dealloc()(b64u);
-    b64u = NULL;
 
     result = true;
 
 _ec_to_string_cleanup:
-    if (buffer)
-    {
-        cjose_get_dealloc()(buffer);
-    }
+    // buffer and b64u hold the raw / base64url-encoded private key 'd';
+    // wipe them before release on the success path as well as the
+    // _cjose_json_stringn failure path (where b64u would otherwise leak)
+    _cjose_cleanse_dealloc(buffer, numsize);
+    _cjose_cleanse_dealloc(b64u, len);
 
     return result;
 }
@@ -1043,6 +1099,9 @@ static inline cjose_jwk_t *_RSA_new(RSA *rsa, cjose_err *err)
     cjose_jwk_t *jwk = cjose_get_alloc()(sizeof(cjose_jwk_t));
     if (!jwk)
     {
+        // _RSA_new owns rsa on every path; free it here so the callers that
+        // `return _RSA_new(rsa, err)` do not leak it on allocation failure
+        RSA_free(rsa);
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return NULL;
     }
@@ -1103,16 +1162,12 @@ static inline bool _RSA_json_field(BIGNUM *param, const char *name, json_t *json
     result = true;
 
 RSA_json_field_cleanup:
-    if (b64u)
-    {
-        cjose_get_dealloc()(b64u);
-        b64u = NULL;
-    }
-    if (data)
-    {
-        cjose_get_dealloc()(data);
-        data = NULL;
-    }
+    // data / b64u may hold a private key component (d, p, q, dp, dq, qi);
+    // wipe them before release (harmless for the public n and e)
+    _cjose_cleanse_dealloc(b64u, b64ulen);
+    b64u = NULL;
+    _cjose_cleanse_dealloc(data, datalen);
+    data = NULL;
 
     return result;
 }
@@ -1143,7 +1198,7 @@ static bool _RSA_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err 
     BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
     _cjose_jwk_rsa_get(rsa, &rsa_n, &rsa_e, &rsa_d);
 
-    BIGNUM *rsa_p = NULL, *rsa_q;
+    BIGNUM *rsa_p = NULL, *rsa_q = NULL;
     _cjose_jwk_rsa_get_factors(rsa, &rsa_p, &rsa_q);
 
     BIGNUM *rsa_dmp1 = NULL, *rsa_dmq1 = NULL, *rsa_iqmp = NULL;
@@ -1279,8 +1334,12 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_RSA_spec_failed;
         }
-        _cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen);
-        _cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen);
+        if (!_cjose_jwk_rsa_set_factors(rsa, spec->p, spec->plen, spec->q, spec->qlen)
+            || !_cjose_jwk_rsa_set_crt(rsa, spec->dp, spec->dplen, spec->dq, spec->dqlen, spec->qi, spec->qilen))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto create_RSA_spec_failed;
+        }
     }
     else if (hasPub)
     {
@@ -1355,7 +1414,9 @@ _decode_json_object_base64url_attribute(json_t *jwk_json, const char *key, uint8
         for (end = str + strlen(str) - 1; *end == '=' && end > str; --end)
             ;
         size_t unpadded_len = end + 1 - str - ((*end == '=') ? 1 : 0);
-        size_t expected_len = (size_t)ceil(4 * ((float)*buflen / 3));
+        // number of unpadded base64url characters for *buflen bytes,
+        // i.e. ceil(4 * buflen / 3) computed with integer arithmetic
+        size_t expected_len = (4 * (*buflen) + 2) / 3;
 
         if (expected_len != unpadded_len)
         {
@@ -1383,6 +1444,9 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     uint8_t *x_buffer = NULL;
     uint8_t *y_buffer = NULL;
     uint8_t *d_buffer = NULL;
+    size_t x_buflen = 0;
+    size_t y_buflen = 0;
+    size_t d_buflen = 0;
 
     // get the value of the crv attribute
     const char *crv_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_CRV_STR, err);
@@ -1401,7 +1465,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the x coordinate
-    size_t x_buflen = (size_t)_ec_size_for_curve(crv, err);
+    x_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_X_STR, &x_buffer, &x_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1409,7 +1473,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the y coordinate
-    size_t y_buflen = (size_t)_ec_size_for_curve(crv, err);
+    y_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Y_STR, &y_buffer, &y_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1417,7 +1481,7 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of the private key d
-    size_t d_buflen = (size_t)_ec_size_for_curve(crv, err);
+    d_buflen = (size_t)_ec_size_for_curve(crv, err);
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1447,9 +1511,10 @@ import_EC_cleanup:
     {
         cjose_get_dealloc()(y_buffer);
     }
+    // d is the private key -> wipe the decoded copy before release
     if (NULL != d_buffer)
     {
-        cjose_get_dealloc()(d_buffer);
+        _cjose_cleanse_dealloc(d_buffer, d_buflen);
     }
 
     return jwk;
@@ -1466,9 +1531,16 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     uint8_t *dp_buffer = NULL;
     uint8_t *dq_buffer = NULL;
     uint8_t *qi_buffer = NULL;
+    size_t n_buflen = 0;
+    size_t e_buflen = 0;
+    size_t d_buflen = 0;
+    size_t p_buflen = 0;
+    size_t q_buflen = 0;
+    size_t dp_buflen = 0;
+    size_t dq_buflen = 0;
+    size_t qi_buflen = 0;
 
     // get the decoded value of n (buflen = 0 means no particular expected len)
-    size_t n_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_N_STR, &n_buffer, &n_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1476,7 +1548,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of e
-    size_t e_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_E_STR, &e_buffer, &e_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1484,7 +1555,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of d
-    size_t d_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1492,7 +1562,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of p
-    size_t p_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1500,7 +1569,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of q
-    size_t q_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1508,7 +1576,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of dp
-    size_t dp_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1516,7 +1583,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of dq
-    size_t dq_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1524,7 +1590,6 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of qi
-    size_t qi_buflen = 0;
     if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1555,14 +1620,15 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     jwk = cjose_jwk_create_RSA_spec(&rsa_keyspec, err);
 
 import_RSA_cleanup:
+    // n and e are public; the remaining decoded components are private -> wipe
     cjose_get_dealloc()(n_buffer);
     cjose_get_dealloc()(e_buffer);
-    cjose_get_dealloc()(d_buffer);
-    cjose_get_dealloc()(p_buffer);
-    cjose_get_dealloc()(q_buffer);
-    cjose_get_dealloc()(dp_buffer);
-    cjose_get_dealloc()(dq_buffer);
-    cjose_get_dealloc()(qi_buffer);
+    _cjose_cleanse_dealloc(d_buffer, d_buflen);
+    _cjose_cleanse_dealloc(p_buffer, p_buflen);
+    _cjose_cleanse_dealloc(q_buffer, q_buflen);
+    _cjose_cleanse_dealloc(dp_buffer, dp_buflen);
+    _cjose_cleanse_dealloc(dq_buffer, dq_buflen);
+    _cjose_cleanse_dealloc(qi_buffer, qi_buflen);
 
     return jwk;
 }
@@ -1584,10 +1650,8 @@ static cjose_jwk_t *_cjose_jwk_import_oct(json_t *jwk_json, cjose_err *err)
     jwk = cjose_jwk_create_oct_spec(k_buffer, k_buflen, err);
 
 import_oct_cleanup:
-    if (NULL != k_buffer)
-    {
-        cjose_get_dealloc()(k_buffer);
-    }
+    // k is secret symmetric key material -> wipe the decoded copy
+    _cjose_cleanse_dealloc(k_buffer, k_buflen);
 
     return jwk;
 }
@@ -1704,7 +1768,7 @@ static bool _cjose_jwk_evp_key_from_ec_key(const cjose_jwk_t *jwk, EVP_PKEY **ke
 
     // create a blank EVP_PKEY
     *key = EVP_PKEY_new();
-    if (NULL == key)
+    if (NULL == *key)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_evp_key_from_ec_key_fail;
@@ -1752,6 +1816,11 @@ cjose_jwk_t *cjose_jwk_derive_ecdh_ephemeral_key(
     // HKDF of the DH shared secret (SHA256, no info, 256 bit expand)
     ephemeral_key_len = 32;
     ephemeral_key = (uint8_t *)cjose_get_alloc()(ephemeral_key_len);
+    if (NULL == ephemeral_key)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _cjose_jwk_derive_shared_secret_fail;
+    }
     if (!cjose_jwk_hkdf(EVP_sha256(), salt, salt_len, (uint8_t *)"", 0, secret, secret_len, ephemeral_key, ephemeral_key_len, err))
     {
         goto _cjose_jwk_derive_shared_secret_fail;

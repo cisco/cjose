@@ -14,18 +14,11 @@
 #include <malloc.h>
 #else
 #include <arpa/inet.h>
-#include <alloca.h>
 #endif
 #include <openssl/evp.h>
 #include <string.h>
 #include <cjose/base64.h>
 #include <cjose/util.h>
-
-#ifdef _WIN32
-#define STACK_ALLOC _alloca
-#else
-#define STACK_ALLOC alloca
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
@@ -66,10 +59,16 @@ bool cjose_concatkdf_create_otherinfo(const char *alg,
     uint8_t *apu = NULL, *apv = NULL;
     size_t apuLen = 0, apvLen = 0;
 
-    memset(err, 0, sizeof(cjose_err));
+    // err is optional and may be NULL, so only dereference it when provided.
+    // cjose_header_get() records an error only for an invalid header/attr; for a
+    // valid hdr and the constant APU/APV attrs an absent field just yields NULL.
+    if (NULL != err)
+    {
+        memset(err, 0, sizeof(cjose_err));
+    }
     const char *apuStr = cjose_header_get(hdr, CJOSE_HDR_APU, err);
     const char *apvStr = cjose_header_get(hdr, CJOSE_HDR_APV, err);
-    if (CJOSE_ERR_NONE != err->code)
+    if (NULL != err && CJOSE_ERR_NONE != err->code)
     {
         return false;
     }
@@ -100,7 +99,8 @@ bool cjose_concatkdf_create_otherinfo(const char *alg,
     ptr = _apply_lendata((const uint8_t *)alg, algLen, ptr);
     ptr = _apply_lendata(apu, apuLen, ptr);
     ptr = _apply_lendata(apv, apvLen, ptr);
-    ptr = _apply_uint32(keylen, ptr);
+    // final write; the returned (end) pointer is intentionally not stored
+    _apply_uint32(keylen, ptr);
 
     *otherinfoLen = bufferLen;
     *otherinfo = buffer;
@@ -141,27 +141,36 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
         goto concatkdf_derive_finish;
     }
 
-    size_t offset = 0, amt = keylen;
+    size_t offset = 0;
     for (int idx = 1; N >= idx; idx++)
     {
         uint8_t counter[4];
         _apply_uint32(idx, counter);
 
-        uint8_t* hash = STACK_ALLOC(hashlen * sizeof(uint8_t));
-        if (1 != EVP_DigestInit_ex(ctx, dgst, NULL) ||
-            1 != EVP_DigestUpdate(ctx, counter, sizeof(counter)) ||
-            1 != EVP_DigestUpdate(ctx, ikm, ikmLen) ||
-            1 != EVP_DigestUpdate(ctx, otherinfo, otherinfoLen) ||
-            1 != EVP_DigestFinal_ex(ctx, hash, NULL))
+        uint8_t *hash = cjose_get_alloc()(hashlen * sizeof(uint8_t));
+        if (NULL == hash)
         {
+            CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+            goto concatkdf_derive_finish;
+        }
+
+        if (1 != EVP_DigestInit_ex(ctx, dgst, NULL) || 1 != EVP_DigestUpdate(ctx, counter, sizeof(counter))
+            || 1 != EVP_DigestUpdate(ctx, ikm, ikmLen) || 1 != EVP_DigestUpdate(ctx, otherinfo, otherinfoLen)
+            || 1 != EVP_DigestFinal_ex(ctx, hash, NULL))
+        {
+            _cjose_cleanse_dealloc(hash, hashlen);
             CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
             goto concatkdf_derive_finish;
         }
 
-        uint8_t *ptr = buffer + offset;
-        memcpy(ptr, hash, min_len(hashlen, amt));
+        // copy this digest block into the derived key; the final block may be
+        // shorter than hashlen. offset stays < keylen on every iteration, so the
+        // remaining count (keylen - offset) cannot underflow.
+        // hash holds derived key material; wipe it before returning to the allocator
+        size_t amt = keylen - offset;
+        memcpy(buffer + offset, hash, min_len(hashlen, amt));
+        _cjose_cleanse_dealloc(hash, hashlen);
         offset += hashlen;
-        amt -= hashlen;
     }
 
     derived = buffer;

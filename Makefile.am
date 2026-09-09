@@ -1,6 +1,8 @@
 SUBDIRS = . include src test doc platform
 EXTRA_DIST = CHANGELOG.md README.md LICENSE
 
+ACLOCAL_AMFLAGS = -I m4
+
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = cjose.pc
 
