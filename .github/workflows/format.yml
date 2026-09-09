@@ -1,0 +1,22 @@
+name: Format
+
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: clang-format
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y clang-format cmake pkg-config build-essential libssl-dev libjansson-dev check
+    - name: Configure
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+    - name: Check formatting
+      run: |
+        cmake --build build --target clang-format
+        git diff --exit-code
