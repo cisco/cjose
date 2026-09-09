@@ -99,6 +99,9 @@ START_TEST(test_cjose_concatkdf_otherinfo_noextra)
     ck_assert(_cmp_lendata(&actual, NULL, 0));          // APU
     ck_assert(_cmp_lendata(&actual, NULL, 0));          // APV
     ck_assert(_cmp_uint32(&actual, 256));               // KEYLEN
+
+    cjose_get_dealloc()(otherinfo);
+    cjose_header_release(hdr);
 }
 END_TEST
 
@@ -124,6 +127,9 @@ START_TEST(test_cjose_concatkdf_otherinfo_apuapv)
     ck_assert(_cmp_lendata(&actual, apu, apuLen));
     ck_assert(_cmp_lendata(&actual, apv, apvLen));
     ck_assert(_cmp_uint32(&actual, 32));
+
+    cjose_get_dealloc()(otherinfo);
+    cjose_header_release(hdr);
 }
 END_TEST
 
@@ -145,7 +151,8 @@ START_TEST(test_cjose_concatkdf_derive_simple)
     const char *alg
         = "A256GCM";
     const size_t keylen = 32;
-    cjose_concatkdf_create_otherinfo(alg, keylen, cjose_header_new(&err), &otherinfo, &otherinfoLen, &err);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    cjose_concatkdf_create_otherinfo(alg, keylen, hdr, &otherinfo, &otherinfoLen, &err);
     derived = cjose_concatkdf_derive(keylen, ikm, ikmLen, otherinfo, otherinfoLen, &err);
     ck_assert(NULL != derived);
 
@@ -156,6 +163,10 @@ START_TEST(test_cjose_concatkdf_derive_simple)
         0xaa, 0xc0, 0x3c, 0xef, 0x87, 0x34, 0xbd, 0x20
     };
     ck_assert_bin_eq(derived, expected, keylen);
+
+    cjose_get_dealloc()(derived);
+    cjose_get_dealloc()(otherinfo);
+    cjose_header_release(hdr);
 }
 END_TEST
 
@@ -176,7 +187,8 @@ START_TEST(test_cjose_concatkdf_derive_ikm)
 
     const char *alg = "A256GCM";
     const size_t keylen = 32;
-    cjose_concatkdf_create_otherinfo(alg, keylen, cjose_header_new(&err), &otherinfo, &otherinfoLen, &err);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    cjose_concatkdf_create_otherinfo(alg, keylen, hdr, &otherinfo, &otherinfoLen, &err);
     derived = cjose_concatkdf_derive(keylen, ikm, ikmLen, otherinfo, otherinfoLen, &err);
     ck_assert(NULL != derived);
 
@@ -187,6 +199,10 @@ START_TEST(test_cjose_concatkdf_derive_ikm)
         0x6a, 0x23, 0x12, 0x39, 0xd2, 0x33, 0x6e, 0x44
     };
     ck_assert_bin_eq(derived, expected, keylen);
+
+    cjose_get_dealloc()(derived);
+    cjose_get_dealloc()(otherinfo);
+    cjose_header_release(hdr);
 }
 END_TEST
 
@@ -221,6 +237,10 @@ START_TEST(test_cjose_concatkdf_derive_moreinfo)
         0x53, 0x81, 0xe0, 0x4a, 0x57, 0x1b, 0x58, 0x65
     };
     ck_assert_bin_eq(derived, expected, keylen);
+
+    cjose_get_dealloc()(derived);
+    cjose_get_dealloc()(otherinfo);
+    cjose_header_release(hdr);
 }
 END_TEST
 Suite *cjose_concatkdf_suite(void)
