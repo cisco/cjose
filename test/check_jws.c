@@ -947,6 +947,98 @@ START_TEST(test_cjose_jws_none)
 }
 END_TEST
 
+// regression: the JWS ECDSA signature must be exactly R || S for the key's
+// curve; _cjose_jws_verify_sig_ec used sig_len / 2 without a length check,
+// so a valid signature with a trailing octet appended still verified
+START_TEST(test_cjose_jws_verify_ec_sig_bad_length)
+{
+    cjose_err err;
+
+    // a valid ES256 (P-256) JWS and its verification key; per RFC 7518 sec 3.4
+    // the signature is the fixed-length concatenation R || S (32 + 32 = 64 octets)
+    static const char *JWS = "eyJhbGciOiJFUzI1NiIsImtpZCI6Img0aDkzIn0."
+                             "eyJzdWIiOiJqb2UiLCJhdWQiOiJhY19vaWNfY2xpZW50IiwianRpIjoiZGV0blVpU2FTS0lpSUFvdHZ0ZzV3VyIsImlzcyI6Imh0d"
+                             "HBzOlwvXC9sb2NhbGhvc3Q6OTAzMSIsImlhdCI6MTQ2OTAzMDk1MCwiZXhwIjoxNDY5MDMxMjUwLCJub25jZSI6Im8zNU8wMi1WM0"
+                             "poSXJ1SkdHSlZVOGpUUGg2LUhKUTgzWEpmQXBZTGtrZHcifQ.o9bb_yW6-h9lPser01eYoK-VMlJoUabKFQ9tT_"
+                             "KdgMHlqRqTa4isqFqXllViDdUIQoHGMMP7Qms565YKSCS3iA";
+
+    static const char *JWK = "{ \"kty\": \"EC\","
+                             "\"kid\": \"h4h93\","
+                             "\"use\": \"sig\","
+                             "\"x\": \"qcZ8jiBDygzf1XMWNN3jS7qT3DDslHOYvaa6XHMxShw\","
+                             "\"y\": \"vMcP1OkZsSNaFN6MHrdApLdtLPWo8RnNflgP3DAbcfY\","
+                             "\"crv\": \"P-256\" }";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    // sanity: the untampered JWS verifies
+    cjose_jws_t *jws_ok = cjose_jws_import(JWS, strlen(JWS), &err);
+    ck_assert_msg(NULL != jws_ok, "cjose_jws_import failed: %s", err.message);
+    ck_assert_msg(cjose_jws_verify(jws_ok, jwk, &err), "cjose_jws_verify failed on valid JWS: %s", err.message);
+    cjose_jws_release(jws_ok);
+
+    // split the compact serialization into the signing input (header.payload.)
+    // and the base64url-encoded signature
+    const char *last_dot = strrchr(JWS, '.');
+    ck_assert(NULL != last_dot);
+    size_t prefix_len = (last_dot - JWS) + 1; // include the trailing '.'
+    const char *sig_b64u = last_dot + 1;
+
+    // recover the raw 64-octet signature
+    uint8_t *sig_raw = NULL;
+    size_t sig_raw_len = 0;
+    ck_assert(cjose_base64url_decode(sig_b64u, strlen(sig_b64u), &sig_raw, &sig_raw_len, &err));
+    ck_assert_int_eq(64, sig_raw_len);
+
+    // for both an over-length (65) and an under-length (63) signature, rebuild
+    // the serialization and confirm verification rejects it up front with
+    // CJOSE_ERR_INVALID_ARG. The over-length case is the malleability the fix
+    // closes: previously sig_len/2 dropped the trailing octet and the valid
+    // first 64 octets still verified.
+    size_t bad_lens[] = { sig_raw_len + 1, sig_raw_len - 1 };
+    for (size_t i = 0; i < sizeof(bad_lens) / sizeof(bad_lens[0]); i++)
+    {
+        size_t bad_len = bad_lens[i];
+
+        uint8_t *bad_raw = (uint8_t *)cjose_get_alloc()(bad_len);
+        ck_assert(NULL != bad_raw);
+        memcpy(bad_raw, sig_raw, (bad_len < sig_raw_len) ? bad_len : sig_raw_len);
+        if (bad_len > sig_raw_len)
+        {
+            bad_raw[sig_raw_len] = 0x00; // append a trailing octet
+        }
+
+        char *bad_sig_b64u = NULL;
+        size_t bad_sig_b64u_len = 0;
+        ck_assert(cjose_base64url_encode(bad_raw, bad_len, &bad_sig_b64u, &bad_sig_b64u_len, &err));
+
+        // assemble header.payload. + tampered signature
+        size_t cser_len = prefix_len + bad_sig_b64u_len;
+        char *cser = (char *)cjose_get_alloc()(cser_len + 1);
+        ck_assert(NULL != cser);
+        memcpy(cser, JWS, prefix_len);
+        memcpy(cser + prefix_len, bad_sig_b64u, bad_sig_b64u_len);
+        cser[cser_len] = '\0';
+
+        cjose_jws_t *jws_bad = cjose_jws_import(cser, cser_len, &err);
+        ck_assert_msg(NULL != jws_bad, "cjose_jws_import failed for bad-length sig: %s", err.message);
+
+        ck_assert_msg(!cjose_jws_verify(jws_bad, jwk, &err), "cjose_jws_verify accepted a %lu-octet EC signature",
+                      (unsigned long)bad_len);
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "expected CJOSE_ERR_INVALID_ARG, got (%i:%s)", err.code, err.message);
+
+        cjose_jws_release(jws_bad);
+        cjose_get_dealloc()(cser);
+        cjose_get_dealloc()(bad_sig_b64u);
+        cjose_get_dealloc()(bad_raw);
+    }
+
+    cjose_get_dealloc()(sig_raw);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jws_suite(void)
 {
     Suite *suite = suite_create("jws");
@@ -970,6 +1062,7 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_import_get_plain_after_verify);
     tcase_add_test(tc_jws, test_cjose_jws_verify_bad_params);
     tcase_add_test(tc_jws, test_cjose_jws_none);
+    tcase_add_test(tc_jws, test_cjose_jws_verify_ec_sig_bad_length);
     suite_add_tcase(suite, tc_jws);
 
     return suite;
