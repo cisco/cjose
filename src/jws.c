@@ -1066,6 +1066,32 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     ec_keydata *keydata = (ec_keydata *)jwk->keydata;
     EC_KEY *ec = keydata->key;
 
+    // the JWS ECDSA signature is the fixed-length concatenation R || S, each
+    // the curve's coordinate size (RFC 7518 section 3.4); reject any other
+    // length before splitting it so a non-canonical signature (e.g. a trailing
+    // byte dropped by the sig_len/2 split) cannot verify
+    size_t coordlen = 0;
+    switch (keydata->crv)
+    {
+    case CJOSE_JWK_EC_P_256:
+        coordlen = 32;
+        break;
+    case CJOSE_JWK_EC_P_384:
+        coordlen = 48;
+        break;
+    case CJOSE_JWK_EC_P_521:
+        coordlen = 66;
+        break;
+    case CJOSE_JWK_EC_INVALID:
+        coordlen = 0;
+        break;
+    }
+    if (0 == coordlen || jws->sig_len != coordlen * 2)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     ECDSA_SIG *ecdsa_sig = ECDSA_SIG_new();
     if (ecdsa_sig == NULL)
     {
