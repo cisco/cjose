@@ -11,7 +11,6 @@
 #include <cjose/base64.h>
 #include <cjose/util.h>
 
-#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -245,8 +244,10 @@ bool cjose_jwk_release(cjose_jwk_t *jwk)
         jwk->kid = NULL;
 
         // assumes freefunc is set
-        assert(NULL != jwk->fns->free_func);
-        jwk->fns->free_func(jwk);
+        if (NULL != jwk->fns->free_func)
+        {
+            jwk->fns->free_func(jwk);
+        }
         jwk = NULL;
     }
 
