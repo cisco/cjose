@@ -1073,7 +1073,7 @@ create_EC_cleanup:
     return jwk;
 }
 
-const cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err)
+cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jwk || CJOSE_JWK_KTY_EC != cjose_jwk_get_kty(jwk, err))
     {

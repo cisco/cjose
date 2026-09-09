@@ -282,7 +282,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
  *        information in the event of an error.
  * \returns The curve type
  */
-const cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err);
+cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Creates a new symmetric octet JWK, using a secure random number generator.
