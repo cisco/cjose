@@ -823,6 +823,7 @@ enable_doxygen_ps
 enable_doxygen_pdf
 with_openssl
 with_jansson
+with_rsapkcs1_5
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1494,6 +1495,7 @@ Optional Packages:
                           compiler's sysroot if not specified).
   --with-openssl          Location where OpenSSL can be found
   --with-jansson          Location where Jansson can be found
+  --with-rsapkcs1_5       Enable risky RSA PKCS v1.5
 
 Some influential environment variables:
   CC          C compiler command
@@ -14928,6 +14930,27 @@ _ACEOF
 
 else
   as_fn_error $? "Jansson is missing; it is required for this software" "$LINENO" 5
+
+fi
+
+
+#### Allow risky rsa pkcs 1.5 for systems where this is really needed
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for RSA PKCS v1.5" >&5
+$as_echo_n "checking for RSA PKCS v1.5... " >&6; }
+
+# Check whether --with-rsapkcs1_5 was given.
+if test "${with_rsapkcs1_5+set}" = set; then :
+  withval=$with_rsapkcs1_5; rsapkcs1_5=${withval}
+else
+  rsapkcs1_5=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $rsapkcs1_5" >&5
+$as_echo "$rsapkcs1_5" >&6; }
+
+if test "x$rsapkcs1_5" == xyes ; then
+
+$as_echo "#define HAVE_RSA_PKCS1_PADDING 1" >>confdefs.h
 
 fi
 

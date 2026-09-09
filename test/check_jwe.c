@@ -216,7 +216,9 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
+#endif
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain1, plain1_len);
 
@@ -1189,6 +1191,7 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "AlWAyLWybqq6t16VFd7hQd0y6flUK4SlOydB61gwanOsXGOAOv82cHq0E3"
           "eL4HrtZkUuKvnPrMnsUUFlfUdybVzxyjz9JF_XyaY14ardLSjf4L_FNY\" }" },
 
+#ifdef HAVE_RSA_PKCS1_PADDING
         // https://tools.ietf.org/html/rfc7516#appendix-A.2
         // JWE using RSAES-PKCS1-v1_5 and AES_128_CBC_HMAC_SHA_256
         { "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
@@ -1234,6 +1237,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "tUkTRclIfuEPmNsNDPbLoLqqCVznFbvdB7x-Tl-m0l_eFTj2KiqwGqE9PZ"
           "B9nNTwMVvH3VRRSLWACvPnSiwP8N5Usy-WRXS-V7TbpxIhvepTfE0NNo\" }" },
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
         { NULL, NULL, NULL }
     };
 
@@ -1278,6 +1283,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
+#ifdef HAVE_RSA_PKCS1_PADDING
+
 static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t *rec)
 {
 
@@ -1311,6 +1318,8 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
 
     cjose_jwe_release(jwe);
 }
+
+#endif // HAVE_RSA_PKCS1_PADDING
 
 static void _cjose_test_empty_headers(const cjose_jwk_t *key)
 {
@@ -1405,6 +1414,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                     "\"qi\":\"Boxvcq8bIswXo8BPCcZurLjacS0TlUzbs2mLJD3noJKd361fgGoO2XdG94bqkbGg-5wbGDZL2YqGKlA2Y"
                     "j8yU8ZiULaLsm3HadNVxkLTy90j59urbf0MSnMkljACZUfH2yfxVbzgZd0DWS7eDtMBP4VrQ_tQmR_djRaLOMh5yxg\"}" };
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     char *multi_json
         = "{\"protected\": \"eyJlbmMiOiAiQTI1NkdDTSJ9\", \"iv\": \"cGHj6gmN4kC0cLTh\", \"ciphertext\": "
           "\"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_"
@@ -1438,7 +1448,14 @@ START_TEST(test_cjose_jwe_multiple_recipients)
           "b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-"
           "OyENlWxQ\"}";
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
+#ifdef HAVE_RSA_PKCS1_PADDING
     const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA1_5 };
+#else
+    // RSA1_5 is compiled out: exercise the multi-recipient path with RSA-OAEP for both recipients
+    const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA_OAEP };
+#endif
 
     cjose_err err;
 
@@ -1514,9 +1531,11 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     cjose_jwe_release(jwe);
     cjose_get_dealloc()(decoded);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _cjose_test_json_serial(multi_json, multi_json, rec);
     _cjose_test_json_serial(single_json, single_flat_json, rec);
     _cjose_test_json_serial(single_flat_json, single_flat_json, rec);
+#endif
     _cjose_test_empty_headers(rec[0].jwk);
 
     for (int i = 0; i < 2; i++)
@@ -1779,6 +1798,42 @@ START_TEST(test_cjose_jwe_import_json_shared_unprotected)
 }
 END_TEST
 
+#ifndef HAVE_RSA_PKCS1_PADDING
+// with RSA1_5 compiled out, the algorithm must be refused both when encrypting
+// and when a JWE carrying it is imported/decrypted
+START_TEST(test_cjose_jwe_rsa1_5_disabled)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA1_5, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL == jwe, "cjose_jwe_encrypt succeeded with RSA1_5 although it is disabled");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // header {"alg":"RSA1_5","enc":"A128CBC-HS256"} (RFC 7516 appendix A.2) with dummy segments
+    static const char *cser = "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.AAAA.AAAA.AAAA.AAAA";
+    jwe = cjose_jwe_import(cser, strlen(cser), &err);
+    if (NULL != jwe)
+    {
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded with RSA1_5 although it is disabled");
+        cjose_jwe_release(jwe);
+    }
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+#endif // HAVE_RSA_PKCS1_PADDING
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1805,6 +1860,9 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
+#ifndef HAVE_RSA_PKCS1_PADDING
+    tcase_add_test(tc_jwe, test_cjose_jwe_rsa1_5_disabled);
+#endif
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);

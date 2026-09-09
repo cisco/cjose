@@ -67,6 +67,20 @@ AC_CHECK_LIB([jansson],
     [AC_MSG_ERROR([Jansson is missing; it is required for this software])]
 )
 
+#### Allow risky rsa pkcs 1.5 for systems where this is really needed
+AC_MSG_CHECKING([for RSA PKCS v1.5])
+AC_ARG_WITH(
+    [rsapkcs1_5],
+    [AS_HELP_STRING([--with-rsapkcs1_5], [Enable risky RSA PKCS v1.5])],
+    [rsapkcs1_5=${withval}],
+    [rsapkcs1_5=no])
+
+AC_MSG_RESULT([$rsapkcs1_5])
+
+if test "x$rsapkcs1_5" == xyes ; then
+    AC_DEFINE(HAVE_RSA_PKCS1_PADDING, 1)
+fi
+
 AM_EXTRA_RECURSIVE_TARGETS([package])
 AC_CONFIG_FILES([Makefile
                  include/Makefile include/cjose/version.h
