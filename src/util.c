@@ -151,6 +151,7 @@ json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err)
     result = json_string(s);
     if (!result)
     {
+        cjose_get_dealloc()(s);
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return NULL;
     }

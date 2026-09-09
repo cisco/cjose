@@ -29,7 +29,7 @@
 // key-specific function table
 typedef struct _key_fntable_int
 {
-    void (*free)(cjose_jwk_t *);
+    void (*free_func)(cjose_jwk_t *);
     bool (*public_json)(const cjose_jwk_t *, json_t *, cjose_err *err);
     bool (*private_json)(const cjose_jwk_t *, json_t *, cjose_err *err);
 } key_fntable;

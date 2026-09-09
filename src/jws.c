@@ -12,7 +12,6 @@
 #include <cjose/util.h>
 
 #include <string.h>
-#include <assert.h>
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
 #include <openssl/rsa.h>
@@ -137,7 +136,7 @@ static bool _cjose_jws_build_dat(cjose_jws_t *jws, const uint8_t *plaintext, siz
     // copy plaintext data
     jws->dat_len = plaintext_len;
     jws->dat = (uint8_t *)cjose_get_alloc()(jws->dat_len);
-    if (NULL == jws->dat)
+    if ((NULL == jws->dat) && (jws->dat_len > 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return false;
@@ -188,8 +187,8 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
     if (NULL != jws->dig)
     {
-		_cjose_cleanse_dealloc(jws->dig, jws->dig_len);
-		jws->dig = NULL;
+        _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+        jws->dig = NULL;
     }
 
     // allocate buffer for digest
@@ -284,6 +283,12 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
+    }
+
+    if (NULL != jws->dig)
+    {
+        _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
+        jws->dig = NULL;
     }
 
     // allocate buffer for digest
@@ -627,14 +632,20 @@ static bool _cjose_jws_build_cser(cjose_jws_t *jws, cjose_err *err)
     // both sign and import should be setting these - but check just in case
     if (NULL == jws->hdr_b64u || NULL == jws->dat_b64u || NULL == jws->sig_b64u)
     {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
         return false;
     }
 
     // compute length of compact serialization
     jws->cser_len = jws->hdr_b64u_len + jws->dat_b64u_len + jws->sig_b64u_len + 3;
 
+    if (NULL != jws->cser)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
+        return false;
+    }
+
     // allocate buffer for compact serialization
-    assert(NULL == jws->cser);
     jws->cser = (char *)cjose_get_alloc()(jws->cser_len);
     if (NULL == jws->cser)
     {
@@ -748,7 +759,10 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 
     if (NULL == jws->cser)
     {
-        _cjose_jws_build_cser(jws, err);
+        if (!_cjose_jws_build_cser(jws, err))
+        {
+            return false;
+        }
     }
 
     *compact = jws->cser;
@@ -756,7 +770,7 @@ bool cjose_jws_export(cjose_jws_t *jws, const char **compact, cjose_err *err)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_strcpy(char **dst, const char *src, int len, cjose_err *err)
+static bool _cjose_jws_strcpy(char **dst, const char *src, size_t len, cjose_err *err)
 {
     *dst = (char *)cjose_get_alloc()(len + 1);
     if (NULL == *dst)
@@ -792,10 +806,11 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
     }
     memset(jws, 0, sizeof(cjose_jws_t));
 
-    // find the indexes of the dots
-    int idx = 0;
-    int d[2] = { 0, 0 };
-    for (int i = 0; i < cser_len && idx < 2; ++i)
+    // find the indexes of the dots; use size_t to match cser_len, an int
+    // would truncate the offsets for an oversized serialization
+    size_t idx = 0;
+    size_t d[2] = { 0, 0 };
+    for (size_t i = 0; i < cser_len && idx < 2; ++i)
     {
         if (cser[i] == '.')
         {
@@ -843,6 +858,7 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
         if (NULL == alg_obj)
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            cjose_jws_release(jws);
             return NULL;
         }
         const char *alg = json_string_value(alg_obj);
@@ -852,6 +868,10 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
             cjose_jws_release(jws);
             return NULL;
         }
+
+        // alg=none is accepted (parse-only): clear the validation error
+        // recorded above so a successful import does not leave err populated
+        CJOSE_ERROR(err, CJOSE_ERR_NONE);
     }
 
     // copy and b64u decode data segment
@@ -1050,14 +1070,53 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     ec_keydata *keydata = (ec_keydata *)jwk->keydata;
     EC_KEY *ec = keydata->key;
 
+    // the JWS ECDSA signature is the fixed-length concatenation R || S, each
+    // the curve's coordinate size (RFC 7518 section 3.4); reject any other
+    // length before splitting it so a non-canonical signature (e.g. a trailing
+    // byte dropped by the sig_len/2 split) cannot verify
+    size_t coordlen = 0;
+    switch (keydata->crv)
+    {
+    case CJOSE_JWK_EC_P_256:
+        coordlen = 32;
+        break;
+    case CJOSE_JWK_EC_P_384:
+        coordlen = 48;
+        break;
+    case CJOSE_JWK_EC_P_521:
+        coordlen = 66;
+        break;
+    case CJOSE_JWK_EC_INVALID:
+        coordlen = 0;
+        break;
+    }
+    if (0 == coordlen || jws->sig_len != coordlen * 2)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     ECDSA_SIG *ecdsa_sig = ECDSA_SIG_new();
+    if (ecdsa_sig == NULL)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ec_cleanup;
+    }
     int key_len = jws->sig_len / 2;
 
 #if defined(CJOSE_OPENSSL_11X)
-    BIGNUM *pr = BN_new(), *ps = BN_new();
+    BIGNUM *pr = BN_new();
+    BIGNUM *ps = BN_new();
+    if (pr == NULL || ps == NULL)
+    {
+        BN_free(pr);
+        BN_free(ps);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ec_cleanup;
+    }
     BN_bin2bn(jws->sig, key_len, pr);
     BN_bin2bn(jws->sig + key_len, key_len, ps);
-    ECDSA_SIG_set0(ecdsa_sig, pr, ps);
+    ECDSA_SIG_set0(ecdsa_sig, pr, ps); // takes ownership of pr and ps
 #else
     BN_bin2bn(jws->sig, key_len, ecdsa_sig->r);
     BN_bin2bn(jws->sig + key_len, key_len, ecdsa_sig->s);

@@ -549,7 +549,7 @@ top_srcdir = @top_srcdir@
 @HAVE_CHECK_TRUE@AM_CPPFLAGS = -std=gnu99 --pedantic -Wall -g -O2 \
 @HAVE_CHECK_TRUE@	-I$(top_builddir)/include @CHECK_CFLAGS@
 @HAVE_CHECK_TRUE@check_cjose_CFLAGS = @CHECK_CFLAGS@ -I$(top_builddir)/include \
-@HAVE_CHECK_TRUE@                     -I$(top_builddir)/src
+@HAVE_CHECK_TRUE@                     -I$(top_builddir)/src -I$(top_srcdir)/src
 
 @HAVE_CHECK_TRUE@check_cjose_LDADD = $(top_builddir)/src/libcjose.la @CHECK_LIBS@
 @HAVE_CHECK_TRUE@check_cjose_SOURCES = check_cjose.c \
