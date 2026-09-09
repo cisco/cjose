@@ -11,6 +11,7 @@ libcjose_la_SOURCES=version.c \
                     jwe.c \
                     jws.c \
                     header.c \
+                    header_compat.c \
                     error.c \
 					include/concatkdf_int.h \
 					include/header_int.h \
