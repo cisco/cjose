@@ -12,7 +12,6 @@
 #include <cjose/util.h>
 
 #include <string.h>
-#include <assert.h>
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
 #include <openssl/rsa.h>
@@ -640,8 +639,13 @@ static bool _cjose_jws_build_cser(cjose_jws_t *jws, cjose_err *err)
     // compute length of compact serialization
     jws->cser_len = jws->hdr_b64u_len + jws->dat_b64u_len + jws->sig_b64u_len + 3;
 
+    if (NULL != jws->cser)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_STATE);
+        return false;
+    }
+
     // allocate buffer for compact serialization
-    assert(NULL == jws->cser);
     jws->cser = (char *)cjose_get_alloc()(jws->cser_len);
     if (NULL == jws->cser)
     {
