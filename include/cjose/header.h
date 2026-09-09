@@ -82,7 +82,9 @@ extern "C" {
 /** The JWE algorithm attribute value for "dir". */
 #define CJOSE_HDR_ALG_DIR "dir"
 
-/** The JWE content encryption algorithm value for A256GCM. */
+/** The JWE content encryption algorithm value for A128GCM, A192GCM and A256GCM. */
+#define CJOSE_HDR_ENC_A128GCM "A128GCM"
+#define CJOSE_HDR_ENC_A192GCM "A192GCM"
 #define CJOSE_HDR_ENC_A256GCM "A256GCM"
 
 /** The JWE content encryption algorithm value for A128CBC-HS256, A192CBC-HS384 and A256CBC-HS512. */
