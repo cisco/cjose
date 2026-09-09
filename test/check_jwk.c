@@ -1012,8 +1012,9 @@ START_TEST(test_cjose_jwk_import_valid)
     {
         // do import
         jwk = cjose_jwk_import(JWK[i], strlen(JWK[i]), &err);
-        ck_assert_msg(NULL != jwk, "expected a cjose_jwk_t, but got NULL (%s) : "
-                                   "%s, file: %s, function: %s, line: %ld",
+        ck_assert_msg(NULL != jwk,
+                      "expected a cjose_jwk_t, but got NULL (%s) : "
+                      "%s, file: %s, function: %s, line: %ld",
                       JWK[i], err.message, err.file, err.function, err.line);
 
         // get json representation of "before"
@@ -1327,8 +1328,7 @@ START_TEST(test_cjose_jwk_hkdf)
 
     size_t ephemeral_key_len = 32;
     uint8_t *ephemeral_key = malloc(ephemeral_key_len);
-    bool ok
-        = cjose_jwk_hkdf(EVP_sha256(), empty, 0, empty, 0, ikm, ikm_len, ephemeral_key, ephemeral_key_len, &err);
+    bool ok = cjose_jwk_hkdf(EVP_sha256(), empty, 0, empty, 0, ikm, ikm_len, ephemeral_key, ephemeral_key_len, &err);
     ck_assert_msg(ok, "Failed to compute HKDF");
 
     // the following is the expected output of HKDF with the ikm given above,

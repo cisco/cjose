@@ -73,10 +73,7 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
 {
-    static const char *const supported_crit_headers[] = {
-        "alg",
-        "cty"
-    };
+    static const char *const supported_crit_headers[] = { "alg", "cty" };
 
     if (!_cjose_header_validate_crit((cjose_header_t *)jws->hdr, supported_crit_headers,
                                      sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
@@ -1155,23 +1152,25 @@ static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_PS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS512))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RS384))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS512)))
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_PS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PS384))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_PS512)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RS256))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RS512)))
         && jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_HS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS512)))
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_HS256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_HS384))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_HS512)))
         && jwk->kty != CJOSE_JWK_KTY_OCT)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
         && jwk->kty != CJOSE_JWK_KTY_EC)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);

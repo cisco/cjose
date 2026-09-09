@@ -99,10 +99,7 @@ static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header
     return NULL;
 }
 
-static const cjose_jwk_t *cjose_multi_key_locator_none(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data)
-{
-    return NULL;
-}
+static const cjose_jwk_t *cjose_multi_key_locator_none(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data) { return NULL; }
 
 START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 {
@@ -143,7 +140,8 @@ START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 }
 END_TEST
 
-static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const uint8_t *plain1, size_t plain1_len)
+static void
+_self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const uint8_t *plain1, size_t plain1_len)
 {
     cjose_err err;
 
@@ -373,19 +371,18 @@ static void _self_encrypt_self_decrypt_iv(const uint8_t *plain1, size_t plain1_l
 
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_iv)
 {
-    static const uint8_t plain[]
-        = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
-          "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
-          "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
-          "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
-          "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
-          "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
-          "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
-          "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
-          "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
-          "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
-          "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
-          "eum fugiat quo voluptas nulla pariatur?";
+    static const uint8_t plain[] = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
+                                   "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
+                                   "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
+                                   "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
+                                   "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
+                                   "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
+                                   "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
+                                   "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
+                                   "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
+                                   "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
+                                   "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
+                                   "eum fugiat quo voluptas nulla pariatur?";
     _self_encrypt_self_decrypt_iv(plain, sizeof(plain) - 1);
 }
 END_TEST
@@ -1751,7 +1748,8 @@ START_TEST(test_cjose_jwe_import_json_shared_unprotected)
     ck_assert(cjose_header_set(unprotected_header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err));
 
     cjose_jwe_recipient_t rec = { .jwk = jwk, .unprotected_header = unprotected_header };
-    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    cjose_jwe_t *jwe
+        = cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
     ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
 
     // the single-recipient JSON serialization is flattened, so the recipient
