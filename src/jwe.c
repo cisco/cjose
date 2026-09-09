@@ -192,7 +192,8 @@ static size_t _ivlen_from_enc(const char *enc)
 {
     size_t ivlen = 0;
 
-    if (0 == strcmp(enc, CJOSE_HDR_ENC_A256GCM))
+    if ((0 == strcmp(enc, CJOSE_HDR_ENC_A128GCM)) || (0 == strcmp(enc, CJOSE_HDR_ENC_A192GCM))
+        || (0 == strcmp(enc, CJOSE_HDR_ENC_A256GCM)))
     {
         // AES GCM uses a 96-bit IV
         ivlen = 12;
