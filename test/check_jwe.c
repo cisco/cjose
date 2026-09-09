@@ -210,9 +210,17 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
 
 static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 {
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A128GCM, JWK_RSA, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A192GCM, JWK_RSA, plain1, plain1_len);
+
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1, plain1_len);
 
@@ -228,7 +236,15 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, plain1, plain1_len);
 
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, plain1, plain1_len);
+
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A128GCM, JWK_EC, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A192GCM, JWK_EC, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain1, plain1_len);
 }
@@ -330,6 +346,10 @@ static void _self_encrypt_self_decrypt_iv(const uint8_t *plain1, size_t plain1_l
 {
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
 
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, 12, plain1, plain1_len);
+
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 12, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 16, plain1, plain1_len);
@@ -397,6 +417,7 @@ START_TEST(test_cjose_jwe_encrypt_iv_bad_length)
 {
     _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 8);
     _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 16);
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 16);
     _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 8);
     _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 12);
 }
@@ -1104,6 +1125,8 @@ START_TEST(test_cjose_jwe_decrypt_aes_kw_oversized_ek)
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32);
 }
