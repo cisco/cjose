@@ -859,6 +859,7 @@ START_TEST(test_cjose_jwk_import_json_invalid)
         ck_assert_msg(NULL == jwk, "expected NULL, received a cjose_jwk_t");
         ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
         cjose_jwk_release(jwk);
+        json_decref(left_json);
     }
 }
 END_TEST
