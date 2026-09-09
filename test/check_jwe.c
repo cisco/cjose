@@ -1423,7 +1423,7 @@ START_TEST(test_cjose_jwe_ecdh_es_null_err)
     cjose_header_t *hdr = cjose_header_new(NULL);
     ck_assert_msg(NULL != hdr, "cjose_header_new failed");
     ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, NULL));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, NULL));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
 
     // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
     cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
