@@ -51,3 +51,26 @@ jobs:
       run: cmake --build build --parallel
     - name: Test
       run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    name: Windows MSVC (vcpkg)
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Cache vcpkg binary archives
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.LOCALAPPDATA }}\vcpkg\archives
+        key: vcpkg-archives-${{ runner.os }}-x64-windows-openssl-jansson-check
+    - name: Dependencies
+      run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install openssl jansson check --triplet x64-windows'
+    - name: Configure
+      run: >
+        cmake -S . -B build
+        -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake"
+        -DVCPKG_TARGET_TRIPLET=x64-windows
+    - name: Build
+      run: cmake --build build --config Debug --parallel
+    - name: Test
+      run: ctest --test-dir build -C Debug --output-on-failure
