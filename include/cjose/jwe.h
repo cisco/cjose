@@ -77,7 +77,10 @@ cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t 
  * \param jwk [in] the key to use for encrypting the JWE.
  * \param protected_header [in] additional header values to include in the JWE protected header.
  * \param iv [in] the initialization vector for encrypting the JWE payload. If NULL, an IV will be automatically generated.
- *        The IV is copied.
+ *        The IV is copied. It must have the length the content encryption algorithm requires: 12 octets for
+ *        the AES GCM algorithms and 16 octets for the AES CBC HMAC algorithms. The caller is responsible for
+ *        never using the same IV twice with the same key; for AES GCM a repeated (key, IV) pair breaks both
+ *        confidentiality and integrity. Prefer the variant without an IV unless a specific IV is required.
  * \param iv_len [in] the length of the initialization vector, or 0 if iv is NULL.
  * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
  * \param plaintext_len [in] the length of the plaintext.
@@ -136,7 +139,10 @@ cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
  * \param shared_unprotected_header [in] additional header values to include in the shared JWE unprotected header,
  *        can be NULL. The header is retained by JWE and should be released by the caller if no longer needed.
  * \param iv [in] the initialization vector for encrypting the JWE payload. If NULL, an IV will be automatically generated.
- *        The IV is copied.
+ *        The IV is copied. It must have the length the content encryption algorithm requires: 12 octets for
+ *        the AES GCM algorithms and 16 octets for the AES CBC HMAC algorithms. The caller is responsible for
+ *        never using the same IV twice with the same key; for AES GCM a repeated (key, IV) pair breaks both
+ *        confidentiality and integrity. Prefer the variant without an IV unless a specific IV is required.
  * \param iv_len [in] the length of the initialization vector, or 0 if iv is NULL.
  * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
  * \param plaintext_len [in] the length of the plaintext.

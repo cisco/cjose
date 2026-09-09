@@ -184,6 +184,26 @@ static size_t _keylen_from_enc(const char *alg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static size_t _ivlen_from_enc(const char *enc)
+{
+    size_t ivlen = 0;
+
+    if (0 == strcmp(enc, CJOSE_HDR_ENC_A256GCM))
+    {
+        // AES GCM uses a 96-bit IV
+        ivlen = 12;
+    }
+    else if ((0 == strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256)) || (0 == strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384))
+             || (0 == strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512)))
+    {
+        // AES CBC uses a block-sized IV
+        ivlen = AES_BLOCK_SIZE;
+    }
+
+    return ivlen;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose_err *err)
 {
     *buffer = (uint8_t *)cjose_get_alloc()(bytes);
@@ -1669,6 +1689,17 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
     }
     else
     {
+        // the caller-supplied IV must have the length the content encryption
+        // algorithm requires; a short buffer would otherwise be over-read by
+        // EVP_EncryptInit_ex, which reads a fixed number of IV bytes
+        const char *enc = cjose_header_get(protected_header, CJOSE_HDR_ENC, err);
+        if (NULL == enc || iv_len != _ivlen_from_enc(enc))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+
         cjose_get_dealloc()(jwe->enc_iv.raw);
         jwe->enc_iv.raw_len = iv_len;
         if (!_cjose_jwe_malloc(jwe->enc_iv.raw_len, false, &jwe->enc_iv.raw, err))
