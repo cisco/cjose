@@ -1809,7 +1809,7 @@ bool cjose_jwk_derive_ecdh_bits(
     // derive the shared secret
     if (1 != (EVP_PKEY_derive(ctx, secret, &secret_len)))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_derive_bits_fail;
     }
 
