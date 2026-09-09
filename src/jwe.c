@@ -2007,6 +2007,20 @@ cjose_jwe_t *cjose_jwe_import_json(const char *cser, size_t cser_len, cjose_err 
         goto _cjose_jwe_import_json_fail;
     }
 
+    // the shared unprotected header, if present, must be a JSON object; retain
+    // it so the per-recipient effective-header lookups (and cjose_jwe_export_json)
+    // see it, mirroring the "unprotected" member written on export
+    json_t *shared_unprotected = json_object_get(form, "unprotected");
+    if (NULL != shared_unprotected)
+    {
+        if (!json_is_object(shared_unprotected))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            goto _cjose_jwe_import_json_fail;
+        }
+        jwe->shared_hdr = json_incref(shared_unprotected);
+    }
+
     if (NULL == recipients)
     {
 
