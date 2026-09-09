@@ -461,7 +461,8 @@ static bool _oct_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err 
     }
 
     field = _cjose_json_stringn(k, klen, err);
-    cjose_get_dealloc()(k);
+    // k holds the base64url-encoded symmetric key; wipe it before release
+    _cjose_cleanse_dealloc(k, klen);
     k = NULL;
     if (!field)
     {
