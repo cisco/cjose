@@ -285,7 +285,7 @@ static bool _cjose_jwe_validate_enc(cjose_jwe_t *jwe, cjose_header_t *protected_
         jwe->fns.encrypt_dat = _cjose_jwe_encrypt_dat_a256gcm;
         jwe->fns.decrypt_dat = _cjose_jwe_decrypt_dat_a256gcm;
     }
-    if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    else if ((strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0) || (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         || (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0))
     {
         jwe->fns.set_cek = _cjose_jwe_set_cek_aes_cbc;
@@ -451,10 +451,17 @@ static bool _cjose_jwe_set_cek_aes_cbc(cjose_jwe_t *jwe, const cjose_jwk_t *jwk,
     size_t keysize = 0;
     if (strcmp(enc, CJOSE_HDR_ENC_A128CBC_HS256) == 0)
         keysize = 32;
-    if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
+    else if (strcmp(enc, CJOSE_HDR_ENC_A192CBC_HS384) == 0)
         keysize = 48;
-    if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
+    else if (strcmp(enc, CJOSE_HDR_ENC_A256CBC_HS512) == 0)
         keysize = 64;
+
+    // reject an unrecognized enc rather than proceeding with a zero-length CEK
+    if (0 == keysize)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
 
     // if no JWK is provided, generate a random key
     if (NULL == jwk)
@@ -685,26 +692,52 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
-    // we don't know the size of the key to expect, but must be < RSA_size
+    // jwk must have the necessary private parts set
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get((RSA *)jwk->keydata, &rsa_n, &rsa_e, &rsa_d);
+    if (NULL == rsa_e || NULL == rsa_n || NULL == rsa_d)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    // pin the expected CEK length from the enc header; like the other
+    // decrypt_ek paths the RSA-decrypted key must match it exactly
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
-    size_t buflen = RSA_size((RSA *)jwk->keydata);
-    if (!_cjose_jwe_malloc(buflen, false, &jwe->cek, err))
+    if (!jwe->fns.set_cek(jwe, NULL, false, err))
     {
         return false;
     }
 
-    // decrypt the CEK using RSA v1.5 or OAEP padding
-    int dlen = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, jwe->cek, (RSA *)jwk->keydata, padding);
-    if (-1 == dlen)
+    // a valid RSA encrypted key segment is exactly the size of the modulus;
+    // reject other lengths before they reach RSA_private_decrypt
+    size_t buflen = RSA_size((RSA *)jwk->keydata);
+    if (recipient->enc_key.raw_len != buflen)
     {
-        _cjose_release_cek(&jwe->cek, buflen);
-        jwe->cek_len = 0;
-        
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    // decrypt into a scratch buffer; the recovered plaintext can be up to
+    // RSA_size bytes, larger than the pinned CEK buffer
+    uint8_t *buf = NULL;
+    if (!_cjose_jwe_malloc(buflen, false, &buf, err))
+    {
+        return false;
+    }
+
+    // decrypt the CEK using RSA v1.5 or OAEP padding and require that its
+    // length matches the CEK size dictated by the enc header (RFC 7518 sec 4.2/4.3)
+    int len = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, padding);
+    if (-1 == len || (size_t)len != jwe->cek_len)
+    {
+        _cjose_cleanse_dealloc(buf, buflen);
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
 
-    jwe->cek_len = (size_t)dlen;
+    memcpy(jwe->cek, buf, jwe->cek_len);
+    _cjose_cleanse_dealloc(buf, buflen);
 
     return true;
 }
