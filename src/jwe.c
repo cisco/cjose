@@ -1442,7 +1442,9 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
 
     int p_len = (int)jwe->enc_ct.raw_len, f_len = 0;
     _cjose_cleanse_dealloc(jwe->dat, jwe->dat_len);
-    jwe->dat_len = p_len + AES_BLOCK_SIZE;
+    // size the buffer in size_t; p_len + AES_BLOCK_SIZE would overflow int when
+    // raw_len is near INT_MAX (raw_len is already bounded above)
+    jwe->dat_len = jwe->enc_ct.raw_len + AES_BLOCK_SIZE;
     if (!_cjose_jwe_malloc(jwe->dat_len, false, &jwe->dat, err))
     {
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
