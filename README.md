@@ -24,7 +24,7 @@ only required for the deprecated build described at the end of this document.
 
 ## Getting Started ##
 
-cjose builds with [CMake](https://cmake.org/) (>= 3.23):
+cjose builds with [CMake](https://cmake.org/) (>= 3.22):
 
     git clone https://github.com/cisco/cjose.git
     cd cjose
@@ -95,7 +95,7 @@ are provided.
 ### Before Submitting PR ###
 
 * Run `cmake --build build --target clang-format`
-* Run `ctest --test-dir build`
+* Run `ctest --test-dir build --output-on-failure -V`
 
 ## Deprecated: Autotools Build ##
 
