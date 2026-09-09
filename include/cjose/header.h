@@ -59,6 +59,11 @@ extern "C" {
 #define CJOSE_HDR_ALG_A192KW "A192KW"
 #define CJOSE_HDR_ALG_A256KW "A256KW"
 
+/** The JWE algorithm attribute value for ECDH-ES with A128KW, A192KW or A256KW key wrapping. */
+#define CJOSE_HDR_ALG_ECDH_ES_A128KW "ECDH-ES+A128KW"
+#define CJOSE_HDR_ALG_ECDH_ES_A192KW "ECDH-ES+A192KW"
+#define CJOSE_HDR_ALG_ECDH_ES_A256KW "ECDH-ES+A256KW"
+
 /** The JWS algorithm attribute value for PS256, PS384 and PS512. */
 #define CJOSE_HDR_ALG_PS256 "PS256"
 #define CJOSE_HDR_ALG_PS384 "PS384"

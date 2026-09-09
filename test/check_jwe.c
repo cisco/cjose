@@ -253,6 +253,20 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_short)
 }
 END_TEST
 
+START_TEST(test_cjose_jwe_ecdh_es_kw_self_encrypt_self_decrypt)
+{
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_EC, plain, sizeof(plain) - 1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_EC, plain, sizeof(plain) - 1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_EC, plain, sizeof(plain) - 1);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain, sizeof(plain) - 1);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
 {
     static const uint8_t plain[] = "";
@@ -1413,6 +1427,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_empty);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_large);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_many);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_kw_self_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);

@@ -776,7 +776,7 @@ cjose_jws_t *cjose_jws_import(const char *cser, size_t cser_len, cjose_err *err)
     // find the indexes of the dots
     int idx = 0;
     int d[2] = { 0, 0 };
-    for (int i = 0; i < cser_len && idx < 2; ++i)
+    for (size_t i = 0; i < cser_len && idx < 2; ++i)
     {
         if (cser[i] == '.')
         {
