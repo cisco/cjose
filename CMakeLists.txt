@@ -180,6 +180,7 @@ endif()
 if(CJOSE_BUILD_SHARED)
     add_library(cjose_shared SHARED $<TARGET_OBJECTS:cjose_objects>)
     add_library(cjose::cjose_shared ALIAS cjose_shared)
+    add_library(cjose::cjose ALIAS cjose_shared)
 
     target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
     target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
@@ -243,6 +244,8 @@ if(CJOSE_BUILD_SHARED)
     endif()
 
     list(APPEND CJOSE_INSTALL_TARGETS cjose_shared)
+elseif(CJOSE_BUILD_STATIC)
+    add_library(cjose::cjose ALIAS cjose_static)
 endif()
 
 # ---------------------------------------------------------------------------

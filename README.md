@@ -43,6 +43,7 @@ Pass options with `-D<OPTION>=<VALUE>` at configure time:
 | `CJOSE_BUILD_SHARED` | `ON` | Build the shared/dynamic library |
 | `CJOSE_BUILD_STATIC` | `ON` | Build the static library |
 | `CJOSE_BUILD_TESTS` | `ON` when top-level | Build the unit tests (requires Check) |
+| `CJOSE_ENABLE_RSA1_5` | `OFF` | Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm |
 | `CJOSE_MSVC_STATIC_RUNTIME` | `OFF` | (MSVC) Link against the static C runtime (`/MT`) |
 | `CJOSE_MACOS_DYLIB` | `OFF` | (macOS) Build a plain `.dylib` instead of a framework |
 
@@ -84,11 +85,15 @@ and a CMake package config.
 After installing, consume cjose from a CMake project via `find_package`:
 
     find_package(cjose REQUIRED)
-    target_link_libraries(myapp PRIVATE cjose::cjose_shared)  # or cjose::cjose_static
+    target_link_libraries(myapp PRIVATE cjose::cjose)
+
+The `cjose::cjose` target aliases the shared/dynamic library when it is built,
+or the static library when `CJOSE_BUILD_SHARED=OFF`. The explicit
+`cjose::cjose_shared` and `cjose::cjose_static` targets are also available when
+their corresponding library types are built.
 
 Alternatively, embed the sources directly with `add_subdirectory()` or
-`FetchContent`; the same `cjose::cjose_shared` / `cjose::cjose_static` targets
-are provided.
+`FetchContent`; the same CMake targets are provided.
 
 ## Contributing ##
 
