@@ -5,6 +5,37 @@
 # unversioned (matching the historical autotools build).
 {
     global:
+        CJOSE_HDR_ALG;
+        CJOSE_HDR_ALG_A128KW;
+        CJOSE_HDR_ALG_A192KW;
+        CJOSE_HDR_ALG_A256KW;
+        CJOSE_HDR_ALG_DIR;
+        CJOSE_HDR_ALG_ECDH_ES;
+        CJOSE_HDR_ALG_ES256;
+        CJOSE_HDR_ALG_ES384;
+        CJOSE_HDR_ALG_ES512;
+        CJOSE_HDR_ALG_HS256;
+        CJOSE_HDR_ALG_HS384;
+        CJOSE_HDR_ALG_HS512;
+        CJOSE_HDR_ALG_NONE;
+        CJOSE_HDR_ALG_PS256;
+        CJOSE_HDR_ALG_PS384;
+        CJOSE_HDR_ALG_PS512;
+        CJOSE_HDR_ALG_RS256;
+        CJOSE_HDR_ALG_RS384;
+        CJOSE_HDR_ALG_RS512;
+        CJOSE_HDR_ALG_RSA1_5;
+        CJOSE_HDR_ALG_RSA_OAEP;
+        CJOSE_HDR_APU;
+        CJOSE_HDR_APV;
+        CJOSE_HDR_CTY;
+        CJOSE_HDR_ENC;
+        CJOSE_HDR_ENC_A128CBC_HS256;
+        CJOSE_HDR_ENC_A192CBC_HS384;
+        CJOSE_HDR_ENC_A256CBC_HS512;
+        CJOSE_HDR_ENC_A256GCM;
+        CJOSE_HDR_EPK;
+        CJOSE_HDR_KID;
         cjose_base64_decode;
         cjose_base64_encode;
         cjose_base64url_decode;
