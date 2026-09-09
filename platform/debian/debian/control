@@ -1,6 +1,6 @@
 Source: cjose
 Maintainer: Matthew A. Miller <linuxwolf@outer-planes.net>
-Build-Depends: debhelper (>= 8), autotools-dev, libssl-dev (>= 1.0.1), libjansson-dev (>= 2.3), pkg-config
+Build-Depends: debhelper (>= 8), autotools-dev, libssl-dev (>= 3.0), libjansson-dev (>= 2.3), pkg-config
 Standards-Version: 3.9.4
 Section: utils
 Priority: extra

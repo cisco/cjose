@@ -43,7 +43,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
-find_package(OpenSSL 1.0.1 REQUIRED)
+find_package(OpenSSL 3.0 REQUIRED)
 find_package(Jansson 2.3 REQUIRED)
 
 if(WIN32)

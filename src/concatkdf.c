@@ -125,7 +125,7 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
 
     uint8_t *buffer = NULL;
     const EVP_MD *dgst = EVP_sha256();
-    EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
@@ -168,7 +168,7 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
     buffer = NULL;
 
 concatkdf_derive_finish:
-    EVP_MD_CTX_destroy(ctx);
+    EVP_MD_CTX_free(ctx);
     _cjose_cleanse_dealloc(buffer, keylen);
 
     return derived;
