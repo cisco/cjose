@@ -103,6 +103,16 @@ START_TEST(test_cjose_header_set_get_raw)
 
     // cjose_header_get_raw returns a json_dumps() result owned by the caller
     cjose_get_dealloc()(epk_get);
+
+    // a top-level scalar JSON value (e.g. RFC 7797 "b64":false) must round-trip;
+    // jansson's default decode mode rejects these, JSON_DECODE_ANY accepts them
+    result = cjose_header_set_raw(header, "b64", "false", &err);
+    ck_assert_msg(result, "cjose_header_set_raw failed to set a scalar (boolean) value");
+
+    char *b64_get = cjose_header_get_raw(header, "b64", &err);
+    ck_assert_msg(NULL != b64_get && !strcmp(b64_get, "false"),
+                  "cjose_header_get_raw failed to round-trip a scalar value, found %s", ((b64_get) ? b64_get : "null"));
+    cjose_get_dealloc()(b64_get);
     cjose_header_release(header);
 }
 END_TEST
