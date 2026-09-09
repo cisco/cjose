@@ -1,3 +1,7 @@
+[![Build](https://github.com/cisco/cjose/actions/workflows/build.yml/badge.svg)](https://github.com/cisco/cjose/actions/workflows/build.yml)
+[![Archs](https://github.com/cisco/cjose/actions/workflows/archs.yml/badge.svg)](https://github.com/cisco/cjose/actions/workflows/archs.yml)
+[![CodeQL](https://github.com/cisco/cjose/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/cisco/cjose/actions/workflows/codeql-analysis.yml)
+
 # cjose #
 
 Implementation of JOSE for C/C++

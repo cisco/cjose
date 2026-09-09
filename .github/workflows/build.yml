@@ -1,0 +1,76 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    name: Linux ${{ matrix.cc }}, RSA1_5 ${{ matrix.rsa1_5 }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+        rsa1_5: [OFF, ON]
+
+    env:
+      CC: ${{ matrix.cc }}
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake pkg-config ${{ matrix.cc }} valgrind libssl-dev libjansson-dev check
+    - name: Configure
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCJOSE_ENABLE_RSA1_5=${{ matrix.rsa1_5 }}
+    - name: Build
+      run: cmake --build build --parallel
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+    - name: Valgrind
+      if: matrix.cc == 'gcc'
+      working-directory: test
+      env:
+        CK_FORK: no
+      run: valgrind --leak-check=full --error-exitcode=1 --show-possibly-lost=no ../build/check_cjose
+
+  macos:
+    runs-on: macos-latest
+    name: macOS clang
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Dependencies
+      run: brew install cmake openssl@3 jansson check
+    - name: Configure
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_PREFIX_PATH="$(brew --prefix openssl@3);$(brew --prefix jansson);$(brew --prefix check)"
+    - name: Build
+      run: cmake --build build --parallel
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    name: Windows MSVC (vcpkg)
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Cache vcpkg binary archives
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.LOCALAPPDATA }}\vcpkg\archives
+        key: vcpkg-archives-${{ runner.os }}-x64-windows-openssl-jansson-check
+    - name: Dependencies
+      run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install openssl jansson check --triplet x64-windows'
+    - name: Configure
+      run: >
+        cmake -S . -B build
+        -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake"
+        -DVCPKG_TARGET_TRIPLET=x64-windows
+    - name: Build
+      run: cmake --build build --config Debug --parallel
+    - name: Test
+      run: ctest --test-dir build -C Debug --output-on-failure
