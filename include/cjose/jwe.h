@@ -32,7 +32,7 @@ extern "C" {
 typedef struct
 {
     /** Key to use for this recipient */
-    const cjose_jwk_t *jwk;
+    const cjose_jwk_t * jwk;
     /** Additional unprotected header for this recipient */
     cjose_header_t *unprotected_header;
 } cjose_jwe_recipient_t;
