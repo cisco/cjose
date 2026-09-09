@@ -10,4 +10,10 @@ find_dependency(Jansson 2.3)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cjoseTargets.cmake")
 
+if(TARGET cjose::cjose_shared)
+    add_library(cjose::cjose ALIAS cjose::cjose_shared)
+elseif(TARGET cjose::cjose_static)
+    add_library(cjose::cjose ALIAS cjose::cjose_static)
+endif()
+
 check_required_components(cjose)
