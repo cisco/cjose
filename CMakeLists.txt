@@ -18,6 +18,11 @@ option(CJOSE_BUILD_SHARED "Build the cjose shared/dynamic library" ON)
 option(CJOSE_BUILD_STATIC "Build the cjose static library" ON)
 # Off by default when embedded (add_subdirectory/FetchContent), on when top-level.
 option(CJOSE_BUILD_TESTS  "Build the cjose unit tests (requires Check)" ${PROJECT_IS_TOP_LEVEL})
+# RSAES-PKCS1-v1_5 key encryption (alg "RSA1_5") is disabled by default: many
+# implementations are vulnerable to padding-oracle attacks (Bleichenbacher,
+# Marvin) and RFC 8725 recommends against it. Enable only for compatibility
+# with peers that cannot use RSA-OAEP.
+option(CJOSE_ENABLE_RSA1_5 "Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm" OFF)
 
 # Only meaningful with MSVC; lets the library link against the static CRT (/MT).
 cmake_dependent_option(CJOSE_MSVC_STATIC_RUNTIME
@@ -114,6 +119,9 @@ set_target_properties(cjose_objects PROPERTIES
     C_EXTENSIONS ON)
 
 target_compile_definitions(cjose_objects PRIVATE OPENSSL_API_COMPAT=0x10100000L)
+if(CJOSE_ENABLE_RSA1_5)
+    target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+endif()
 if(CJOSE_HAVE_OPENSSL_FEC_H)
     target_compile_definitions(cjose_objects PRIVATE HAVE_OPENSSL_FEC_H=1)
 endif()
@@ -368,6 +376,9 @@ if(CJOSE_BUILD_TESTS)
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS ON)
         target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
+        if(CJOSE_ENABLE_RSA1_5)
+            target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+        endif()
         if(MSVC)
             target_compile_options(check_cjose PRIVATE /W3 /WX /wd4267)
             target_compile_definitions(check_cjose PRIVATE

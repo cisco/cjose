@@ -1775,6 +1775,42 @@ START_TEST(test_cjose_jwe_import_json_shared_unprotected)
 }
 END_TEST
 
+#ifndef HAVE_RSA_PKCS1_PADDING
+// with RSA1_5 compiled out, the algorithm must be refused both when encrypting
+// and when a JWE carrying it is imported/decrypted
+START_TEST(test_cjose_jwe_rsa1_5_disabled)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA1_5, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL == jwe, "cjose_jwe_encrypt succeeded with RSA1_5 although it is disabled");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // header {"alg":"RSA1_5","enc":"A128CBC-HS256"} (RFC 7516 appendix A.2) with dummy segments
+    static const char *cser = "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.AAAA.AAAA.AAAA.AAAA";
+    jwe = cjose_jwe_import(cser, strlen(cser), &err);
+    if (NULL != jwe)
+    {
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded with RSA1_5 although it is disabled");
+        cjose_jwe_release(jwe);
+    }
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+#endif // HAVE_RSA_PKCS1_PADDING
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1801,6 +1837,9 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
+#ifndef HAVE_RSA_PKCS1_PADDING
+    tcase_add_test(tc_jwe, test_cjose_jwe_rsa1_5_disabled);
+#endif
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
