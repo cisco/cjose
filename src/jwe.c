@@ -684,26 +684,52 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
-    // we don't know the size of the key to expect, but must be < RSA_size
+    // jwk must have the necessary private parts set
+    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
+    _cjose_jwk_rsa_get((RSA *)jwk->keydata, &rsa_n, &rsa_e, &rsa_d);
+    if (NULL == rsa_e || NULL == rsa_n || NULL == rsa_d)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    // pin the expected CEK length from the enc header; like the other
+    // decrypt_ek paths the RSA-decrypted key must match it exactly
     _cjose_release_cek(&jwe->cek, jwe->cek_len);
-    size_t buflen = RSA_size((RSA *)jwk->keydata);
-    if (!_cjose_jwe_malloc(buflen, false, &jwe->cek, err))
+    if (!jwe->fns.set_cek(jwe, NULL, false, err))
     {
         return false;
     }
 
-    // decrypt the CEK using RSA v1.5 or OAEP padding
-    int dlen = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, jwe->cek, (RSA *)jwk->keydata, padding);
-    if (-1 == dlen)
+    // a valid RSA encrypted key segment is exactly the size of the modulus;
+    // reject other lengths before they reach RSA_private_decrypt
+    size_t buflen = RSA_size((RSA *)jwk->keydata);
+    if (recipient->enc_key.raw_len != buflen)
     {
-        _cjose_release_cek(&jwe->cek, buflen);
-        jwe->cek_len = 0;
-        
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    // decrypt into a scratch buffer; the recovered plaintext can be up to
+    // RSA_size bytes, larger than the pinned CEK buffer
+    uint8_t *buf = NULL;
+    if (!_cjose_jwe_malloc(buflen, false, &buf, err))
+    {
+        return false;
+    }
+
+    // decrypt the CEK using RSA v1.5 or OAEP padding and require that its
+    // length matches the CEK size dictated by the enc header (RFC 7518 sec 4.2/4.3)
+    int len = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, padding);
+    if (-1 == len || (size_t)len != jwe->cek_len)
+    {
+        _cjose_cleanse_dealloc(buf, buflen);
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
 
-    jwe->cek_len = (size_t)dlen;
+    memcpy(jwe->cek, buf, jwe->cek_len);
+    _cjose_cleanse_dealloc(buf, buflen);
 
     return true;
 }

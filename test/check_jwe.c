@@ -1401,6 +1401,92 @@ START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
 }
 END_TEST
 
+// regression: an RSA-OAEP / RSA1_5 encrypted_key that unwraps to a CEK of the
+// wrong length for the enc algorithm must be rejected. The recovered length
+// used to be accepted as-is, so an encrypted_key wrapping the real CEK plus
+// trailing garbage still decrypted because the content cipher only read the
+// key-size prefix (RFC 7518 sections 4.2 and 4.3 require an exact match).
+START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    const char *plain = "Setec Astronomy";
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s", err.message);
+
+    char *first_dot = strchr(compact, '.');
+    ck_assert(NULL != first_dot);
+    char *second_dot = strchr(first_dot + 1, '.');
+    ck_assert(NULL != second_dot);
+
+    // recover the real 32-byte A256GCM CEK by unwrapping the encrypted_key
+    // segment with the private key
+    RSA *rsa = (RSA *)jwk->keydata;
+    int ek_len = RSA_size(rsa);
+    uint8_t *orig_ek = NULL;
+    size_t orig_ek_len = 0;
+    ck_assert(cjose_base64url_decode(first_dot + 1, second_dot - first_dot - 1, &orig_ek, &orig_ek_len, &err));
+    ck_assert_int_eq(ek_len, orig_ek_len);
+    uint8_t cek[256];
+    ck_assert_int_eq(32, RSA_private_decrypt(orig_ek_len, orig_ek, cek, rsa, RSA_PKCS1_OAEP_PADDING));
+
+    // RSA-OAEP-encrypt that CEK followed by 8 trailing bytes (40 bytes in
+    // total) with the same public key
+    uint8_t bad_cek[40];
+    memcpy(bad_cek, cek, 32);
+    memset(bad_cek + 32, 0x42, sizeof(bad_cek) - 32);
+    uint8_t *ek = (uint8_t *)malloc(ek_len);
+    ck_assert(NULL != ek);
+    ck_assert(RSA_public_encrypt(sizeof(bad_cek), bad_cek, ek, rsa, RSA_PKCS1_OAEP_PADDING) == ek_len);
+
+    char *ek_b64u = NULL;
+    size_t ek_b64u_len = 0;
+    ck_assert(cjose_base64url_encode(ek, ek_len, &ek_b64u, &ek_b64u_len, &err));
+
+    // splice the wrong-length encrypted CEK into the compact serialization
+
+    size_t header_len = first_dot - compact;
+    size_t tail_len = strlen(second_dot);
+    size_t tampered_len = header_len + 1 + ek_b64u_len + tail_len;
+    char *tampered = (char *)malloc(tampered_len + 1);
+    ck_assert(NULL != tampered);
+    memcpy(tampered, compact, header_len);
+    tampered[header_len] = '.';
+    memcpy(tampered + header_len + 1, ek_b64u, ek_b64u_len);
+    memcpy(tampered + header_len + 1 + ek_b64u_len, second_dot, tail_len);
+    tampered[tampered_len] = '\0';
+
+    // import must succeed; decryption must fail on the CEK length mismatch
+    cjose_jwe_t *jwe_bad = cjose_jwe_import(tampered, tampered_len, &err);
+    ck_assert_msg(NULL != jwe_bad, "cjose_jwe_import failed: %s", err.message);
+
+    size_t plain_len = 0;
+    uint8_t *decrypted = cjose_jwe_decrypt(jwe_bad, jwk, &plain_len, &err);
+    ck_assert_msg(NULL == decrypted, "cjose_jwe_decrypt accepted a 40-byte CEK for A256GCM");
+    ck_assert_msg(CJOSE_ERR_CRYPTO == err.code, "expected CJOSE_ERR_CRYPTO, got %d", err.code);
+
+    free(tampered);
+    free(ek);
+    cjose_get_dealloc()(orig_ek);
+    cjose_get_dealloc()(ek_b64u);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe_bad);
+    cjose_jwe_release(jwe);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1425,6 +1511,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
+    tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;
