@@ -27,6 +27,7 @@
 // internal data structures
 
 static const char CJOSE_JWK_EC_P_256_STR[] = "P-256";
+static const char CJOSE_JWK_EC_SECP_256K1_STR[] = "secp256k1";
 static const char CJOSE_JWK_EC_P_384_STR[] = "P-384";
 static const char CJOSE_JWK_EC_P_521_STR[] = "P-521";
 static const char CJOSE_JWK_KTY_STR[] = "kty";
@@ -571,6 +572,8 @@ static inline int _ec_nid_for_curve(cjose_jwk_ec_curve crv)
     {
     case CJOSE_JWK_EC_P_256:
         return NID_X9_62_prime256v1;
+    case CJOSE_JWK_EC_SECP_256K1:
+        return NID_secp256k1;
     case CJOSE_JWK_EC_P_384:
         return NID_secp384r1;
     case CJOSE_JWK_EC_P_521:
@@ -587,6 +590,8 @@ static inline uint8_t _ec_size_for_curve(cjose_jwk_ec_curve crv, cjose_err *err)
     switch (crv)
     {
     case CJOSE_JWK_EC_P_256:
+        return 32;
+    case CJOSE_JWK_EC_SECP_256K1:
         return 32;
     case CJOSE_JWK_EC_P_384:
         return 48;
@@ -605,6 +610,8 @@ static inline const char *_ec_name_for_curve(cjose_jwk_ec_curve crv, cjose_err *
     {
     case CJOSE_JWK_EC_P_256:
         return CJOSE_JWK_EC_P_256_STR;
+    case CJOSE_JWK_EC_SECP_256K1:
+        return CJOSE_JWK_EC_SECP_256K1_STR;
     case CJOSE_JWK_EC_P_384:
         return CJOSE_JWK_EC_P_384_STR;
     case CJOSE_JWK_EC_P_521:
@@ -622,6 +629,10 @@ static inline bool _ec_curve_from_name(const char *name, cjose_jwk_ec_curve *crv
     if (strncmp(name, CJOSE_JWK_EC_P_256_STR, sizeof(CJOSE_JWK_EC_P_256_STR)) == 0)
     {
         *crv = CJOSE_JWK_EC_P_256;
+    }
+    else if (strncmp(name, CJOSE_JWK_EC_SECP_256K1_STR, sizeof(CJOSE_JWK_EC_SECP_256K1_STR)) == 0)
+    {
+        *crv = CJOSE_JWK_EC_SECP_256K1;
     }
     else if (strncmp(name, CJOSE_JWK_EC_P_384_STR, sizeof(CJOSE_JWK_EC_P_384_STR)) == 0)
     {
@@ -684,6 +695,9 @@ static cjose_jwk_t *_EC_new(cjose_jwk_ec_curve crv, EC_KEY *ec, cjose_err *err)
     switch (crv)
     {
     case CJOSE_JWK_EC_P_256:
+        jwk->keysize = 256;
+        break;
+    case CJOSE_JWK_EC_SECP_256K1:
         jwk->keysize = 256;
         break;
     case CJOSE_JWK_EC_P_384:

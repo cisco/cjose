@@ -244,6 +244,62 @@ START_TEST(test_cjose_jwk_create_EC_P256_random)
 }
 END_TEST
 
+const char *EC_SECP_256K1_d = "rhYFsBPF9q3-uZThy7B3c4LDF_8wnozFUAEm5LLC4Zw";
+const char *EC_SECP_256K1_x = "dWCvM4fTdeM0KmloF57zxtBPXTOythHPMm1HCLrdd3A";
+const char *EC_SECP_256K1_y = "36uMVGM7hnw-N6GnjFcihWE3SkrhMLzzLCdPMXPEXlA";
+START_TEST(test_cjose_jwk_create_EC_secp256k1_spec)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    cjose_jwk_ec_keyspec spec;
+
+    memset(&spec, 0, sizeof(cjose_jwk_ec_keyspec));
+    spec.crv = CJOSE_JWK_EC_SECP_256K1;
+    cjose_base64url_decode(EC_SECP_256K1_d, strlen(EC_SECP_256K1_d), &spec.d, &spec.dlen, &err);
+    cjose_base64url_decode(EC_SECP_256K1_x, strlen(EC_SECP_256K1_x), &spec.x, &spec.xlen, &err);
+    cjose_base64url_decode(EC_SECP_256K1_y, strlen(EC_SECP_256K1_y), &spec.y, &spec.ylen, &err);
+
+    jwk = cjose_jwk_create_EC_spec(&spec, &err);
+    ck_assert(NULL != jwk);
+    ck_assert(1 == jwk->retained);
+    ck_assert(CJOSE_JWK_KTY_EC == jwk->kty);
+    ck_assert(256 == jwk->keysize);
+    ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
+    ck_assert(NULL != jwk->keydata);
+    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(CJOSE_JWK_EC_SECP_256K1 == cjose_jwk_EC_get_curve(jwk, &err));
+
+    char *json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, "\"crv\":\"secp256k1\""));
+
+    cjose_get_dealloc()(json);
+    cjose_get_dealloc()(spec.d);
+    cjose_get_dealloc()(spec.x);
+    cjose_get_dealloc()(spec.y);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_create_EC_secp256k1_random)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = cjose_jwk_create_EC_random(CJOSE_JWK_EC_SECP_256K1, &err);
+
+    ck_assert(NULL != jwk);
+    ck_assert(CJOSE_JWK_KTY_EC == jwk->kty);
+    ck_assert(256 == cjose_jwk_get_keysize(jwk, &err));
+    ck_assert(CJOSE_JWK_EC_SECP_256K1 == cjose_jwk_EC_get_curve(jwk, &err));
+
+    char *json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, "\"crv\":\"secp256k1\""));
+
+    cjose_get_dealloc()(json);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 const char *EC_384_d = "vpwFfxYfV7Ftm3fuidQsK-l_tGxqqnUUG6R5QZStJAeZy7qQiHAo7rZumFslws38";
 const char *EC_384_x = "ulIwcMpG6gbi9Bo_CeVFDIu7RT-AFxu5NRiH9Wm39lYQOAcZTlHJM8Tz4Fwbtu-0";
 const char *EC_384_y = "WOZtl6a6x_ukWquJbd_sF18zivwVq26HhJbnmwEKuab7zvZ3sGzOX7LJCHl4zmXa";
@@ -1526,6 +1582,8 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec_weak_modulus);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_random);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_secp256k1_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_secp256k1_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P384_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P384_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P521_spec);

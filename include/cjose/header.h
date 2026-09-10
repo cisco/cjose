@@ -79,8 +79,9 @@ extern "C" {
 #define CJOSE_HDR_ALG_HS384 "HS384"
 #define CJOSE_HDR_ALG_HS512 "HS512"
 
-/** The JWS algorithm attribute values for ES256, ES384 and ES512. */
+/** The JWS algorithm attribute values for ES256, ES256K, ES384 and ES512. */
 #define CJOSE_HDR_ALG_ES256 "ES256"
+#define CJOSE_HDR_ALG_ES256K "ES256K"
 #define CJOSE_HDR_ALG_ES384 "ES384"
 #define CJOSE_HDR_ALG_ES512 "ES512"
 
