@@ -198,12 +198,13 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     }
 
     // instantiate and initialize a new mac digest context
-    ctx = EVP_MD_CTX_new();
+    ctx = EVP_MD_CTX_create();
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jws_build_dig_sha_cleanup;
     }
+    EVP_MD_CTX_init(ctx);
 
     // create digest as DIGEST(B64U(HEADER).B64U(DATA))
     if (EVP_DigestInit_ex(ctx, digest_alg, NULL) != 1)
@@ -238,7 +239,7 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 _cjose_jws_build_dig_sha_cleanup:
     if (NULL != ctx)
     {
-        EVP_MD_CTX_free(ctx);
+        EVP_MD_CTX_destroy(ctx);
     }
 
     return retval;
@@ -297,12 +298,20 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
     }
 
     // instantiate and initialize a new mac digest context
+#if defined(CJOSE_OPENSSL_11X)
     ctx = HMAC_CTX_new();
+#else
+    ctx = cjose_get_alloc()(sizeof(HMAC_CTX));
+#endif
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
     }
+
+#if !defined(CJOSE_OPENSSL_11X)
+    HMAC_CTX_init(ctx);
+#endif
 
     // create digest as DIGEST(B64U(HEADER).B64U(DATA))
     if (HMAC_Init_ex(ctx, jwk->keydata, jwk->keysize / 8, digest_alg, NULL) != 1)
@@ -337,7 +346,12 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
 _cjose_jws_build_dig_hmac_sha_cleanup:
     if (NULL != ctx)
     {
+#if defined(CJOSE_OPENSSL_11X)
         HMAC_CTX_free(ctx);
+#else
+        HMAC_CTX_cleanup(ctx);
+        cjose_get_dealloc()(ctx);
+#endif
     }
 
     return retval;
@@ -581,7 +595,12 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
     memset(jws->sig, 0, jws->sig_len);
 
     const BIGNUM *pr, *ps;
+#if defined(CJOSE_OPENSSL_11X)
     ECDSA_SIG_get0(ecdsa_sig, &pr, &ps);
+#else
+    pr = ecdsa_sig->r;
+    ps = ecdsa_sig->s;
+#endif
 
     int rlen = BN_num_bytes(pr);
     int slen = BN_num_bytes(ps);
@@ -1082,6 +1101,7 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     }
     int key_len = jws->sig_len / 2;
 
+#if defined(CJOSE_OPENSSL_11X)
     BIGNUM *pr = BN_new();
     BIGNUM *ps = BN_new();
     if (pr == NULL || ps == NULL)
@@ -1094,6 +1114,10 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     BN_bin2bn(jws->sig, key_len, pr);
     BN_bin2bn(jws->sig + key_len, key_len, ps);
     ECDSA_SIG_set0(ecdsa_sig, pr, ps); // takes ownership of pr and ps
+#else
+    BN_bin2bn(jws->sig, key_len, ecdsa_sig->r);
+    BN_bin2bn(jws->sig + key_len, key_len, ecdsa_sig->s);
+#endif
 
     if (ECDSA_do_verify(jws->dig, jws->dig_len, ecdsa_sig, ec) != 1)
     {

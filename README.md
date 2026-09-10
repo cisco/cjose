@@ -23,7 +23,7 @@ only required for the deprecated build described at the end of this document.
 
 ### Libraries ###
 
-* OpenSSL >= 3.0 (or its API equivalent)
+* OpenSSL >= 1.0.1h (or its API equivalent)
 * Jansson >= 2.3
 
 ## Getting Started ##
