@@ -433,11 +433,14 @@ START_TEST(test_cjose_jwe_ecdh_es_kw_self_encrypt_self_decrypt)
 {
     static const uint8_t plain[] = "Setec Astronomy";
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_EC, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_EC, plain,
+                                        sizeof(plain) - 1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_EC, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_EC, plain,
+                                        sizeof(plain) - 1);
 
-    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_EC, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_EC, plain,
+                                        sizeof(plain) - 1);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain, sizeof(plain) - 1);
 }
