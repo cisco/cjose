@@ -11,6 +11,6 @@ Name: cjose
 URL: https://github.com/cisco/cjose
 Description: JOSE implementation for C
 Version: @VERSION@
-Requires: jansson >= 2.3, libcrypto >= 1.0.1
 Cflags: -I${includedir}
 Libs: -L${libdir} -lcjose
+Libs.private: @LIBS@

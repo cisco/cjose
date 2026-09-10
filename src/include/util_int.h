@@ -11,7 +11,12 @@
 #include <cjose/error.h>
 
 #include <jansson.h>
+#include <openssl/opensslv.h>
 #include <string.h>
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100005L && !defined(LIBRESSL_VERSION_NUMBER)
+#define CJOSE_OPENSSL_11X
+#endif
 
 #ifdef _WIN32
 #include <BaseTsd.h>

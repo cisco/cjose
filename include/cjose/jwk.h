@@ -17,7 +17,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <openssl/obj_mac.h>
 #include "cjose/error.h"
 #include "cjose/header.h"
 
@@ -215,12 +214,17 @@ cjose_jwk_t *cjose_jwk_create_RSA_spec(const cjose_jwk_rsa_keyspec *spec, cjose_
 /** Enumeration of supported Elliptic-Curve types */
 typedef enum
 {
-    /** NIST P-256 Prime Curve (secp256r1) */
-    CJOSE_JWK_EC_P_256 = NID_X9_62_prime256v1,
-    /** NIST P-384 Prime Curve (secp384r1) */
-    CJOSE_JWK_EC_P_384 = NID_secp384r1,
-    /** NIST P-521 Prime Curve (secp521r1) */
-    CJOSE_JWK_EC_P_521 = NID_secp521r1,
+    /** NIST P-256 Prime Curve (secp256r1).
+     *
+     * The explicit value preserves the ABI of earlier cjose releases without
+     * requiring OpenSSL's obj_mac.h in this public header.
+     * TODO: Remove this binary compatibility when moved to 1.0.x series.
+     */
+    CJOSE_JWK_EC_P_256 = 415,
+    /** NIST P-384 Prime Curve (secp384r1). */
+    CJOSE_JWK_EC_P_384 = 715,
+    /** NIST P-521 Prime Curve (secp521r1). */
+    CJOSE_JWK_EC_P_521 = 716,
     /** Invalid Curve */
     CJOSE_JWK_EC_INVALID = -1
 } cjose_jwk_ec_curve;

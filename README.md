@@ -93,8 +93,15 @@ After installing, consume cjose from a CMake project via `find_package`:
 
 The `cjose::cjose` target aliases the shared/dynamic library when it is built,
 or the static library when `CJOSE_BUILD_SHARED=OFF`. The explicit
-`cjose::cjose_shared` and `cjose::cjose_static` targets are also available when
-their corresponding library types are built.
+`cjose::cjose_shared` target is also available when that library type is built.
+Using the shared library does not require the OpenSSL or Jansson development
+packages on the consuming system.
+
+Static consumers need cjose's private dependencies and can request them and the
+explicit static target with:
+
+    find_package(cjose REQUIRED COMPONENTS static)
+    target_link_libraries(myapp PRIVATE cjose::cjose_static)
 
 Alternatively, embed the sources directly with `add_subdirectory()` or
 `FetchContent`; the same CMake targets are provided.

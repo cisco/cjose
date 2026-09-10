@@ -18,14 +18,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <openssl/rsa.h>
-
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if OPENSSL_VERSION_NUMBER >= 0x10100005L && !defined(LIBRESSL_VERSION_NUMBER)
-#define CJOSE_OPENSSL_11X
 #endif
 
 /**
