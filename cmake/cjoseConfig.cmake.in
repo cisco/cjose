@@ -2,13 +2,45 @@
 
 include(CMakeFindDependencyMacro)
 
-# Make the bundled FindJansson module available to consumers.
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+# The shared library's implementation dependencies are deliberately absent
+# from its consumer interface. Load it before considering the static library
+# so shared-library consumers do not need development packages for cjose's
+# private dependencies.
+set(cjose_shared_FOUND FALSE)
+set(cjose_static_FOUND FALSE)
 
-find_dependency(OpenSSL 1.0.1)
-find_dependency(Jansson 2.3)
+if(@CJOSE_BUILD_SHARED@)
+    include("${CMAKE_CURRENT_LIST_DIR}/cjoseSharedTargets.cmake")
+    set(cjose_shared_FOUND TRUE)
+endif()
 
-include("${CMAKE_CURRENT_LIST_DIR}/cjoseTargets.cmake")
+if(@CJOSE_BUILD_STATIC@)
+    # Static consumers must link cjose's implementation dependencies. Make
+    # those dependencies mandatory only when static is the sole installed
+    # variant or the caller explicitly requests the static component.
+    set(_cjose_require_static FALSE)
+    if(NOT @CJOSE_BUILD_SHARED@ OR "static" IN_LIST cjose_FIND_COMPONENTS)
+        set(_cjose_require_static TRUE)
+    endif()
+
+    # Make the bundled FindJansson module available while resolving the
+    # optional/required static target dependencies.
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+    if(_cjose_require_static)
+        find_dependency(OpenSSL 1.0.1)
+        find_dependency(Jansson 2.3)
+    else()
+        find_package(OpenSSL 1.0.1 QUIET)
+        find_package(Jansson 2.3 QUIET)
+    endif()
+
+    if(TARGET OpenSSL::Crypto AND TARGET Jansson::Jansson)
+        include("${CMAKE_CURRENT_LIST_DIR}/cjoseStaticTargets.cmake")
+        set(cjose_static_FOUND TRUE)
+    endif()
+
+    unset(_cjose_require_static)
+endif()
 
 if(TARGET cjose::cjose_shared)
     add_library(cjose::cjose ALIAS cjose::cjose_shared)

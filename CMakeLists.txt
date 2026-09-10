@@ -153,8 +153,6 @@ set(CJOSE_PUBLIC_INCLUDES
     "$<BUILD_INTERFACE:${CJOSE_GENERATED_INCLUDE_DIR}/cjose>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
-set(CJOSE_INSTALL_TARGETS "")
-
 # ---------------------------------------------------------------------------
 # Static library
 # ---------------------------------------------------------------------------
@@ -171,7 +169,6 @@ if(CJOSE_BUILD_STATIC)
         set_target_properties(cjose_static PROPERTIES OUTPUT_NAME cjose)
     endif()
 
-    list(APPEND CJOSE_INSTALL_TARGETS cjose_static)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -183,7 +180,7 @@ if(CJOSE_BUILD_SHARED)
     add_library(cjose::cjose ALIAS cjose_shared)
 
     target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
-    target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
+    target_link_libraries(cjose_shared PRIVATE OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
 
     set_target_properties(cjose_shared PROPERTIES
         OUTPUT_NAME cjose
@@ -243,7 +240,6 @@ if(CJOSE_BUILD_SHARED)
             MACOSX_FRAMEWORK_SHORT_VERSION_STRING ${PROJECT_VERSION})
     endif()
 
-    list(APPEND CJOSE_INSTALL_TARGETS cjose_shared)
 elseif(CJOSE_BUILD_STATIC)
     add_library(cjose::cjose ALIAS cjose_static)
 endif()
@@ -251,13 +247,21 @@ endif()
 # ---------------------------------------------------------------------------
 # Installation
 # ---------------------------------------------------------------------------
-install(TARGETS ${CJOSE_INSTALL_TARGETS}
-    EXPORT cjoseTargets
-    RUNTIME   DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    LIBRARY   DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    ARCHIVE   DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    FRAMEWORK DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    INCLUDES  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+if(CJOSE_BUILD_SHARED)
+    install(TARGETS cjose_shared
+        EXPORT cjoseSharedTargets
+        RUNTIME   DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        LIBRARY   DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        FRAMEWORK DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        INCLUDES  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+endif()
+
+if(CJOSE_BUILD_STATIC)
+    install(TARGETS cjose_static
+        EXPORT cjoseStaticTargets
+        ARCHIVE  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+endif()
 
 # Install the public headers (a framework also bundles its own copy).
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/cjose"
@@ -298,9 +302,19 @@ install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindJansson.cmake"
     DESTINATION "${CJOSE_INSTALL_CMAKEDIR}")
 
-install(EXPORT cjoseTargets
-    NAMESPACE cjose::
-    DESTINATION "${CJOSE_INSTALL_CMAKEDIR}")
+if(CJOSE_BUILD_SHARED)
+    install(EXPORT cjoseSharedTargets
+        FILE cjoseSharedTargets.cmake
+        NAMESPACE cjose::
+        DESTINATION "${CJOSE_INSTALL_CMAKEDIR}")
+endif()
+
+if(CJOSE_BUILD_STATIC)
+    install(EXPORT cjoseStaticTargets
+        FILE cjoseStaticTargets.cmake
+        NAMESPACE cjose::
+        DESTINATION "${CJOSE_INSTALL_CMAKEDIR}")
+endif()
 
 # ---------------------------------------------------------------------------
 # Unit tests

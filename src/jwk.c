@@ -565,6 +565,23 @@ static bool _EC_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *
 
 static const key_fntable EC_FNTABLE = { _EC_free, _EC_public_fields, _EC_private_fields };
 
+static inline int _ec_nid_for_curve(cjose_jwk_ec_curve crv)
+{
+    switch (crv)
+    {
+    case CJOSE_JWK_EC_P_256:
+        return NID_X9_62_prime256v1;
+    case CJOSE_JWK_EC_P_384:
+        return NID_secp384r1;
+    case CJOSE_JWK_EC_P_521:
+        return NID_secp521r1;
+    case CJOSE_JWK_EC_INVALID:
+        return NID_undef;
+    }
+
+    return NID_undef;
+}
+
 static inline uint8_t _ec_size_for_curve(cjose_jwk_ec_curve crv, cjose_err *err)
 {
     switch (crv)
@@ -880,7 +897,7 @@ cjose_jwk_t *cjose_jwk_create_EC_random(cjose_jwk_ec_curve crv, cjose_err *err)
     cjose_jwk_t *jwk = NULL;
     EC_KEY *ec = NULL;
 
-    ec = EC_KEY_new_by_curve_name(crv);
+    ec = EC_KEY_new_by_curve_name(_ec_nid_for_curve(crv));
     if (!ec)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -940,7 +957,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
         return NULL;
     }
 
-    ec = EC_KEY_new_by_curve_name(spec->crv);
+    ec = EC_KEY_new_by_curve_name(_ec_nid_for_curve(spec->crv));
     if (NULL == ec)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
