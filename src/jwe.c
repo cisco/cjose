@@ -58,23 +58,23 @@ _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe,
 static bool
 _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a128kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a128kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a128kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a128kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a192kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a192kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a192kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a192kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a256kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a256kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a256kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a256kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jwe_set_iv_aes_gcm(cjose_jwe_t *jwe, cjose_err *err);
 
@@ -1035,12 +1035,8 @@ cjose_decrypt_ek_ecdh_es_finish:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(_jwe_int_recipient_t *recipient,
-                                             cjose_jwe_t *jwe,
-                                             const cjose_jwk_t *jwk,
-                                             const char *alg,
-                                             size_t kek_keysize,
-                                             cjose_err *err)
+static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
+    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, const char *alg, size_t kek_keysize, cjose_err *err)
 {
     cjose_jwk_t *epk_jwk = NULL;
     char *epk_json = NULL;
@@ -1128,12 +1124,8 @@ cjose_encrypt_ek_ecdh_es_kw_finish:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(_jwe_int_recipient_t *recipient,
-                                             cjose_jwe_t *jwe,
-                                             const cjose_jwk_t *jwk,
-                                             const char *alg,
-                                             size_t kek_keysize,
-                                             cjose_err *err)
+static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
+    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, const char *alg, size_t kek_keysize, cjose_err *err)
 {
     cjose_jwk_t *epk_jwk = NULL;
     char *epk_json = NULL;
@@ -1229,38 +1221,38 @@ cjose_decrypt_ek_ecdh_es_kw_finish:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a128kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a128kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_encrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A128KW, 16, err);
 }
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a128kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a128kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_decrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A128KW, 16, err);
 }
 
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a192kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a192kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_encrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A192KW, 24, err);
 }
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a192kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a192kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_decrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A192KW, 24, err);
 }
 
-static bool _cjose_jwe_encrypt_ek_ecdh_es_a256kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_encrypt_ek_ecdh_es_a256kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_encrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A256KW, 32, err);
 }
 
-static bool _cjose_jwe_decrypt_ek_ecdh_es_a256kw(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+static bool
+_cjose_jwe_decrypt_ek_ecdh_es_a256kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     return _cjose_jwe_decrypt_ek_ecdh_es_kw(recipient, jwe, jwk, CJOSE_HDR_ALG_ECDH_ES_A256KW, 32, err);
 }

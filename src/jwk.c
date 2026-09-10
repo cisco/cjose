@@ -116,7 +116,7 @@ bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
         BN_free(rsa_q);
         return false;
     }
-	
+
     return true;
 }
 
@@ -158,7 +158,7 @@ bool _cjose_jwk_rsa_set_crt(
         BN_free(rsa_iqmp);
         return false;
     }
-	
+
     return true;
 }
 
