@@ -453,7 +453,7 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_many)
     // encrypt and decrypt a whole lot of randomly sized payloads
     for (int i = 0; i < 100; ++i)
     {
-        size_t len = random() % 1024;
+        size_t len = (size_t)(random() % 1024) + 1;
         uint8_t *plain = malloc(len);
         ck_assert_msg(RAND_bytes(plain, len) == 1, "RAND_bytes failed");
         plain[len - 1] = 0;
