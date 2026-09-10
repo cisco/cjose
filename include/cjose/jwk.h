@@ -186,7 +186,7 @@ typedef struct
  * \b NOTE: The caller MUST call cjose_jwk_release() to release the JWK's
  * resources.
  *
- * \param size The keysize, in bits
+ * \param keysize The keysize, in bits
  * \param e The public exponent
  * \param elen The length of <tt>e</tt>
  * \param err [out] An optional error object which can be used to get additional
@@ -282,7 +282,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
  *        information in the event of an error.
  * \returns The curve type
  */
-const cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err);
+cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Creates a new symmetric octet JWK, using a secure random number generator.

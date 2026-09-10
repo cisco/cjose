@@ -29,9 +29,10 @@ extern "C" {
 /**
  * Supplemental structure to represent JWE recipients
  */
-typedef struct {
+typedef struct
+{
     /** Key to use for this recipient */
-    const cjose_jwk_t * jwk;
+    const cjose_jwk_t *jwk;
     /** Additional unprotected header for this recipient */
     cjose_header_t *unprotected_header;
 } cjose_jwe_recipient_t;
@@ -65,6 +66,38 @@ cjose_jwe_t *
 cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err);
 
 /**
+ * Creates a new JWE by encrypting the given plaintext within the given header
+ * and JWK, with a caller-supplied initialization vector.
+ *
+ * If the header provided indicates an algorithm requiring an asymmetric key
+ * (e.g. RSA-OAEP), the provided JWK must be asymmetric (e.g. RSA or EC).
+ *
+ * If the header provided indicates an algorithm requiring a symmetric key
+ * (e.g. (dir), the provided JWK must be symmetric (e.g. oct).
+ *
+ * \param jwk [in] the key to use for encrypting the JWE.
+ * \param protected_header [in] additional header values to include in the JWE protected header.
+ * \param iv [in] the initialization vector for encrypting the JWE payload. If NULL, an IV will be automatically generated.
+ *        The IV is copied. It must have the length the content encryption algorithm requires: 12 octets for
+ *        the AES GCM algorithms and 16 octets for the AES CBC HMAC algorithms. The caller is responsible for
+ *        never using the same IV twice with the same key; for AES GCM a repeated (key, IV) pair breaks both
+ *        confidentiality and integrity. Prefer the variant without an IV unless a specific IV is required.
+ * \param iv_len [in] the length of the initialization vector, or 0 if iv is NULL.
+ * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
+ * \param plaintext_len [in] the length of the plaintext.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns a newly generated JWE with the given plaintext as the payload.
+ */
+cjose_jwe_t *cjose_jwe_encrypt_iv(const cjose_jwk_t *jwk,
+                                  cjose_header_t *header,
+                                  const uint8_t *iv,
+                                  size_t iv_len,
+                                  const uint8_t *plaintext,
+                                  size_t plaintext_len,
+                                  cjose_err *err);
+
+/**
  * Creates a new JWE by encrypting the given plaintext with multiple keys.
  * \see ::cjose_jwe_encrypt for key requirements.
  * \param recipients [in] array of recipient objects. Each element must have the
@@ -75,7 +108,7 @@ cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t 
  *        recipients there is.
  * \param protected_header [in] additional header values to include in the JWE protected header. The header
  *        is retained by JWE and should be released by the caller if no longer needed.
- * \param unprotected_header [in] additional header values to include in the shared JWE unprotected header,
+ * \param shared_unprotected_header [in] additional header values to include in the shared JWE unprotected header,
  *        can be NULL. The header is retained by JWE and should be released by the caller if no longer needed.
  * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
  * \param plaintext_len [in] the length of the plaintext.
@@ -83,13 +116,50 @@ cjose_jwe_encrypt(const cjose_jwk_t *jwk, cjose_header_t *header, const uint8_t 
  *        information in the event of an error.
  * \returns a newly generated JWE with the given plaintext as the payload.
  */
-cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t * recipients,
-                                    size_t recipient_count,
-                                    cjose_header_t *protected_header,
-                                    cjose_header_t *shared_unprotected_header,
-                                    const uint8_t *plaintext,
-                                    size_t plaintext_len,
-                                    cjose_err *err);
+cjose_jwe_t *cjose_jwe_encrypt_multi(const cjose_jwe_recipient_t *recipients,
+                                     size_t recipient_count,
+                                     cjose_header_t *protected_header,
+                                     cjose_header_t *shared_unprotected_header,
+                                     const uint8_t *plaintext,
+                                     size_t plaintext_len,
+                                     cjose_err *err);
+
+/**
+ * Creates a new JWE by encrypting the given plaintext with multiple keys and a
+ * caller-supplied initialization vector.
+ * \see ::cjose_jwe_encrypt for key requirements.
+ * \see ::cjose_jwe_encrypt_multi to automatically generate an IV.
+ * \param recipients [in] array of recipient objects. Each element must have the
+ *        key of the recipient, and may have optional (not NULL) unprotected header.
+ *        Unprotected header is retained by this function, and can be safely released by the
+ *        caller if no longer needed. The key is only used within the scope of this function.
+ * \param recipient_count effective length of the recipients array, specifying how many
+ *        recipients there is.
+ * \param protected_header [in] additional header values to include in the JWE protected header. The header
+ *        is retained by JWE and should be released by the caller if no longer needed.
+ * \param shared_unprotected_header [in] additional header values to include in the shared JWE unprotected header,
+ *        can be NULL. The header is retained by JWE and should be released by the caller if no longer needed.
+ * \param iv [in] the initialization vector for encrypting the JWE payload. If NULL, an IV will be automatically generated.
+ *        The IV is copied. It must have the length the content encryption algorithm requires: 12 octets for
+ *        the AES GCM algorithms and 16 octets for the AES CBC HMAC algorithms. The caller is responsible for
+ *        never using the same IV twice with the same key; for AES GCM a repeated (key, IV) pair breaks both
+ *        confidentiality and integrity. Prefer the variant without an IV unless a specific IV is required.
+ * \param iv_len [in] the length of the initialization vector, or 0 if iv is NULL.
+ * \param plaintext [in] the plaintext to be encrypted in the JWE payload.
+ * \param plaintext_len [in] the length of the plaintext.
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns a newly generated JWE with the given plaintext as the payload.
+ */
+cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
+                                        size_t recipient_count,
+                                        cjose_header_t *protected_header,
+                                        cjose_header_t *shared_unprotected_header,
+                                        const uint8_t *iv,
+                                        size_t iv_len,
+                                        const uint8_t *plaintext,
+                                        size_t plaintext_len,
+                                        cjose_err *err);
 
 /**
  * Creates a compact serialization of the given JWE object.

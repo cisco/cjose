@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(cjose
-    VERSION 0.6.1
+    VERSION 0.7.0
     DESCRIPTION "JOSE implementation for C"
     HOMEPAGE_URL "https://github.com/cisco/cjose"
     LANGUAGES C)
@@ -18,6 +18,11 @@ option(CJOSE_BUILD_SHARED "Build the cjose shared/dynamic library" ON)
 option(CJOSE_BUILD_STATIC "Build the cjose static library" ON)
 # Off by default when embedded (add_subdirectory/FetchContent), on when top-level.
 option(CJOSE_BUILD_TESTS  "Build the cjose unit tests (requires Check)" ${PROJECT_IS_TOP_LEVEL})
+# RSAES-PKCS1-v1_5 key encryption (alg "RSA1_5") is disabled by default: many
+# implementations are vulnerable to padding-oracle attacks (Bleichenbacher,
+# Marvin) and RFC 8725 recommends against it. Enable only for compatibility
+# with peers that cannot use RSA-OAEP.
+option(CJOSE_ENABLE_RSA1_5 "Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm" OFF)
 
 # Only meaningful with MSVC; lets the library link against the static CRT (/MT).
 cmake_dependent_option(CJOSE_MSVC_STATIC_RUNTIME
@@ -80,6 +85,7 @@ set(CJOSE_SOURCES
     src/jwe.c
     src/jws.c
     src/header.c
+    src/header_compat.c
     src/error.c)
 
 set(CJOSE_INTERNAL_HEADERS
@@ -113,6 +119,9 @@ set_target_properties(cjose_objects PROPERTIES
     C_EXTENSIONS ON)
 
 target_compile_definitions(cjose_objects PRIVATE OPENSSL_API_COMPAT=0x10100000L)
+if(CJOSE_ENABLE_RSA1_5)
+    target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+endif()
 if(CJOSE_HAVE_OPENSSL_FEC_H)
     target_compile_definitions(cjose_objects PRIVATE HAVE_OPENSSL_FEC_H=1)
 endif()
@@ -171,6 +180,7 @@ endif()
 if(CJOSE_BUILD_SHARED)
     add_library(cjose_shared SHARED $<TARGET_OBJECTS:cjose_objects>)
     add_library(cjose::cjose_shared ALIAS cjose_shared)
+    add_library(cjose::cjose ALIAS cjose_shared)
 
     target_include_directories(cjose_shared PUBLIC ${CJOSE_PUBLIC_INCLUDES})
     target_link_libraries(cjose_shared PUBLIC OpenSSL::Crypto Jansson::Jansson ${CJOSE_PLATFORM_LIBRARIES})
@@ -234,6 +244,8 @@ if(CJOSE_BUILD_SHARED)
     endif()
 
     list(APPEND CJOSE_INSTALL_TARGETS cjose_shared)
+elseif(CJOSE_BUILD_STATIC)
+    add_library(cjose::cjose ALIAS cjose_static)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -310,7 +322,7 @@ if(CJOSE_BUILD_TESTS)
     if(NOT _cjose_check_target)
         find_package(PkgConfig QUIET)
         if(PkgConfig_FOUND)
-            pkg_check_modules(CHECK QUIET check>=0.9.4 IMPORTED_TARGET)
+            pkg_check_modules(CHECK QUIET check>=0.12.0 IMPORTED_TARGET)
             if(TARGET PkgConfig::CHECK)
                 set(_cjose_check_target PkgConfig::CHECK)
             endif()
@@ -334,7 +346,7 @@ if(CJOSE_BUILD_TESTS)
     endif()
 
     if(NOT _cjose_check_target)
-        message(WARNING "Check (>= 0.9.4) not found; skipping cjose unit tests.")
+        message(WARNING "Check (>= 0.12.0) not found; skipping cjose unit tests.")
     else()
         set(CJOSE_TEST_SOURCES
             test/check_cjose.c
@@ -367,6 +379,9 @@ if(CJOSE_BUILD_TESTS)
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS ON)
         target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
+        if(CJOSE_ENABLE_RSA1_5)
+            target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+        endif()
         if(MSVC)
             target_compile_options(check_cjose PRIVATE /W3 /WX /wd4267)
             target_compile_definitions(check_cjose PRIVATE

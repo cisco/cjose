@@ -1,0 +1,46 @@
+name: "CodeQL"
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  format:
+    uses: ./.github/workflows/format.yml
+
+  analyze:
+    needs: format
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install packages
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake pkg-config gcc libssl-dev libjansson-dev check
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Build
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        cmake --build build --parallel
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4

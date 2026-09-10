@@ -2,6 +2,39 @@
 ; Windows DLL. Everything not listed here stays internal to the library.
 LIBRARY cjose
 EXPORTS
+    CJOSE_HDR_ALG DATA
+    CJOSE_HDR_ALG_A128KW DATA
+    CJOSE_HDR_ALG_A192KW DATA
+    CJOSE_HDR_ALG_A256KW DATA
+    CJOSE_HDR_ALG_DIR DATA
+    CJOSE_HDR_ALG_ECDH_ES DATA
+    CJOSE_HDR_ALG_ES256 DATA
+    CJOSE_HDR_ALG_ES384 DATA
+    CJOSE_HDR_ALG_ES512 DATA
+    CJOSE_HDR_ALG_HS256 DATA
+    CJOSE_HDR_ALG_HS384 DATA
+    CJOSE_HDR_ALG_HS512 DATA
+    CJOSE_HDR_ALG_NONE DATA
+    CJOSE_HDR_ALG_PS256 DATA
+    CJOSE_HDR_ALG_PS384 DATA
+    CJOSE_HDR_ALG_PS512 DATA
+    CJOSE_HDR_ALG_RS256 DATA
+    CJOSE_HDR_ALG_RS384 DATA
+    CJOSE_HDR_ALG_RS512 DATA
+    CJOSE_HDR_ALG_RSA1_5 DATA
+    CJOSE_HDR_ALG_RSA_OAEP DATA
+    CJOSE_HDR_APU DATA
+    CJOSE_HDR_APV DATA
+    CJOSE_HDR_CTY DATA
+    CJOSE_HDR_ENC DATA
+    CJOSE_HDR_ENC_A128CBC_HS256 DATA
+    CJOSE_HDR_ENC_A128GCM DATA
+    CJOSE_HDR_ENC_A192CBC_HS384 DATA
+    CJOSE_HDR_ENC_A192GCM DATA
+    CJOSE_HDR_ENC_A256CBC_HS512 DATA
+    CJOSE_HDR_ENC_A256GCM DATA
+    CJOSE_HDR_EPK DATA
+    CJOSE_HDR_KID DATA
     cjose_base64_decode
     cjose_base64_encode
     cjose_base64url_decode
@@ -24,7 +57,9 @@ EXPORTS
     cjose_jwe_decrypt
     cjose_jwe_decrypt_multi
     cjose_jwe_encrypt
+    cjose_jwe_encrypt_iv
     cjose_jwe_encrypt_multi
+    cjose_jwe_encrypt_multi_iv
     cjose_jwe_export
     cjose_jwe_export_json
     cjose_jwe_get_protected

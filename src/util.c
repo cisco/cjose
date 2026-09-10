@@ -1,9 +1,9 @@
 /*!
-* Copyrights
-*
-* Portions created or assigned to Cisco Systems, Inc. are
-* Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
-*/
+ * Copyrights
+ *
+ * Portions created or assigned to Cisco Systems, Inc. are
+ * Copyright (c) 2014-2016 Cisco Systems, Inc.  All Rights Reserved.
+ */
 
 #include "include/util_int.h"
 
@@ -105,10 +105,7 @@ void _cjose_cleanse_dealloc(void *ptr, size_t len)
     }
 }
 
-int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size)
-{
-    return CRYPTO_memcmp(a, b, size);
-}
+int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size) { return CRYPTO_memcmp(a, b, size); }
 
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err)
 {
@@ -147,6 +144,7 @@ json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err)
     result = json_string(s);
     if (!result)
     {
+        cjose_get_dealloc()(s);
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         return NULL;
     }

@@ -99,6 +99,8 @@ static const cjose_jwk_t *cjose_multi_key_locator(cjose_jwe_t *jwe, cjose_header
     return NULL;
 }
 
+static const cjose_jwk_t *cjose_multi_key_locator_none(cjose_jwe_t *jwe, cjose_header_t *hdr, void *data) { return NULL; }
+
 START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 {
     cjose_err err;
@@ -138,7 +140,8 @@ START_TEST(test_cjose_jwe_node_jose_encrypt_self_decrypt)
 }
 END_TEST
 
-static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const uint8_t *plain1, size_t plain1_len)
+static void
+_self_encrypt_self_decrypt_with_key(const char *alg, const char *enc, const char *key, const uint8_t *plain1, size_t plain1_len)
 {
     cjose_err err;
 
@@ -205,9 +208,19 @@ static void _self_encrypt_self_decrypt_with_key(const char *alg, const char *enc
 
 static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 {
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A128GCM, JWK_RSA, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A192GCM, JWK_RSA, plain1, plain1_len);
+
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
+#endif
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain1, plain1_len);
 
@@ -223,7 +236,15 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, plain1, plain1_len);
 
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, plain1, plain1_len);
+
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A128GCM, JWK_EC, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A192GCM, JWK_EC, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, plain1, plain1_len);
 }
@@ -243,6 +264,161 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt)
                                    "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
                                    "eum fugiat quo voluptas nulla pariatur?";
     _self_encrypt_self_decrypt(plain, sizeof(plain) - 1);
+}
+END_TEST
+
+static void _self_encrypt_self_decrypt_with_key_iv(
+    const char *alg, const char *enc, const char *key, size_t iv_len, const uint8_t *plain1, size_t plain1_len)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_import failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // set header for JWE
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    ck_assert_msg(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err),
+                  "cjose_header_set failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // generate a random IV
+    uint8_t *iv = (uint8_t *)malloc(iv_len);
+    ck_assert(NULL != iv);
+    ck_assert_msg(RAND_bytes(iv, iv_len) == 1, "RAND_bytes failed");
+
+    // create the JWE with the supplied IV
+    cjose_jwe_t *jwe1 = cjose_jwe_encrypt_iv(jwk, hdr, iv, iv_len, plain1, plain1_len, &err);
+    ck_assert_msg(NULL != jwe1, "cjose_jwe_encrypt_iv failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
+                  err.function, err.line);
+
+    // the IV must have been used as-is
+    ck_assert_msg(jwe1->enc_iv.raw_len == iv_len && memcmp(jwe1->enc_iv.raw, iv, iv_len) == 0,
+                  "cjose_jwe_encrypt_iv did not use the supplied IV for algo %s, method %s", alg, enc);
+
+    // get the compact serialization of JWE
+    char *compact = cjose_jwe_export(jwe1, &err);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s, file: %s, function: %s, line: %ld", err.message, err.file,
+                  err.function, err.line);
+
+    // deserialize the compact representation to a new JWE
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe2,
+                  "cjose_jwe_import failed for algo %s, method %s: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  alg, enc, err.message, err.file, err.function, err.line);
+
+    // get the decrypted plaintext
+    uint8_t *plain2 = NULL;
+    size_t plain2_len = 0;
+    plain2 = cjose_jwe_decrypt(jwe2, jwk, &plain2_len, &err);
+    ck_assert_msg(NULL != plain2,
+                  "cjose_jwe_decrypt failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+
+    // confirm plain2 == plain1
+    ck_assert(json_equal((json_t *)cjose_jwe_get_protected(jwe1), (json_t *)cjose_jwe_get_protected(jwe2)));
+    ck_assert_msg(plain2_len == plain1_len,
+                  "length of decrypted plaintext does not match length of original, "
+                  "expected: %lu, found: %lu",
+                  (unsigned long)plain1_len, (unsigned long)plain2_len);
+    ck_assert_msg(memcmp(plain1, plain2, plain2_len) == 0, "decrypted plaintext does not match encrypted plaintext");
+
+    cjose_get_dealloc()(plain2);
+    cjose_header_release(hdr);
+    free(iv);
+    cjose_jwe_release(jwe1);
+    cjose_jwe_release(jwe2);
+    cjose_jwk_release(jwk);
+    cjose_get_dealloc()(compact);
+}
+
+static void _self_encrypt_self_decrypt_iv(const uint8_t *plain1, size_t plain1_len)
+{
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_48, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_64, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32, 16, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16, 12, plain1, plain1_len);
+
+    _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, JWK_EC, 12, plain1, plain1_len);
+}
+
+START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_iv)
+{
+    static const uint8_t plain[] = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem "
+                                   "doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo "
+                                   "veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo "
+                                   "ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed "
+                                   "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. "
+                                   "porro quisquam est, qui dolorem ipsum quia dolor sit amet, "
+                                   "adipisci velit, sed quia non numquam eius modi tempora incidunt ut "
+                                   "dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, "
+                                   "nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut "
+                                   "ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in "
+                                   "voluptate velit esse quam nihil molestiae consequatur, vel illum qui "
+                                   "eum fugiat quo voluptas nulla pariatur?";
+    _self_encrypt_self_decrypt_iv(plain, sizeof(plain) - 1);
+}
+END_TEST
+
+static void _encrypt_with_bad_iv_length(const char *alg, const char *enc, const char *key, size_t iv_len)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
+
+    uint8_t iv[64];
+    ck_assert(iv_len <= sizeof(iv));
+    memset(iv, 0xA5, sizeof(iv));
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_iv(jwk, hdr, iv, iv_len, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL == jwe, "cjose_jwe_encrypt_iv succeeded with a %lu-byte IV for enc %s", (unsigned long)iv_len, enc);
+    ck_assert_msg(CJOSE_ERR_INVALID_ARG == err.code, "expected CJOSE_ERR_INVALID_ARG, got %d for enc %s", err.code, enc);
+
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+
+// a caller-supplied IV of the wrong length for the content encryption
+// algorithm must be rejected up front
+START_TEST(test_cjose_jwe_encrypt_iv_bad_length)
+{
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 8);
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, 16);
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 16);
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 8);
+    _encrypt_with_bad_iv_length(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_32, 12);
 }
 END_TEST
 
@@ -962,6 +1138,8 @@ START_TEST(test_cjose_jwe_decrypt_aes_kw_oversized_ek)
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_16);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_24);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_32);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16);
+    _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A192KW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A128KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_16);
     _decrypt_oversized_aes_kw_ek(CJOSE_HDR_ALG_A256KW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32);
 }
@@ -1024,6 +1202,7 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "AlWAyLWybqq6t16VFd7hQd0y6flUK4SlOydB61gwanOsXGOAOv82cHq0E3"
           "eL4HrtZkUuKvnPrMnsUUFlfUdybVzxyjz9JF_XyaY14ardLSjf4L_FNY\" }" },
 
+#ifdef HAVE_RSA_PKCS1_PADDING
         // https://tools.ietf.org/html/rfc7516#appendix-A.2
         // JWE using RSAES-PKCS1-v1_5 and AES_128_CBC_HMAC_SHA_256
         { "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0."
@@ -1069,6 +1248,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
           "tUkTRclIfuEPmNsNDPbLoLqqCVznFbvdB7x-Tl-m0l_eFTj2KiqwGqE9PZ"
           "B9nNTwMVvH3VRRSLWACvPnSiwP8N5Usy-WRXS-V7TbpxIhvepTfE0NNo\" }" },
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
         { NULL, NULL, NULL }
     };
 
@@ -1113,6 +1294,8 @@ START_TEST(test_cjose_jwe_decrypt_rsa)
 }
 END_TEST
 
+#ifdef HAVE_RSA_PKCS1_PADDING
+
 static void _cjose_test_json_serial(const char *json, const char *match_json, cjose_jwe_recipient_t *rec)
 {
 
@@ -1146,6 +1329,8 @@ static void _cjose_test_json_serial(const char *json, const char *match_json, cj
 
     cjose_jwe_release(jwe);
 }
+
+#endif // HAVE_RSA_PKCS1_PADDING
 
 static void _cjose_test_empty_headers(const cjose_jwk_t *key)
 {
@@ -1240,6 +1425,7 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                     "\"qi\":\"Boxvcq8bIswXo8BPCcZurLjacS0TlUzbs2mLJD3noJKd361fgGoO2XdG94bqkbGg-5wbGDZL2YqGKlA2Y"
                     "j8yU8ZiULaLsm3HadNVxkLTy90j59urbf0MSnMkljACZUfH2yfxVbzgZd0DWS7eDtMBP4VrQ_tQmR_djRaLOMh5yxg\"}" };
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     char *multi_json
         = "{\"protected\": \"eyJlbmMiOiAiQTI1NkdDTSJ9\", \"iv\": \"cGHj6gmN4kC0cLTh\", \"ciphertext\": "
           "\"ffgBXOZoYfCxPrbXXe4qOK0bll4F74wo3qGObUqllCdM6Vp4SyOagnFDUFMAwSA_-vVCYW37dJIBOExDQgGK0Q48cVKfiTQ5R6iKIFs6Fkc6FfXfTNKa_"
@@ -1273,7 +1459,14 @@ START_TEST(test_cjose_jwe_multiple_recipients)
           "b5u4aNWqNv4FMMTgQ5XcfCVHOnYjhD3HkeqsWe4VnL3GFKBU96Lwtff-qzC55DLxtUKDrP5ZRdFKnxJX1t_X7DzgYQYxr19fx6Y-aXmflBAqIdN5-"
           "OyENlWxQ\"}";
 
+#endif // HAVE_RSA_PKCS1_PADDING
+
+#ifdef HAVE_RSA_PKCS1_PADDING
     const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA1_5 };
+#else
+    // RSA1_5 is compiled out: exercise the multi-recipient path with RSA-OAEP for both recipients
+    const char *algs[2] = { CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ALG_RSA_OAEP };
+#endif
 
     cjose_err err;
 
@@ -1328,7 +1521,13 @@ START_TEST(test_cjose_jwe_multiple_recipients)
                   err.message, err.file, err.function, err.line);
 
     size_t decoded_len;
-    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
+
+    CJOSE_ERROR(&err, CJOSE_ERR_NONE);
+    uint8_t *decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator_none, rec, &decoded_len, &err);
+    ck_assert_msg(NULL == decoded, "did not expect to decode with selected key");
+    ck_assert_msg(err.code == CJOSE_ERR_CRYPTO, "expected error to be set to CRYPTO");
+
+    decoded = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, rec, &decoded_len, &err);
     ck_assert_msg(NULL != decoded,
                   "failed to decrypt for multiple recipients: "
                   "%s, file: %s, function: %s, line: %ld",
@@ -1343,9 +1542,11 @@ START_TEST(test_cjose_jwe_multiple_recipients)
     cjose_jwe_release(jwe);
     cjose_get_dealloc()(decoded);
 
+#ifdef HAVE_RSA_PKCS1_PADDING
     _cjose_test_json_serial(multi_json, multi_json, rec);
     _cjose_test_json_serial(single_json, single_flat_json, rec);
     _cjose_test_json_serial(single_flat_json, single_flat_json, rec);
+#endif
     _cjose_test_empty_headers(rec[0].jwk);
 
     for (int i = 0; i < 2; i++)
@@ -1415,6 +1616,236 @@ START_TEST(test_cjose_jwe_encrypt_cbc_cek_random)
 }
 END_TEST
 
+// regression: an RSA-OAEP / RSA1_5 encrypted_key that unwraps to a CEK of the
+// wrong length for the enc algorithm must be rejected. The recovered length
+// used to be accepted as-is, so an encrypted_key wrapping the real CEK plus
+// trailing garbage still decrypted because the content cipher only read the
+// key-size prefix (RFC 7518 sections 4.2 and 4.3 require an exact match).
+START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    const char *plain = "Setec Astronomy";
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)plain, strlen(plain), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed: %s", err.message);
+
+    char *first_dot = strchr(compact, '.');
+    ck_assert(NULL != first_dot);
+    char *second_dot = strchr(first_dot + 1, '.');
+    ck_assert(NULL != second_dot);
+
+    // recover the real 32-byte A256GCM CEK by unwrapping the encrypted_key
+    // segment with the private key
+    RSA *rsa = (RSA *)jwk->keydata;
+    int ek_len = RSA_size(rsa);
+    uint8_t *orig_ek = NULL;
+    size_t orig_ek_len = 0;
+    ck_assert(cjose_base64url_decode(first_dot + 1, second_dot - first_dot - 1, &orig_ek, &orig_ek_len, &err));
+    ck_assert_int_eq(ek_len, orig_ek_len);
+    uint8_t cek[256];
+    ck_assert_int_eq(32, RSA_private_decrypt(orig_ek_len, orig_ek, cek, rsa, RSA_PKCS1_OAEP_PADDING));
+
+    // RSA-OAEP-encrypt that CEK followed by 8 trailing bytes (40 bytes in
+    // total) with the same public key
+    uint8_t bad_cek[40];
+    memcpy(bad_cek, cek, 32);
+    memset(bad_cek + 32, 0x42, sizeof(bad_cek) - 32);
+    uint8_t *ek = (uint8_t *)malloc(ek_len);
+    ck_assert(NULL != ek);
+    ck_assert(RSA_public_encrypt(sizeof(bad_cek), bad_cek, ek, rsa, RSA_PKCS1_OAEP_PADDING) == ek_len);
+
+    char *ek_b64u = NULL;
+    size_t ek_b64u_len = 0;
+    ck_assert(cjose_base64url_encode(ek, ek_len, &ek_b64u, &ek_b64u_len, &err));
+
+    // splice the wrong-length encrypted CEK into the compact serialization
+
+    size_t header_len = first_dot - compact;
+    size_t tail_len = strlen(second_dot);
+    size_t tampered_len = header_len + 1 + ek_b64u_len + tail_len;
+    char *tampered = (char *)malloc(tampered_len + 1);
+    ck_assert(NULL != tampered);
+    memcpy(tampered, compact, header_len);
+    tampered[header_len] = '.';
+    memcpy(tampered + header_len + 1, ek_b64u, ek_b64u_len);
+    memcpy(tampered + header_len + 1 + ek_b64u_len, second_dot, tail_len);
+    tampered[tampered_len] = '\0';
+
+    // import must succeed; decryption must fail on the CEK length mismatch
+    cjose_jwe_t *jwe_bad = cjose_jwe_import(tampered, tampered_len, &err);
+    ck_assert_msg(NULL != jwe_bad, "cjose_jwe_import failed: %s", err.message);
+
+    size_t plain_len = 0;
+    uint8_t *decrypted = cjose_jwe_decrypt(jwe_bad, jwk, &plain_len, &err);
+    ck_assert_msg(NULL == decrypted, "cjose_jwe_decrypt accepted a 40-byte CEK for A256GCM");
+    ck_assert_msg(CJOSE_ERR_CRYPTO == err.code, "expected CJOSE_ERR_CRYPTO, got %d", err.code);
+
+    free(tampered);
+    free(ek);
+    cjose_get_dealloc()(orig_ek);
+    cjose_get_dealloc()(ek_b64u);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe_bad);
+    cjose_jwe_release(jwe);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+// regression: ECDH-ES key agreement must not dereference a NULL cjose_err.
+// cjose_concatkdf_create_otherinfo() used to memset(err, ...) unconditionally,
+// crashing when the public JWE API was invoked with a NULL err argument.
+START_TEST(test_cjose_jwe_ecdh_es_null_err)
+{
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_EC, strlen(JWK_EC), NULL);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed for EC key");
+
+    cjose_header_t *hdr = cjose_header_new(NULL);
+    ck_assert_msg(NULL != hdr, "cjose_header_new failed");
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, NULL));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
+
+    // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (ECDH-ES) failed with NULL err");
+
+    char *compact = cjose_jwe_export(jwe, NULL);
+    ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
+
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
+
+    // decrypt with a NULL err: again exercises the ConcatKDF path
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (ECDH-ES) failed with NULL err");
+    ck_assert(plain_len == strlen(PLAINTEXT));
+    ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
+
+    cjose_get_dealloc()(plain);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe);
+    cjose_jwe_release(jwe2);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+// regression: cjose_jwe_import_json() must parse the shared "unprotected"
+// header that cjose_jwe_export_json() writes (RFC 7516 section 7.2.1); an
+// "alg" that lives there was dropped on import, so the JWE could no longer
+// be decrypted and a re-export lost the header
+START_TEST(test_cjose_jwe_import_json_shared_unprotected)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(NULL != protected_header);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    // "alg" goes into the per-recipient unprotected header, not the protected one
+    cjose_header_t *unprotected_header = cjose_header_new(&err);
+    ck_assert(NULL != unprotected_header);
+    ck_assert(cjose_header_set(unprotected_header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP, &err));
+
+    cjose_jwe_recipient_t rec = { .jwk = jwk, .unprotected_header = unprotected_header };
+    cjose_jwe_t *jwe
+        = cjose_jwe_encrypt_multi(&rec, 1, protected_header, NULL, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+
+    // the single-recipient JSON serialization is flattened, so the recipient
+    // header is emitted as a top-level "header" member; rename it to
+    // "unprotected" so that "alg" is only available from the shared
+    // unprotected header
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != json, "cjose_jwe_export_json failed: %s", err.message);
+    static const char *from = "\"header\"";
+    static const char *to = "\"unprotected\"";
+    char *at = strstr(json, from);
+    ck_assert_msg(NULL != at, "exported JSON lacks a \"header\" member: %s", json);
+    ck_assert_msg(NULL == strstr(at + strlen(from), from), "exported JSON has more than one \"header\" member: %s", json);
+    size_t shared_len = strlen(json) - strlen(from) + strlen(to);
+    char *shared_json = (char *)cjose_get_alloc()(shared_len + 1);
+    ck_assert(NULL != shared_json);
+    memcpy(shared_json, json, at - json);
+    memcpy(shared_json + (at - json), to, strlen(to));
+    strcpy(shared_json + (at - json) + strlen(to), at + strlen(from));
+
+    cjose_jwe_t *jwe2 = cjose_jwe_import_json(shared_json, shared_len, &err);
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import_json failed: %s", err.message);
+
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed with alg in the shared unprotected header: %s", err.message);
+    ck_assert(plain_len == strlen(PLAINTEXT));
+    ck_assert(memcmp(PLAINTEXT, plain, plain_len) == 0);
+
+    // the shared header must survive a re-export as well
+    char *json2 = cjose_jwe_export_json(jwe2, &err);
+    ck_assert_msg(NULL != json2, "cjose_jwe_export_json failed: %s", err.message);
+    ck_assert_msg(NULL != strstr(json2, to), "re-exported JSON lost the shared unprotected header: %s", json2);
+
+    cjose_get_dealloc()(json2);
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe2);
+    cjose_get_dealloc()(shared_json);
+    cjose_get_dealloc()(json);
+    cjose_jwe_release(jwe);
+    cjose_header_release(unprotected_header);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+#ifndef HAVE_RSA_PKCS1_PADDING
+// with RSA1_5 compiled out, the algorithm must be refused both when encrypting
+// and when a JWE carrying it is imported/decrypted
+START_TEST(test_cjose_jwe_rsa1_5_disabled)
+{
+    cjose_err err;
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA1_5, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), &err);
+    ck_assert_msg(NULL == jwe, "cjose_jwe_encrypt succeeded with RSA1_5 although it is disabled");
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // header {"alg":"RSA1_5","enc":"A128CBC-HS256"} (RFC 7516 appendix A.2) with dummy segments
+    static const char *cser = "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.AAAA.AAAA.AAAA.AAAA";
+    jwe = cjose_jwe_import(cser, strlen(cser), &err);
+    if (NULL != jwe)
+    {
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded with RSA1_5 although it is disabled");
+        cjose_jwe_release(jwe);
+    }
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+#endif // HAVE_RSA_PKCS1_PADDING
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1423,6 +1854,8 @@ Suite *cjose_jwe_suite(void)
     tcase_set_timeout(tc_jwe, 120.0);
     tcase_add_test(tc_jwe, test_cjose_jwe_node_jose_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_iv);
+    tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_iv_bad_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_short);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_empty);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_large);
@@ -1440,6 +1873,12 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_encrypt_cbc_cek_random);
+#ifndef HAVE_RSA_PKCS1_PADDING
+    tcase_add_test(tc_jwe, test_cjose_jwe_rsa1_5_disabled);
+#endif
+    tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
+    tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;

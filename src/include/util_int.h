@@ -18,6 +18,9 @@
 typedef SSIZE_T ssize_t;
 #endif
 
+// NOTE: unlike POSIX strndup this copies exactly len bytes (len < 0 means
+// strlen(str)); it does not stop at an embedded NUL, so len must not exceed
+// strlen(str) or the copy over-reads str.
 char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err);
 json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err);
 

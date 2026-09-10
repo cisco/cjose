@@ -29,7 +29,7 @@
 // key-specific function table
 typedef struct _key_fntable_int
 {
-    void (*free)(cjose_jwk_t *);
+    void (*free_func)(cjose_jwk_t *);
     bool (*public_json)(const cjose_jwk_t *, json_t *, cjose_err *err);
     bool (*private_json)(const cjose_jwk_t *, json_t *, cjose_err *err);
 } key_fntable;
@@ -56,11 +56,8 @@ typedef struct _ec_keydata_int
 // (just uses RSA struct)
 void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **n, BIGNUM **e, BIGNUM **d);
 
-bool cjose_jwk_derive_ecdh_bits(const cjose_jwk_t *jwk_self,
-                                const cjose_jwk_t *jwk_peer,
-                                uint8_t **output,
-                                size_t *output_len,
-                                cjose_err *err);
+bool cjose_jwk_derive_ecdh_bits(
+    const cjose_jwk_t *jwk_self, const cjose_jwk_t *jwk_peer, uint8_t **output, size_t *output_len, cjose_err *err);
 
 // HKDF implementation, note it currrently supports only SHA256, no info
 // and okm must be exactly 32 bytes.

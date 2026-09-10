@@ -159,9 +159,10 @@ cjose_dealloc3_fn_t cjose_get_dealloc3(void);
  * \param a [in] The first octet string to compare
  * \param b [in] The second octet string to compare
  * \param size [in] The length to compare
- * \returns an  integer  less  than,  equal  to,  or
- *        greater than zero if the first n bytes of s1 is found, respectively, to
- *        be less than, to match, or be greater than the first n bytes of s2
+ * \returns zero if the first \p size bytes of \p a and \p b are equal, and a
+ *        non-zero value otherwise. Unlike memcmp the result is not ordered:
+ *        it wraps CRYPTO_memcmp, which only distinguishes equal from unequal
+ *        so that the comparison stays constant time.
  */
 int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size);
 

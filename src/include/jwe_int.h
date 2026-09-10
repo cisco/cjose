@@ -48,9 +48,9 @@ typedef struct _jwe_fntable_int
 struct _cjose_jwe_recipient
 {
 
-    json_t *unprotected;                /* unprotected headers */
-    _jwe_part_t enc_key;                /* encrypted key */
-    jwe_rec_fntable fns;                // functions for building JWE parts
+    json_t *unprotected; /* unprotected headers */
+    _jwe_part_t enc_key; /* encrypted key */
+    jwe_rec_fntable fns; // functions for building JWE parts
 };
 
 // JWE object

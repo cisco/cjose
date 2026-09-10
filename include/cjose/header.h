@@ -87,7 +87,9 @@ extern "C" {
 /** The JWE algorithm attribute value for "dir". */
 #define CJOSE_HDR_ALG_DIR "dir"
 
-/** The JWE content encryption algorithm value for A256GCM. */
+/** The JWE content encryption algorithm value for A128GCM, A192GCM and A256GCM. */
+#define CJOSE_HDR_ENC_A128GCM "A128GCM"
+#define CJOSE_HDR_ENC_A192GCM "A192GCM"
 #define CJOSE_HDR_ENC_A256GCM "A256GCM"
 
 /** The JWE content encryption algorithm value for A128CBC-HS256, A192CBC-HS384 and A256CBC-HS512. */
@@ -115,7 +117,7 @@ cjose_header_t *cjose_header_new(cjose_err *err);
  * header will be used past the scope it was created in (e.g., from a
  * `cjose_jws_t` object).
  *
- * \param header[in] the header object to be retained.
+ * \param header [in] the header object to be retained.
  * \returns the retained header object
  */
 cjose_header_t *cjose_header_retain(cjose_header_t *header);
@@ -125,7 +127,7 @@ cjose_header_t *cjose_header_retain(cjose_header_t *header);
  * to dispose of header rather than directly free'ing a cjose_header
  * object.
  *
- * \param header[in] the header object to be released.
+ * \param header [in] the header object to be released.
  */
 void cjose_header_release(cjose_header_t *header);
 
@@ -133,9 +135,9 @@ void cjose_header_release(cjose_header_t *header);
  * Sets a header attribute on a header object.  If that header was
  * previously set, this will replace the previous value with the new one.
  *
- * \param header[in] a previously instantiated header object.
- * \param attr[in] the header attribute to be set.
- * \param value[in] the value to assign to the header attribute.
+ * \param header [in] a previously instantiated header object.
+ * \param attr [in] the header attribute to be set.
+ * \param value [in] the value to assign to the header attribute.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  * \returns true if header is successfully set.
@@ -146,8 +148,8 @@ bool cjose_header_set(cjose_header_t *header, const char *attr, const char *valu
  * Retrieves the value of the requested header attribute from the header
  * object.
  *
- * \param header[in] a header object.
- * \param attr[in] the header attribute to be got.
+ * \param header [in] a header object.
+ * \param attr [in] the header attribute to be got.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  * \returns a string containing the current value for the requested attribute.
@@ -164,9 +166,9 @@ const char *cjose_header_get(cjose_header_t *header, const char *attr, cjose_err
  * The input value must be a JSON serialized string. This function does not
  * retain pointers to specified attribute or value.
  *
- * \param header[in] a previously instantiated header object.
- * \param attr[in] the header attribute to be set.
- * \param value[in] the JSON value to assign to the header attribute. The value must
+ * \param header [in] a previously instantiated header object.
+ * \param attr [in] the header attribute to be set.
+ * \param value [in] the JSON value to assign to the header attribute. The value must
  * be a valid JSON, and will be assigned as is.
  */
 bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *value, cjose_err *err);
@@ -174,8 +176,8 @@ bool cjose_header_set_raw(cjose_header_t *header, const char *attr, const char *
 /**
  * Retrieves the raw value of the requested header attribute from the header
  * object.
- * \param header[in] a header object.
- * \param attr[in] the header attribute to be got.
+ * \param header [in] a header object.
+ * \param attr [in] the header attribute to be got.
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.
  * \returns a string containing the current JSON value for the requested attribute.
