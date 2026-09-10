@@ -747,11 +747,8 @@ static bool _EC_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *e
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _ec_to_string_cleanup;
     }
-#if defined(CJOSE_OPENSSL_11X)
-    if (1 != EC_POINT_get_affine_coordinates(params, pub, bnX, bnY, NULL))
-#else
+
     if (1 != EC_POINT_get_affine_coordinates_GFp(params, pub, bnX, bnY, NULL))
-#endif
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _ec_to_string_cleanup;
@@ -1006,11 +1003,7 @@ cjose_jwk_t *cjose_jwk_create_EC_spec(const cjose_jwk_ec_keyspec *spec, cjose_er
             goto create_EC_failed;
         }
 
-#if defined(CJOSE_OPENSSL_11X)
-        if (1 != EC_POINT_set_affine_coordinates(params, Q, bnX, bnY, NULL))
-#else
         if (1 != EC_POINT_set_affine_coordinates_GFp(params, Q, bnX, bnY, NULL))
-#endif
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             goto create_EC_failed;
