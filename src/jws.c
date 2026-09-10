@@ -905,7 +905,7 @@ static bool _cjose_jws_verify_sig_ps(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 {
     bool retval = false;
     uint8_t *em = NULL;
-    size_t em_len = 0;
+    int em_len = 0;
 
     // ensure jwk is RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA)
@@ -940,15 +940,20 @@ static bool _cjose_jws_verify_sig_ps(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
     // allocate buffer for encoded message
     em_len = RSA_size((RSA *)jwk->keydata);
-    em = (uint8_t *)cjose_get_alloc()(em_len);
+    if (em_len <= 0 || jws->sig_len != (size_t)em_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto _cjose_jws_verify_sig_ps_cleanup;
+    }
+    em = (uint8_t *)cjose_get_alloc()((size_t)em_len);
     if (NULL == em)
     {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jws_verify_sig_ps_cleanup;
     }
 
     // decrypt signature
-    if (RSA_public_decrypt(jws->sig_len, jws->sig, em, (RSA *)jwk->keydata, RSA_NO_PADDING) != em_len)
+    if (RSA_public_decrypt(em_len, jws->sig, em, (RSA *)jwk->keydata, RSA_NO_PADDING) != em_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jws_verify_sig_ps_cleanup;
