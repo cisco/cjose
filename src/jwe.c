@@ -1305,6 +1305,14 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     return true;
 }
 
+#if defined(CJOSE_OPENSSL_11X)
+#define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_AEAD_GET_TAG
+#define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_AEAD_SET_TAG
+#else
+#define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_GCM_GET_TAG
+#define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_GCM_SET_TAG
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
@@ -1346,6 +1354,7 @@ static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plai
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
     }
+    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for encryption using the AES GCM cipher and CEK and IV
     if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
@@ -1403,7 +1412,7 @@ static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plai
     }
 
     // get the GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_GET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
@@ -1549,6 +1558,7 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
+    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
     if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
@@ -1654,6 +1664,7 @@ static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
+    EVP_CIPHER_CTX_init(ctx);
 
     if (jwe->enc_iv.raw_len != 12)
     {
@@ -1675,7 +1686,7 @@ static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // set the expected GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
@@ -1787,6 +1798,7 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
     }
+    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
     if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
