@@ -297,7 +297,7 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
     }
 
-// instantiate and initialize a new mac digest context
+    // instantiate and initialize a new mac digest context
 #if defined(CJOSE_OPENSSL_11X)
     ctx = HMAC_CTX_new();
 #else

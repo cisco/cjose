@@ -131,10 +131,10 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
     }
 
     size_t offset = 0;
-    for (int idx = 1; N >= idx; idx++)
+    for (size_t idx = 1; N >= idx; idx++)
     {
         uint8_t counter[4];
-        _apply_uint32(idx, counter);
+        _apply_uint32((uint32_t)idx, counter);
 
         uint8_t *hash = cjose_get_alloc()(hashlen * sizeof(uint8_t));
         if (NULL == hash)

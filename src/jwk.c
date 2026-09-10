@@ -192,6 +192,7 @@ bool _cjose_jwk_rsa_set_crt(
     rsa->dmq1 = rsa_dmq1;
     rsa->iqmp = rsa_iqmp;
 #endif
+
     return true;
 }
 
@@ -746,6 +747,7 @@ static bool _EC_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *e
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _ec_to_string_cleanup;
     }
+
     if (1 != EC_POINT_get_affine_coordinates_GFp(params, pub, bnX, bnY, NULL))
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
@@ -1913,7 +1915,7 @@ bool cjose_jwk_derive_ecdh_bits(
     // derive the shared secret
     if (1 != (EVP_PKEY_derive(ctx, secret, &secret_len)))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwk_derive_bits_fail;
     }
 
