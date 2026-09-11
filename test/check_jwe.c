@@ -1381,8 +1381,8 @@ static void _cjose_test_empty_headers(const cjose_jwk_t *key)
                   err.message, err.file, err.function, err.line);
     ck_assert_msg((len == 1) && (*test == 0), "Decrypted data does not match original");
 
-    free(test);
-    free(json);
+    cjose_get_dealloc()(test);
+    cjose_get_dealloc()(json);
     cjose_jwe_release(jwe);
 }
 
@@ -1849,6 +1849,63 @@ START_TEST(test_cjose_jwe_rsa1_5_disabled)
 END_TEST
 #endif // HAVE_RSA_PKCS1_PADDING
 
+START_TEST(test_cjose_jwe_direct_rejects_encrypted_key)
+{
+    // RFC 7516 section 5.2 step 12: with Direct Encryption ("dir") and Direct
+    // Key Agreement (ECDH-ES) the JWE Encrypted Key must be the empty octet
+    // sequence, like the other key management algorithms check their sizes
+    static const uint8_t plain[] = "test";
+    static const char *bogus_ek = "AAAAAAAAAAAAAAAAAAAAAA"; // 16 octets
+    const struct
+    {
+        const char *alg;
+        const char *enc;
+        const char *jwk;
+    } cases[]
+        = { { CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16 }, { CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A128GCM, JWK_EC } };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        cjose_err err;
+        cjose_jwk_t *jwk = cjose_jwk_import(cases[i].jwk, strlen(cases[i].jwk), &err);
+        ck_assert(NULL != jwk);
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(NULL != hdr);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, cases[i].alg, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, cases[i].enc, &err));
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt [%s] failed: %s", cases[i].alg, err.message);
+        char *compact = cjose_jwe_export(jwe, &err);
+        ck_assert(NULL != compact);
+
+        // the second part, the encrypted key, is empty: splice one in
+        const char *dot = strchr(compact, '.');
+        ck_assert(NULL != dot && '.' == dot[1]);
+        size_t prefix_len = dot + 1 - compact;
+        size_t tampered_len = strlen(compact) + strlen(bogus_ek);
+        char *tampered = malloc(tampered_len + 1);
+        ck_assert(NULL != tampered);
+        memcpy(tampered, compact, prefix_len);
+        strcpy(tampered + prefix_len, bogus_ek);
+        strcpy(tampered + prefix_len + strlen(bogus_ek), compact + prefix_len);
+
+        cjose_jwe_t *jwe2 = cjose_jwe_import(tampered, tampered_len, &err);
+        ck_assert_msg(NULL != jwe2, "cjose_jwe_import [%s] failed: %s", cases[i].alg, err.message);
+        size_t out_len = 0;
+        uint8_t *out = cjose_jwe_decrypt(jwe2, jwk, &out_len, &err);
+        ck_assert_msg(NULL == out, "cjose_jwe_decrypt [%s] accepted a non-empty encrypted key", cases[i].alg);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+        cjose_jwe_release(jwe2);
+        free(tampered);
+        cjose_get_dealloc()(compact);
+        cjose_jwe_release(jwe);
+        cjose_header_release(hdr);
+        cjose_jwk_release(jwk);
+    }
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -1882,6 +1939,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
+    tcase_add_test(tc_jwe, test_cjose_jwe_direct_rejects_encrypted_key);
     suite_add_tcase(suite, tc_jwe);
 
     return suite;

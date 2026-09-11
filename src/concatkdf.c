@@ -20,7 +20,7 @@
 #include <cjose/util.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
+static uint8_t *_cjose_concatkdf_apply_uint32(const uint32_t value, uint8_t *buffer)
 {
     const uint32_t big_endian_int32 = htonl(value);
 
@@ -28,11 +28,11 @@ static uint8_t *_apply_uint32(const uint32_t value, uint8_t *buffer)
     return buffer + 4;
 }
 
-static uint8_t *_apply_lendata(const uint8_t *data, const size_t len, uint8_t *buffer)
+static uint8_t *_cjose_concatkdf_apply_lendata(const uint8_t *data, const size_t len, uint8_t *buffer)
 {
     uint8_t *ptr = buffer;
 
-    ptr = _apply_uint32(len, ptr);
+    ptr = _cjose_concatkdf_apply_uint32(len, ptr);
     if (0 < len)
     {
         memcpy(ptr, data, len);
@@ -85,11 +85,11 @@ bool cjose_concatkdf_create_otherinfo(
         goto concatkdf_create_otherinfo_finish;
     }
     uint8_t *ptr = buffer;
-    ptr = _apply_lendata((const uint8_t *)alg, algLen, ptr);
-    ptr = _apply_lendata(apu, apuLen, ptr);
-    ptr = _apply_lendata(apv, apvLen, ptr);
+    ptr = _cjose_concatkdf_apply_lendata((const uint8_t *)alg, algLen, ptr);
+    ptr = _cjose_concatkdf_apply_lendata(apu, apuLen, ptr);
+    ptr = _cjose_concatkdf_apply_lendata(apv, apvLen, ptr);
     // final write; the returned (end) pointer is intentionally not stored
-    _apply_uint32(keylen, ptr);
+    _cjose_concatkdf_apply_uint32(keylen, ptr);
 
     *otherinfoLen = bufferLen;
     *otherinfo = buffer;
@@ -134,7 +134,7 @@ uint8_t *cjose_concatkdf_derive(const size_t keylen,
     for (size_t idx = 1; N >= idx; idx++)
     {
         uint8_t counter[4];
-        _apply_uint32((uint32_t)idx, counter);
+        _cjose_concatkdf_apply_uint32((uint32_t)idx, counter);
 
         uint8_t *hash = cjose_get_alloc()(hashlen * sizeof(uint8_t));
         if (NULL == hash)

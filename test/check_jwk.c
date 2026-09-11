@@ -377,9 +377,9 @@ START_TEST(test_cjose_jwk_create_EC_P521_spec)
     ck_assert(NULL != jwk->keydata);
     ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
     ck_assert(CJOSE_JWK_EC_P_521 == cjose_jwk_EC_get_curve(jwk, &err));
-    free(spec.d);
-    free(spec.x);
-    free(spec.y);
+    cjose_get_dealloc()(spec.d);
+    cjose_get_dealloc()(spec.x);
+    cjose_get_dealloc()(spec.y);
 
     // cleanup
     cjose_jwk_release(jwk);
@@ -739,12 +739,12 @@ START_TEST(test_cjose_jwk_to_json_oct)
     json = cjose_jwk_to_json(jwk, false, &err);
     ck_assert(NULL != json);
     ck_assert_str_eq("{\"kty\":\"oct\"}", json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     json = cjose_jwk_to_json(jwk, true, &err);
     ck_assert(NULL != json);
     ck_assert_str_eq("{\"kty\":\"oct\",\"k\":\"pKE-eSbyFqPdtA5WzazKFg\"}", json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     cjose_jwk_release(jwk);
 }
@@ -773,7 +773,7 @@ START_TEST(test_cjose_jwk_to_json_ec)
                      ",\"x\":\"ii8jCnvs4FLc0rteSWxanup22pNDhzizmlGN-bfTcFk\""
                      ",\"y\":\"KbkZ7r_DQ-t67pnxPnFDHObTLBqn44BSjcqn0STUkaM\"}",
                      json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     json = cjose_jwk_to_json(jwk, true, &err);
     ck_assert(NULL != json);
@@ -782,7 +782,7 @@ START_TEST(test_cjose_jwk_to_json_ec)
                      ",\"y\":\"KbkZ7r_DQ-t67pnxPnFDHObTLBqn44BSjcqn0STUkaM\""
                      ",\"d\":\"RSSjcBQW_EBxm1gzYhejCdWtj3Id_GuwldwEgSuKCEM\"}",
                      json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     cjose_jwk_release(jwk);
 }
@@ -825,7 +825,7 @@ START_TEST(test_cjose_jwk_to_json_rsa)
     json = cjose_jwk_to_json(jwk, false, &err);
     ck_assert(NULL != json);
     ck_assert_str_eq(RSA_PUBLIC_JSON, json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     json = cjose_jwk_to_json(jwk, true, &err);
     ck_assert(NULL != json);
@@ -850,7 +850,7 @@ START_TEST(test_cjose_jwk_to_json_rsa)
                      "szu9adi9bgb_-egvc_NAvRkuGE9fUmB2_nAyU-j4VUh1MMSP5qqQhMYvFdAF5y36MpI-pV1SLFQ\""
                      "}",
                      json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     cjose_jwk_release(jwk);
 }
@@ -879,7 +879,7 @@ START_TEST(test_cjose_jwk_to_json_okp)
     ck_assert_str_eq("{\"kty\":\"OKP\",\"crv\":\"Ed25519\""
                      ",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
                      json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     json = cjose_jwk_to_json(jwk, true, &err);
     ck_assert(NULL != json);
@@ -887,7 +887,7 @@ START_TEST(test_cjose_jwk_to_json_okp)
                      ",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\""
                      ",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\"}",
                      json);
-    free(json);
+    cjose_get_dealloc()(json);
 
     cjose_jwk_release(jwk);
 }
@@ -921,7 +921,7 @@ START_TEST(test_cjose_jwk_OKP_import_export)
     ck_assert(NULL != right_json);
     ck_assert_msg(_match_string_attrs(left_json, right_json, attrs), "private export does not match: %s", jwk_str);
     json_decref(right_json);
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
 
     // the public export leaves out d
     jwk_str = cjose_jwk_to_json(jwk, false, &err);
@@ -933,7 +933,7 @@ START_TEST(test_cjose_jwk_OKP_import_export)
     ck_assert_msg(_match_string_attrs(left_json, right_json, attrs), "public export does not match: %s", jwk_str);
     json_decref(right_json);
     json_decref(left_json);
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
     cjose_jwk_release(jwk);
 
     // RFC 8037 appendix A.2 (public key): the private export has no d either
@@ -943,7 +943,7 @@ START_TEST(test_cjose_jwk_OKP_import_export)
     jwk_str = cjose_jwk_to_json(jwk, true, &err);
     ck_assert(NULL != jwk_str);
     ck_assert_str_eq(JWK_PUB, jwk_str);
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
     cjose_jwk_release(jwk);
 
     // RFC 8037 appendix A.6: an X25519 public key
@@ -1191,7 +1191,7 @@ START_TEST(test_cjose_jwk_import_json_valid)
             ck_assert_str_eq(JWK[i], jwk_str);
         }
 
-        free(jwk_str);
+        cjose_get_dealloc()(jwk_str);
         json_decref(left_json);
         json_decref(right_json);
         cjose_jwk_release(jwk);
@@ -1475,7 +1475,7 @@ START_TEST(test_cjose_jwk_import_valid)
             ck_assert_str_eq(JWK[i], jwk_str);
         }
 
-        free(jwk_str);
+        cjose_get_dealloc()(jwk_str);
         json_decref(left_json);
         json_decref(right_json);
         cjose_jwk_release(jwk);
@@ -1610,6 +1610,14 @@ START_TEST(test_cjose_jwk_import_invalid)
         ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
         cjose_jwk_release(jwk);
     }
+
+    // no input at all is reported like any other invalid input
+    err.code = CJOSE_ERR_NONE;
+    ck_assert(NULL == cjose_jwk_import(NULL, 0, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    err.code = CJOSE_ERR_NONE;
+    ck_assert(NULL == cjose_jwk_import("{}", 0, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
 }
 END_TEST
 
@@ -1669,7 +1677,7 @@ START_TEST(test_cjose_jwk_import_no_zero_termination)
         ck_assert_str_eq(JWK, jwk_str);
     }
 
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
     json_decref(left_json);
     json_decref(right_json);
     cjose_jwk_release(jwk);
@@ -1711,7 +1719,7 @@ START_TEST(test_cjose_jwk_import_with_base64url_padding)
         ck_assert_str_eq(JWK_OUT, jwk_str);
     }
 
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
     json_decref(left_json);
     json_decref(right_json);
     cjose_jwk_release(jwk);
@@ -1753,7 +1761,7 @@ START_TEST(test_cjose_jwk_EC_import_with_priv_export_with_pub)
         ck_assert_str_eq(JWK_OUT, jwk_str);
     }
 
-    free(jwk_str);
+    cjose_get_dealloc()(jwk_str);
     json_decref(left_json);
     json_decref(right_json);
     cjose_jwk_release(jwk);
@@ -1876,7 +1884,7 @@ START_TEST(test_cjose_jwk_get_and_set_kid)
 
         // freedom!
         cjose_jwk_release(jwk);
-        free(json);
+        cjose_get_dealloc()(json);
     }
 }
 END_TEST

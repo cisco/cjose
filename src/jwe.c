@@ -177,7 +177,7 @@ static bool _cjose_convert_to_base64(struct _cjose_jwe_int *jwe, cjose_err *err)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static size_t _keylen_from_enc(const char *alg)
+static size_t _cjose_jwe_keylen_from_enc(const char *alg)
 {
     size_t keylen = 0;
 
@@ -210,7 +210,7 @@ static size_t _keylen_from_enc(const char *alg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static size_t _ivlen_from_enc(const char *enc)
+static size_t _cjose_jwe_ivlen_from_enc(const char *enc)
 {
     size_t ivlen = 0;
 
@@ -610,6 +610,15 @@ static bool _cjose_jwe_decrypt_ek_dir(_jwe_int_recipient_t *recipient, cjose_jwe
 {
     // do not try and decrypt the ek. that's impossible.
     // instead... only try to realize the truth.  there is no ek.
+    // RFC 7516 section 5.2 step 12: with Direct Encryption the JWE Encrypted
+    // Key must be empty (an empty string may have been allocated for it upon
+    // import, so check the length rather than the pointer)
+    if (0 != recipient->enc_key.raw_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     return jwe->fns.set_cek(jwe, jwk, false, err);
 }
 
@@ -904,7 +913,7 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     //   * keylen (determined from {enc})
     cjose_header_t *hdr = jwe->hdr;
     const char *algId = cjose_header_get(hdr, CJOSE_HDR_ENC, err);
-    const size_t keylen = _keylen_from_enc(algId) / 8;
+    const size_t keylen = _cjose_jwe_keylen_from_enc(algId) / 8;
 
     if (!cjose_concatkdf_create_otherinfo(algId, keylen * 8, hdr, &otherinfo, &otherinfo_len, err))
     {
@@ -950,6 +959,15 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
+
+    // RFC 7516 section 5.2 step 12: with Direct Key Agreement the JWE
+    // Encrypted Key must be empty (an empty string may have been allocated
+    // for it upon import, so check the length rather than the pointer)
+    if (0 != recipient->enc_key.raw_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
 
     // err is optional in the public API, but the logic below inspects
     // err->code to distinguish an absent EPK header from a real failure;
@@ -997,7 +1015,7 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     //   * keylen (determined from {enc})
     cjose_header_t *hdr = jwe->hdr;
     const char *algId = cjose_header_get(hdr, CJOSE_HDR_ENC, err);
-    const size_t keylen = _keylen_from_enc(algId) / 8;
+    const size_t keylen = _cjose_jwe_keylen_from_enc(algId) / 8;
 
     if (!cjose_concatkdf_create_otherinfo(algId, keylen * 8, hdr, &otherinfo, &otherinfo_len, err))
     {
@@ -2009,7 +2027,7 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
         // algorithm requires; a short buffer would otherwise be over-read by
         // EVP_EncryptInit_ex, which reads a fixed number of IV bytes
         const char *enc = cjose_header_get(protected_header, CJOSE_HDR_ENC, err);
-        if (NULL == enc || iv_len != _ivlen_from_enc(enc))
+        if (NULL == enc || iv_len != _cjose_jwe_ivlen_from_enc(enc))
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             cjose_jwe_release(jwe);
