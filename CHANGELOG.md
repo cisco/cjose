@@ -5,13 +5,14 @@
 
 ### Update
 
-* Add the RSA-OAEP-256 key encryption algorithm of RFC 7518 section 4.3 (RSAES OAEP using SHA-256 and MGF1 with SHA-256); needs OpenSSL 1.0.2
-* Add the Octet Key Pair (OKP) JWK type of RFC 8037 holding an Ed25519 or Ed448 signature key (RFC 8032) or an X25519 or X448 key agreement key (RFC 7748): cjose_jwk_create_OKP_random, cjose_jwk_create_OKP_spec, cjose_jwk_OKP_get_curve and import/export; needs OpenSSL 1.1.1
-* Add the fully-specified EdDSA JWS signing algorithms Ed25519 and Ed448 of RFC 9864 over OKP keys; the polymorphic "EdDSA" identifier of RFC 8037, which RFC 9864 deprecates, is not supported
+* Add the RSA-OAEP-256 key encryption algorithm of RFC 7518 section 4.3 (RSAES OAEP using SHA-256 and MGF1 with SHA-256); needs OpenSSL 1.0.2 ([ce4a3cdab77fbf3979022f587808c5d9385fd5e2](https://github.com/cisco/cjose/commit/ce4a3cdab77fbf3979022f587808c5d9385fd5e2))
+* Add the Octet Key Pair (OKP) JWK type of RFC 8037 holding an Ed25519 or Ed448 signature key (RFC 8032) or an X25519 or X448 key agreement key (RFC 7748): cjose_jwk_create_OKP_random, cjose_jwk_create_OKP_spec, cjose_jwk_OKP_get_curve and import/export; needs OpenSSL 1.1.1 ([f2e1d47332de409490a6dcaf888f3432d97ee856](https://github.com/cisco/cjose/commit/f2e1d47332de409490a6dcaf888f3432d97ee856))
+* Add the fully-specified EdDSA JWS signing algorithms Ed25519 and Ed448 of RFC 9864 over OKP keys; the polymorphic "EdDSA" identifier of RFC 8037, which RFC 9864 deprecates, is not supported ([f2e1d47332de409490a6dcaf888f3432d97ee856](https://github.com/cisco/cjose/commit/f2e1d47332de409490a6dcaf888f3432d97ee856))
+* Add ES256K JWS signing and verification with secp256k1 EC keys ([c4e53e480e95d404dc000a2ce2605dc09f3d812c](https://github.com/cisco/cjose/commit/c4e53e480e95d404dc000a2ce2605dc09f3d812c))
 
 ### Fix
 
-* Check the key type before the HMAC digest step: cjose_jws_sign with an HS256, HS384 or HS512 header and an EC or RSA key ran the HMAC over the key structure and past the end of its allocation before failing with CJOSE_ERR_INVALID_ARG
+* Check the key type before the HMAC digest step: cjose_jws_sign with an HS256, HS384 or HS512 header and an EC or RSA key ran the HMAC over the key structure and past the end of its allocation before failing with CJOSE_ERR_INVALID_ARG ([2c4ba3b395c4a62b880d34c704c5bce9974dc7f0](https://github.com/cisco/cjose/commit/2c4ba3b395c4a62b880d34c704c5bce9974dc7f0))
 
 <a name="0.7.0"></a>
 ## [0.7.0](https://github.com/cisco/cjose/0.6.3..0.7.0)  (2026-09-09)
