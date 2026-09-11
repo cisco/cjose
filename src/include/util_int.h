@@ -18,6 +18,12 @@
 #define CJOSE_OPENSSL_11X
 #endif
 
+// the raw key API (EVP_PKEY_new_raw_private_key & co.) and PureEdDSA arrived
+// in OpenSSL 1.1.1; the OKP key type and the EdDSA algorithms depend on them
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)
+#define CJOSE_OPENSSL_111X
+#endif
+
 #ifdef _WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;

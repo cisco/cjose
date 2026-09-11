@@ -70,8 +70,11 @@
         cjose_jwe_import_json;
         cjose_jwe_release;
         cjose_jwk_EC_get_curve;
+        cjose_jwk_OKP_get_curve;
         cjose_jwk_create_EC_random;
         cjose_jwk_create_EC_spec;
+        cjose_jwk_create_OKP_random;
+        cjose_jwk_create_OKP_spec;
         cjose_jwk_create_RSA_random;
         cjose_jwk_create_RSA_spec;
         cjose_jwk_create_oct_random;

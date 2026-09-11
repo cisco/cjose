@@ -17,6 +17,8 @@
 #include <stdio.h>
 
 #include <openssl/bn.h>
+#include <openssl/crypto.h>
+#include <openssl/err.h>
 #include <openssl/obj_mac.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
@@ -35,6 +37,7 @@ static const char CJOSE_JWK_KID_STR[] = "kid";
 static const char CJOSE_JWK_KTY_EC_STR[] = "EC";
 static const char CJOSE_JWK_KTY_RSA_STR[] = "RSA";
 static const char CJOSE_JWK_KTY_OCT_STR[] = "oct";
+static const char CJOSE_JWK_KTY_OKP_STR[] = "OKP";
 static const char CJOSE_JWK_CRV_STR[] = "crv";
 static const char CJOSE_JWK_X_STR[] = "x";
 static const char CJOSE_JWK_Y_STR[] = "y";
@@ -48,7 +51,7 @@ static const char CJOSE_JWK_DQ_STR[] = "dq";
 static const char CJOSE_JWK_QI_STR[] = "qi";
 static const char CJOSE_JWK_K_STR[] = "k";
 
-static const char *JWK_KTY_NAMES[] = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR };
+static const char *JWK_KTY_NAMES[] = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR, CJOSE_JWK_KTY_OKP_STR };
 
 void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d)
 {
@@ -201,10 +204,10 @@ bool _cjose_jwk_rsa_set_crt(
 
 const char *cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
 {
-    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_OCT]; a value
+    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_OKP]; a value
     // below RSA (e.g. a negative sentinel, if the enum is signed) would index
     // JWK_KTY_NAMES out of bounds
-    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_OCT < kty)
+    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_OKP < kty)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
@@ -664,6 +667,10 @@ static inline bool _kty_from_name(const char *name, cjose_jwk_kty_t *kty, cjose_
     {
         *kty = CJOSE_JWK_KTY_OCT;
     }
+    else if (strncmp(name, CJOSE_JWK_KTY_OKP_STR, sizeof(CJOSE_JWK_KTY_OKP_STR)) == 0)
+    {
+        *kty = CJOSE_JWK_KTY_OKP;
+    }
     else
     {
         retval = false;
@@ -1115,6 +1122,438 @@ cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err
     }
 
     ec_keydata *keydata = jwk->keydata;
+    return keydata->crv;
+}
+
+//////////////// Octet Key Pair ////////////////
+// internal data & functions -- Octet Key Pair (RFC 8037)
+
+#if defined(CJOSE_OPENSSL_111X)
+
+static const char CJOSE_JWK_OKP_ED25519_STR[] = "Ed25519";
+static const char CJOSE_JWK_OKP_ED448_STR[] = "Ed448";
+static const char CJOSE_JWK_OKP_X25519_STR[] = "X25519";
+static const char CJOSE_JWK_OKP_X448_STR[] = "X448";
+
+static void _OKP_free(cjose_jwk_t *jwk);
+static bool _OKP_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _OKP_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+
+static const key_fntable OKP_FNTABLE = { _OKP_free, _OKP_public_fields, _OKP_private_fields };
+
+static inline int _okp_nid_for_curve(cjose_jwk_okp_curve crv)
+{
+    switch (crv)
+    {
+    case CJOSE_JWK_OKP_ED25519:
+        return NID_ED25519;
+    case CJOSE_JWK_OKP_ED448:
+        return NID_ED448;
+    case CJOSE_JWK_OKP_X25519:
+        return NID_X25519;
+    case CJOSE_JWK_OKP_X448:
+        return NID_X448;
+    case CJOSE_JWK_OKP_INVALID:
+        return NID_undef;
+    }
+
+    return NID_undef;
+}
+
+// the fixed size of both the raw public key "x" and the raw private key "d"
+// (RFC 8032 sections 5.1.5 and 5.2.5, RFC 7748 section 5)
+static inline size_t _okp_size_for_curve(cjose_jwk_okp_curve crv)
+{
+    switch (crv)
+    {
+    case CJOSE_JWK_OKP_ED25519:
+        return 32;
+    case CJOSE_JWK_OKP_ED448:
+        return 57;
+    case CJOSE_JWK_OKP_X25519:
+        return 32;
+    case CJOSE_JWK_OKP_X448:
+        return 56;
+    case CJOSE_JWK_OKP_INVALID:
+        return 0;
+    }
+
+    return 0;
+}
+
+static inline const char *_okp_name_for_curve(cjose_jwk_okp_curve crv)
+{
+    switch (crv)
+    {
+    case CJOSE_JWK_OKP_ED25519:
+        return CJOSE_JWK_OKP_ED25519_STR;
+    case CJOSE_JWK_OKP_ED448:
+        return CJOSE_JWK_OKP_ED448_STR;
+    case CJOSE_JWK_OKP_X25519:
+        return CJOSE_JWK_OKP_X25519_STR;
+    case CJOSE_JWK_OKP_X448:
+        return CJOSE_JWK_OKP_X448_STR;
+    case CJOSE_JWK_OKP_INVALID:
+        return NULL;
+    }
+
+    return NULL;
+}
+
+static inline bool _okp_curve_from_name(const char *name, cjose_jwk_okp_curve *crv)
+{
+    bool retval = true;
+    if (strncmp(name, CJOSE_JWK_OKP_ED25519_STR, sizeof(CJOSE_JWK_OKP_ED25519_STR)) == 0)
+    {
+        *crv = CJOSE_JWK_OKP_ED25519;
+    }
+    else if (strncmp(name, CJOSE_JWK_OKP_ED448_STR, sizeof(CJOSE_JWK_OKP_ED448_STR)) == 0)
+    {
+        *crv = CJOSE_JWK_OKP_ED448;
+    }
+    else if (strncmp(name, CJOSE_JWK_OKP_X25519_STR, sizeof(CJOSE_JWK_OKP_X25519_STR)) == 0)
+    {
+        *crv = CJOSE_JWK_OKP_X25519;
+    }
+    else if (strncmp(name, CJOSE_JWK_OKP_X448_STR, sizeof(CJOSE_JWK_OKP_X448_STR)) == 0)
+    {
+        *crv = CJOSE_JWK_OKP_X448;
+    }
+    else
+    {
+        retval = false;
+    }
+    return retval;
+}
+
+static cjose_jwk_t *_OKP_new(cjose_jwk_okp_curve crv, EVP_PKEY *pkey, cjose_err *err)
+{
+    okp_keydata *keydata = cjose_get_alloc()(sizeof(okp_keydata));
+    if (!keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+    keydata->crv = crv;
+    keydata->key = pkey;
+
+    cjose_jwk_t *jwk = cjose_get_alloc()(sizeof(cjose_jwk_t));
+    if (!jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        cjose_get_dealloc()(keydata);
+        return NULL;
+    }
+    memset(jwk, 0, sizeof(cjose_jwk_t));
+    jwk->retained = 1;
+    jwk->kty = CJOSE_JWK_KTY_OKP;
+    jwk->keysize = _okp_size_for_curve(crv) * 8;
+    jwk->keydata = keydata;
+    jwk->fns = &OKP_FNTABLE;
+
+    return jwk;
+}
+
+static void _OKP_free(cjose_jwk_t *jwk)
+{
+    okp_keydata *keydata = (okp_keydata *)jwk->keydata;
+    jwk->keydata = NULL;
+
+    if (keydata)
+    {
+        EVP_PKEY_free(keydata->key);
+        keydata->key = NULL;
+        cjose_get_dealloc()(keydata);
+    }
+    cjose_get_dealloc()(jwk);
+}
+
+static bool _OKP_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+{
+    okp_keydata *keydata = (okp_keydata *)jwk->keydata;
+    uint8_t *buffer = NULL;
+    char *b64u = NULL;
+    size_t len = 0;
+    json_t *field = NULL;
+    bool result = false;
+
+    // the raw public key has the fixed size of the curve
+    size_t numsize = _okp_size_for_curve(keydata->crv);
+
+    // output the curve
+    field = json_string(_okp_name_for_curve(keydata->crv));
+    if (!field)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _okp_to_string_cleanup;
+    }
+    json_object_set(json, "crv", field);
+    json_decref(field);
+    field = NULL;
+
+    // obtain the raw public key
+    buffer = cjose_get_alloc()(numsize);
+    if (!buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _okp_to_string_cleanup;
+    }
+    len = numsize;
+    if (1 != EVP_PKEY_get_raw_public_key(keydata->key, buffer, &len) || len != numsize)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _okp_to_string_cleanup;
+    }
+
+    // output the public key x
+    if (!cjose_base64url_encode(buffer, numsize, &b64u, &len, err))
+    {
+        goto _okp_to_string_cleanup;
+    }
+    field = _cjose_json_stringn(b64u, len, err);
+    if (!field)
+    {
+        goto _okp_to_string_cleanup;
+    }
+    json_object_set(json, "x", field);
+    json_decref(field);
+    field = NULL;
+
+    result = true;
+
+_okp_to_string_cleanup:
+    cjose_get_dealloc()(buffer);
+    cjose_get_dealloc()(b64u);
+
+    return result;
+}
+
+static bool _OKP_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+{
+    okp_keydata *keydata = (okp_keydata *)jwk->keydata;
+    uint8_t *buffer = NULL;
+    char *b64u = NULL;
+    size_t len = 0;
+    size_t b64u_len = 0;
+    json_t *field = NULL;
+    int rc = 0;
+    bool result = false;
+
+    // the raw private key has the fixed size of the curve
+    size_t numsize = _okp_size_for_curve(keydata->crv);
+
+    buffer = cjose_get_alloc()(numsize);
+    if (!buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _okp_to_string_cleanup;
+    }
+
+    // short circuit if there is no private key; discard the error OpenSSL may
+    // queue for the missing key so it does not surface in a later cjose_err_message()
+    len = numsize;
+    ERR_set_mark();
+    rc = EVP_PKEY_get_raw_private_key(keydata->key, buffer, &len);
+    ERR_pop_to_mark();
+    if (1 != rc)
+    {
+        result = true;
+        goto _okp_to_string_cleanup;
+    }
+    if (len != numsize)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _okp_to_string_cleanup;
+    }
+
+    // output the private key d
+    if (!cjose_base64url_encode(buffer, numsize, &b64u, &b64u_len, err))
+    {
+        goto _okp_to_string_cleanup;
+    }
+    field = _cjose_json_stringn(b64u, b64u_len, err);
+    if (!field)
+    {
+        goto _okp_to_string_cleanup;
+    }
+    json_object_set(json, "d", field);
+    json_decref(field);
+    field = NULL;
+
+    result = true;
+
+_okp_to_string_cleanup:
+    // buffer and b64u hold the raw / base64url-encoded private key 'd';
+    // wipe them before release
+    _cjose_cleanse_dealloc(buffer, numsize);
+    _cjose_cleanse_dealloc(b64u, b64u_len);
+
+    return result;
+}
+
+// interface functions -- Octet Key Pair
+
+cjose_jwk_t *cjose_jwk_create_OKP_random(cjose_jwk_okp_curve crv, cjose_err *err)
+{
+    cjose_jwk_t *jwk = NULL;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *pkey = NULL;
+
+    int nid = _okp_nid_for_curve(crv);
+    if (NID_undef == nid)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto create_OKP_random_cleanup;
+    }
+
+    ctx = EVP_PKEY_CTX_new_id(nid, NULL);
+    if (NULL == ctx)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto create_OKP_random_cleanup;
+    }
+    if (1 != EVP_PKEY_keygen_init(ctx) || 1 != EVP_PKEY_keygen(ctx, &pkey))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto create_OKP_random_cleanup;
+    }
+
+    jwk = _OKP_new(crv, pkey, err);
+    if (NULL == jwk)
+    {
+        goto create_OKP_random_cleanup;
+    }
+    // the jwk owns the key now
+    pkey = NULL;
+
+create_OKP_random_cleanup:
+    EVP_PKEY_free(pkey);
+    EVP_PKEY_CTX_free(ctx);
+
+    return jwk;
+}
+
+cjose_jwk_t *cjose_jwk_create_OKP_spec(const cjose_jwk_okp_keyspec *spec, cjose_err *err)
+{
+    cjose_jwk_t *jwk = NULL;
+    EVP_PKEY *pkey = NULL;
+    uint8_t *pub = NULL;
+    size_t pub_len = 0;
+
+    if (!spec)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    int nid = _okp_nid_for_curve(spec->crv);
+    size_t numsize = _okp_size_for_curve(spec->crv);
+    if (NID_undef == nid || 0 == numsize)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    bool hasPriv = (NULL != spec->d && 0 < spec->dlen);
+    bool hasPub = (NULL != spec->x && 0 < spec->xlen);
+    if (!hasPriv && !hasPub)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    // the raw keys have the fixed size of the curve (RFC 8037 section 2);
+    // check that up front instead of relying on OpenSSL to reject them
+    if ((hasPriv && spec->dlen != numsize) || (hasPub && spec->xlen != numsize))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    if (hasPriv)
+    {
+        pkey = EVP_PKEY_new_raw_private_key(nid, NULL, spec->d, spec->dlen);
+        if (NULL == pkey)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+            goto create_OKP_spec_cleanup;
+        }
+
+        // OpenSSL derives the public key from the private key; when a public
+        // key is supplied as well it must be that one
+        if (hasPub)
+        {
+            pub = cjose_get_alloc()(numsize);
+            if (NULL == pub)
+            {
+                CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+                goto create_OKP_spec_cleanup;
+            }
+            pub_len = numsize;
+            if (1 != EVP_PKEY_get_raw_public_key(pkey, pub, &pub_len) || pub_len != numsize)
+            {
+                CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+                goto create_OKP_spec_cleanup;
+            }
+            if (0 != CRYPTO_memcmp(pub, spec->x, numsize))
+            {
+                CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+                goto create_OKP_spec_cleanup;
+            }
+        }
+    }
+    else
+    {
+        pkey = EVP_PKEY_new_raw_public_key(nid, NULL, spec->x, spec->xlen);
+        if (NULL == pkey)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+            goto create_OKP_spec_cleanup;
+        }
+    }
+
+    jwk = _OKP_new(spec->crv, pkey, err);
+    if (NULL == jwk)
+    {
+        goto create_OKP_spec_cleanup;
+    }
+    // the jwk owns the key now
+    pkey = NULL;
+
+create_OKP_spec_cleanup:
+    EVP_PKEY_free(pkey);
+    cjose_get_dealloc()(pub);
+
+    return jwk;
+}
+
+#else // !CJOSE_OPENSSL_111X
+
+// the OKP key type needs the raw key API that arrived in OpenSSL 1.1.1
+
+cjose_jwk_t *cjose_jwk_create_OKP_random(cjose_jwk_okp_curve crv, cjose_err *err)
+{
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    return NULL;
+}
+
+cjose_jwk_t *cjose_jwk_create_OKP_spec(const cjose_jwk_okp_keyspec *spec, cjose_err *err)
+{
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    return NULL;
+}
+
+#endif // CJOSE_OPENSSL_111X
+
+cjose_jwk_okp_curve cjose_jwk_OKP_get_curve(const cjose_jwk_t *jwk, cjose_err *err)
+{
+    if (NULL == jwk || CJOSE_JWK_KTY_OKP != cjose_jwk_get_kty(jwk, err))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return CJOSE_JWK_OKP_INVALID;
+    }
+
+    okp_keydata *keydata = jwk->keydata;
     return keydata->crv;
 }
 
@@ -1689,6 +2128,82 @@ import_oct_cleanup:
     return jwk;
 }
 
+#if defined(CJOSE_OPENSSL_111X)
+static cjose_jwk_t *_cjose_jwk_import_OKP(json_t *jwk_json, cjose_err *err)
+{
+    cjose_jwk_t *jwk = NULL;
+    uint8_t *x_buffer = NULL;
+    uint8_t *d_buffer = NULL;
+    size_t x_buflen = 0;
+    size_t d_buflen = 0;
+
+    // get the value of the crv attribute
+    const char *crv_str = _get_json_object_string_attribute(jwk_json, CJOSE_JWK_CRV_STR, err);
+    if (crv_str == NULL)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_OKP_cleanup;
+    }
+
+    // get the curve identifier for the curve named by crv
+    cjose_jwk_okp_curve crv;
+    if (!_okp_curve_from_name(crv_str, &crv))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_OKP_cleanup;
+    }
+
+    // get the decoded value of the public key x (of the fixed size of the
+    // curve); x is REQUIRED for every OKP key (RFC 8037 section 2), and the
+    // decoder treats a missing, empty or non-string attribute alike, so a
+    // decoded value must have come out of it
+    x_buflen = _okp_size_for_curve(crv);
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_X_STR, &x_buffer, &x_buflen, err) || NULL == x_buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_OKP_cleanup;
+    }
+
+    // get the decoded value of the private key d (of the fixed size of the
+    // curve); d is REQUIRED for a private key and MUST NOT be present for a
+    // public key (RFC 8037 section 2), so when the attribute is there it must
+    // decode to a key of the right size instead of quietly making a public key
+    d_buflen = _okp_size_for_curve(crv);
+    if (!_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err)
+        || (NULL != json_object_get(jwk_json, CJOSE_JWK_D_STR) && NULL == d_buffer))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_OKP_cleanup;
+    }
+
+    // create an okp keyspec
+    cjose_jwk_okp_keyspec okp_keyspec;
+    memset(&okp_keyspec, 0, sizeof(cjose_jwk_okp_keyspec));
+    okp_keyspec.crv = crv;
+    okp_keyspec.x = x_buffer;
+    okp_keyspec.xlen = x_buflen;
+    okp_keyspec.d = d_buffer;
+    okp_keyspec.dlen = d_buflen;
+
+    // create the jwk
+    jwk = cjose_jwk_create_OKP_spec(&okp_keyspec, err);
+
+import_OKP_cleanup:
+    cjose_get_dealloc()(x_buffer);
+    // d is the private key -> wipe the decoded copy before release
+    _cjose_cleanse_dealloc(d_buffer, d_buflen);
+
+    return jwk;
+}
+#else
+static cjose_jwk_t *_cjose_jwk_import_OKP(json_t *jwk_json, cjose_err *err)
+{
+    // the OKP key type needs the raw key API that arrived in OpenSSL 1.1.1
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    return NULL;
+}
+#endif // CJOSE_OPENSSL_111X
+
 cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 {
     cjose_jwk_t *jwk = NULL;
@@ -1760,6 +2275,10 @@ cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err)
 
     case CJOSE_JWK_KTY_OCT:
         jwk = _cjose_jwk_import_oct(jwk_json, err);
+        break;
+
+    case CJOSE_JWK_KTY_OKP:
+        jwk = _cjose_jwk_import_OKP(jwk_json, err);
         break;
 
     default:

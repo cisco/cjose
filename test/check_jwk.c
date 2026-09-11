@@ -12,6 +12,7 @@
 #include <cjose/base64.h>
 #include <cjose/util.h>
 #include "include/jwk_int.h"
+#include "include/util_int.h"
 
 /**
  * Convenience function for comparing multiple string attributes of two
@@ -58,6 +59,7 @@ START_TEST(test_cjose_jwk_name_for_kty)
     ck_assert_str_eq("RSA", cjose_jwk_name_for_kty(CJOSE_JWK_KTY_RSA, &err));
     ck_assert_str_eq("EC", cjose_jwk_name_for_kty(CJOSE_JWK_KTY_EC, &err));
     ck_assert_str_eq("oct", cjose_jwk_name_for_kty(CJOSE_JWK_KTY_OCT, &err));
+    ck_assert_str_eq("OKP", cjose_jwk_name_for_kty(CJOSE_JWK_KTY_OKP, &err));
     ck_assert(NULL == cjose_jwk_name_for_kty(0, &err));
     ck_assert(NULL == cjose_jwk_name_for_kty(99, &err));
 }
@@ -454,6 +456,218 @@ START_TEST(test_cjose_jwk_create_oct_random_inval)
 }
 END_TEST
 
+#if defined(CJOSE_OPENSSL_111X)
+static void _test_cjose_jwk_create_OKP_spec(cjose_jwk_okp_curve crv, size_t keysize, const char *d, const char *x)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    cjose_jwk_okp_keyspec spec;
+    uint8_t *d_raw = NULL, *x_raw = NULL;
+    size_t d_len = 0, x_len = 0;
+    char *json = NULL;
+
+    ck_assert(cjose_base64url_decode(d, strlen(d), &d_raw, &d_len, &err));
+    ck_assert(cjose_base64url_decode(x, strlen(x), &x_raw, &x_len, &err));
+
+    // private and public key
+    memset(&spec, 0, sizeof(cjose_jwk_okp_keyspec));
+    spec.crv = crv;
+    spec.d = d_raw;
+    spec.dlen = d_len;
+    spec.x = x_raw;
+    spec.xlen = x_len;
+    jwk = cjose_jwk_create_OKP_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk,
+                  "cjose_jwk_create_OKP_spec failed: "
+                  "%s, file: %s, function: %s, line: %ld",
+                  err.message, err.file, err.function, err.line);
+    ck_assert(1 == jwk->retained);
+    ck_assert(CJOSE_JWK_KTY_OKP == jwk->kty);
+    ck_assert(keysize == jwk->keysize);
+    ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
+    ck_assert(NULL != jwk->keydata);
+    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(crv == cjose_jwk_OKP_get_curve(jwk, &err));
+    // an OKP key is not an EC key
+    ck_assert(CJOSE_JWK_EC_INVALID == cjose_jwk_EC_get_curve(jwk, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, x));
+    ck_assert(NULL != strstr(json, d));
+    cjose_get_dealloc()(json);
+    cjose_jwk_release(jwk);
+
+    // private key only: the public key is derived from it
+    spec.x = NULL;
+    spec.xlen = 0;
+    jwk = cjose_jwk_create_OKP_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_create_OKP_spec (private key only) failed: %s", err.message);
+    json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, x));
+    ck_assert(NULL != strstr(json, d));
+    cjose_get_dealloc()(json);
+    cjose_jwk_release(jwk);
+
+    // public key only: there is no private key to export
+    spec.d = NULL;
+    spec.dlen = 0;
+    spec.x = x_raw;
+    spec.xlen = x_len;
+    jwk = cjose_jwk_create_OKP_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_create_OKP_spec (public key only) failed: %s", err.message);
+    ck_assert(keysize == cjose_jwk_get_keysize(jwk, &err));
+    json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, x));
+    ck_assert(NULL == strstr(json, "\"d\""));
+    cjose_get_dealloc()(json);
+    cjose_jwk_release(jwk);
+
+    // a public key that does not belong to the private key is rejected
+    spec.d = d_raw;
+    spec.dlen = d_len;
+    x_raw[0] ^= 0x01;
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    x_raw[0] ^= 0x01;
+
+    // the raw keys must have the fixed size of the curve
+    spec.xlen = x_len - 1;
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    spec.xlen = x_len;
+    spec.dlen = d_len + 1;
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    cjose_get_dealloc()(d_raw);
+    cjose_get_dealloc()(x_raw);
+}
+
+// RFC 8037 appendix A.1
+const char *OKP_ED25519_d = "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A";
+const char *OKP_ED25519_x = "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo";
+START_TEST(test_cjose_jwk_create_OKP_Ed25519_spec)
+{
+    _test_cjose_jwk_create_OKP_spec(CJOSE_JWK_OKP_ED25519, 256, OKP_ED25519_d, OKP_ED25519_x);
+}
+END_TEST
+
+// 57 octets each
+const char *OKP_ED448_d = "TN58WZuh-iWvRvIW-O6sXHjLBTL78bG030WeJZ2I2-ArR8exchehxoA5TXr-3Skuw1qagrV6mjdm";
+const char *OKP_ED448_x = "EwEiD2H04mq1APe4WwLHGWFqURrhfJsXvHQdYAyuOUJQ0wV2DTzOswRxeZbpt-JDdZuTS-7XTaUA";
+START_TEST(test_cjose_jwk_create_OKP_Ed448_spec)
+{
+    _test_cjose_jwk_create_OKP_spec(CJOSE_JWK_OKP_ED448, 456, OKP_ED448_d, OKP_ED448_x);
+}
+END_TEST
+
+// RFC 7748 section 6.1, Alice's key pair
+const char *OKP_X25519_d = "dwdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LCo";
+const char *OKP_X25519_x = "hSDwCYkwp1R0i33ctD73Wg2_Og0mOBr066SpjqqbTmo";
+START_TEST(test_cjose_jwk_create_OKP_X25519_spec)
+{
+    _test_cjose_jwk_create_OKP_spec(CJOSE_JWK_OKP_X25519, 256, OKP_X25519_d, OKP_X25519_x);
+}
+END_TEST
+
+// 56 octets each
+const char *OKP_X448_d = "NGzQX14aLsf-miiSLTWW4WmsrbmOY-HKsOeEqjz2vv8kXtVDfbhFP8EYQiNRMuOA8rS1POt5Zok";
+const char *OKP_X448_x = "IMAYVtBqDw96wW7CvvFmpjixDv5MNiHmLSmjjcyf50sLZLuyWZ4OkJRqwqPL_7e06Ny-z7Gsr20";
+START_TEST(test_cjose_jwk_create_OKP_X448_spec)
+{
+    _test_cjose_jwk_create_OKP_spec(CJOSE_JWK_OKP_X448, 448, OKP_X448_d, OKP_X448_x);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_create_OKP_spec_invalid)
+{
+    cjose_err err;
+    cjose_jwk_okp_keyspec spec;
+    uint8_t *x_raw = NULL;
+    size_t x_len = 0;
+
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(NULL, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // neither a private nor a public key
+    memset(&spec, 0, sizeof(cjose_jwk_okp_keyspec));
+    spec.crv = CJOSE_JWK_OKP_ED25519;
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // an invalid curve
+    ck_assert(cjose_base64url_decode(OKP_ED25519_x, strlen(OKP_ED25519_x), &x_raw, &x_len, &err));
+    spec.crv = CJOSE_JWK_OKP_INVALID;
+    spec.x = x_raw;
+    spec.xlen = x_len;
+    ck_assert(NULL == cjose_jwk_create_OKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_get_dealloc()(x_raw);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_create_OKP_random)
+{
+    cjose_err err;
+    static const struct
+    {
+        cjose_jwk_okp_curve crv;
+        size_t keysize;
+        const char *crv_json;
+    } curves[] = { { CJOSE_JWK_OKP_ED25519, 256, "\"crv\":\"Ed25519\"" },
+                   { CJOSE_JWK_OKP_ED448, 456, "\"crv\":\"Ed448\"" },
+                   { CJOSE_JWK_OKP_X25519, 256, "\"crv\":\"X25519\"" },
+                   { CJOSE_JWK_OKP_X448, 448, "\"crv\":\"X448\"" } };
+
+    for (size_t i = 0; i < sizeof(curves) / sizeof(curves[0]); i++)
+    {
+        cjose_jwk_t *jwk = cjose_jwk_create_OKP_random(curves[i].crv, &err);
+        ck_assert_msg(NULL != jwk, "cjose_jwk_create_OKP_random failed: %s", err.message);
+        ck_assert(1 == jwk->retained);
+        ck_assert(CJOSE_JWK_KTY_OKP == jwk->kty);
+        ck_assert(curves[i].keysize == jwk->keysize);
+        ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
+        ck_assert(NULL != jwk->keydata);
+        ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+        ck_assert(curves[i].crv == cjose_jwk_OKP_get_curve(jwk, &err));
+
+        char *json = cjose_jwk_to_json(jwk, true, &err);
+        ck_assert(NULL != json);
+        ck_assert(NULL != strstr(json, "\"kty\":\"OKP\""));
+        ck_assert(NULL != strstr(json, curves[i].crv_json));
+        ck_assert(NULL != strstr(json, "\"x\":"));
+        ck_assert(NULL != strstr(json, "\"d\":"));
+        cjose_get_dealloc()(json);
+
+        cjose_jwk_release(jwk);
+    }
+
+    // an invalid curve is rejected
+    ck_assert(NULL == cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_INVALID, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_OKP_get_curve_invalid)
+{
+    cjose_err err;
+
+    ck_assert(CJOSE_JWK_OKP_INVALID == cjose_jwk_OKP_get_curve(NULL, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // not an OKP key
+    cjose_jwk_t *jwk = cjose_jwk_create_EC_random(CJOSE_JWK_EC_P_256, &err);
+    ck_assert(NULL != jwk);
+    ck_assert(CJOSE_JWK_OKP_INVALID == cjose_jwk_OKP_get_curve(jwk, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+#endif // CJOSE_OPENSSL_111X
+
 START_TEST(test_cjose_jwk_retain_release)
 {
     cjose_err err;
@@ -501,6 +715,12 @@ START_TEST(test_cjose_jwk_get_kty)
     jwk = cjose_jwk_create_EC_random(CJOSE_JWK_EC_P_256, &err);
     ck_assert(CJOSE_JWK_KTY_EC == cjose_jwk_get_kty(jwk, &err));
     cjose_jwk_release(jwk);
+
+#if defined(CJOSE_OPENSSL_111X)
+    jwk = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_ED25519, &err);
+    ck_assert(CJOSE_JWK_KTY_OKP == cjose_jwk_get_kty(jwk, &err));
+    cjose_jwk_release(jwk);
+#endif
 }
 END_TEST
 
@@ -635,6 +855,172 @@ START_TEST(test_cjose_jwk_to_json_rsa)
     cjose_jwk_release(jwk);
 }
 END_TEST
+
+#if defined(CJOSE_OPENSSL_111X)
+START_TEST(test_cjose_jwk_to_json_okp)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    cjose_jwk_okp_keyspec spec;
+
+    memset(&spec, 0, sizeof(cjose_jwk_okp_keyspec));
+    spec.crv = CJOSE_JWK_OKP_ED25519;
+    cjose_base64url_decode(OKP_ED25519_d, strlen(OKP_ED25519_d), &spec.d, &spec.dlen, &err);
+    cjose_base64url_decode(OKP_ED25519_x, strlen(OKP_ED25519_x), &spec.x, &spec.xlen, &err);
+
+    jwk = cjose_jwk_create_OKP_spec(&spec, &err);
+    cjose_get_dealloc()(spec.d);
+    cjose_get_dealloc()(spec.x);
+    ck_assert(NULL != jwk);
+
+    char *json;
+    json = cjose_jwk_to_json(jwk, false, &err);
+    ck_assert(NULL != json);
+    ck_assert_str_eq("{\"kty\":\"OKP\",\"crv\":\"Ed25519\""
+                     ",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
+                     json);
+    free(json);
+
+    json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert_str_eq("{\"kty\":\"OKP\",\"crv\":\"Ed25519\""
+                     ",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\""
+                     ",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\"}",
+                     json);
+    free(json);
+
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_OKP_import_export)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    char *jwk_str = NULL;
+    json_t *left_json = NULL, *right_json = NULL;
+    const char *attrs[] = { "kty", "crv", "x", "d", "kid", NULL };
+
+    // RFC 8037 appendix A.1 (private key), with a kid
+    static const char *JWK_PRIV = "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"kid\":\"ed25519-1\","
+                                  "\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\","
+                                  "\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}";
+    jwk = cjose_jwk_import(JWK_PRIV, strlen(JWK_PRIV), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    ck_assert(CJOSE_JWK_KTY_OKP == cjose_jwk_get_kty(jwk, &err));
+    ck_assert(CJOSE_JWK_OKP_ED25519 == cjose_jwk_OKP_get_curve(jwk, &err));
+    ck_assert(256 == cjose_jwk_get_keysize(jwk, &err));
+    ck_assert_str_eq("ed25519-1", cjose_jwk_get_kid(jwk, &err));
+
+    // the private export carries all attributes
+    left_json = json_loads(JWK_PRIV, 0, NULL);
+    ck_assert(NULL != left_json);
+    jwk_str = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != jwk_str);
+    right_json = json_loads(jwk_str, 0, NULL);
+    ck_assert(NULL != right_json);
+    ck_assert_msg(_match_string_attrs(left_json, right_json, attrs), "private export does not match: %s", jwk_str);
+    json_decref(right_json);
+    free(jwk_str);
+
+    // the public export leaves out d
+    jwk_str = cjose_jwk_to_json(jwk, false, &err);
+    ck_assert(NULL != jwk_str);
+    ck_assert(NULL == strstr(jwk_str, "\"d\""));
+    right_json = json_loads(jwk_str, 0, NULL);
+    ck_assert(NULL != right_json);
+    json_object_del(left_json, "d");
+    ck_assert_msg(_match_string_attrs(left_json, right_json, attrs), "public export does not match: %s", jwk_str);
+    json_decref(right_json);
+    json_decref(left_json);
+    free(jwk_str);
+    cjose_jwk_release(jwk);
+
+    // RFC 8037 appendix A.2 (public key): the private export has no d either
+    static const char *JWK_PUB = "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}";
+    jwk = cjose_jwk_import(JWK_PUB, strlen(JWK_PUB), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    jwk_str = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != jwk_str);
+    ck_assert_str_eq(JWK_PUB, jwk_str);
+    free(jwk_str);
+    cjose_jwk_release(jwk);
+
+    // RFC 8037 appendix A.6: an X25519 public key
+    static const char *JWK_X25519 = "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"kid\":\"Bob\","
+                                    "\"x\":\"3p7bfXt9wbTTW2HC7OQ1Nz-DQ8hbeGdNrfx-FG-IK08\"}";
+    jwk = cjose_jwk_import(JWK_X25519, strlen(JWK_X25519), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    ck_assert(CJOSE_JWK_OKP_X25519 == cjose_jwk_OKP_get_curve(jwk, &err));
+    ck_assert(256 == cjose_jwk_get_keysize(jwk, &err));
+    ck_assert_str_eq("Bob", cjose_jwk_get_kid(jwk, &err));
+    cjose_jwk_release(jwk);
+
+    // the Ed448 and X448 curves
+    static const char *JWK_ED448 = "{\"kty\":\"OKP\",\"crv\":\"Ed448\","
+                                   "\"d\":\"TN58WZuh-iWvRvIW-O6sXHjLBTL78bG030WeJZ2I2-ArR8exchehxoA5TXr-3Skuw1qagrV6mjdm\","
+                                   "\"x\":\"EwEiD2H04mq1APe4WwLHGWFqURrhfJsXvHQdYAyuOUJQ0wV2DTzOswRxeZbpt-JDdZuTS-7XTaUA\"}";
+    jwk = cjose_jwk_import(JWK_ED448, strlen(JWK_ED448), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    ck_assert(CJOSE_JWK_OKP_ED448 == cjose_jwk_OKP_get_curve(jwk, &err));
+    ck_assert(456 == cjose_jwk_get_keysize(jwk, &err));
+    cjose_jwk_release(jwk);
+
+    static const char *JWK_X448 = "{\"kty\":\"OKP\",\"crv\":\"X448\","
+                                  "\"d\":\"NGzQX14aLsf-miiSLTWW4WmsrbmOY-HKsOeEqjz2vv8kXtVDfbhFP8EYQiNRMuOA8rS1POt5Zok\","
+                                  "\"x\":\"IMAYVtBqDw96wW7CvvFmpjixDv5MNiHmLSmjjcyf50sLZLuyWZ4OkJRqwqPL_7e06Ny-z7Gsr20\"}";
+    jwk = cjose_jwk_import(JWK_X448, strlen(JWK_X448), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    ck_assert(CJOSE_JWK_OKP_X448 == cjose_jwk_OKP_get_curve(jwk, &err));
+    ck_assert(448 == cjose_jwk_get_keysize(jwk, &err));
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_OKP_import_invalid)
+{
+    cjose_err err;
+
+    static const char *JWK_BAD[]
+        = { // missing crv
+            "{\"kty\":\"OKP\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
+            // an EC curve is not an OKP curve
+            "{\"kty\":\"OKP\",\"crv\":\"P-256\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
+            // neither x nor d
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\"}",
+            // x one octet short
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHUR\"}",
+            // x of the Ed448 size for an Ed25519 key
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":"
+            "\"EwEiD2H04mq1APe4WwLHGWFqURrhfJsXvHQdYAyuOUJQ0wV2DTzOswRxeZbpt-JDdZuTS-7XTaUA\"}",
+            // d one octet long
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2AA\"}",
+            // x is not base64url
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"!!!!\"}",
+            // x is REQUIRED (RFC 8037 section 2): d alone, even though the public key could be derived from it
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\"}",
+            // ... and an empty x is not a public key either
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"\",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\"}",
+            // an empty d is not a private key: d MUST NOT be present for a public key (RFC 8037 section 2)
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\",\"d\":\"\"}",
+            // ... nor is a d that is not a string
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\",\"d\":null}",
+            // x does not belong to d (it is the public key of another key pair)
+            "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\","
+            "\"x\":\"I6xXpbmh5iLUVx0wy2XvVKVRQYLnx72lPpnEAdwT82I\"}",
+            NULL
+          };
+
+    for (int i = 0; NULL != JWK_BAD[i]; ++i)
+    {
+        cjose_jwk_t *jwk = cjose_jwk_import(JWK_BAD[i], strlen(JWK_BAD[i]), &err);
+        ck_assert_msg(NULL == jwk, "cjose_jwk_import accepted invalid OKP JWK %d: %s", i, JWK_BAD[i]);
+        ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jwk_import returned wrong err.code for JWK %d (%u:%s)", i, err.code,
+                      err.message);
+    }
+}
+END_TEST
+#endif // CJOSE_OPENSSL_111X
 
 START_TEST(test_cjose_jwk_import_json_valid)
 {
@@ -1591,11 +1977,25 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_random_inval);
+#if defined(CJOSE_OPENSSL_111X)
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_Ed25519_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_Ed448_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_X25519_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_X448_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_spec_invalid);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_random);
+    tcase_add_test(tc_jwk, test_cjose_jwk_OKP_get_curve_invalid);
+#endif
     tcase_add_test(tc_jwk, test_cjose_jwk_retain_release);
     tcase_add_test(tc_jwk, test_cjose_jwk_get_kty);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_oct);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_ec);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_rsa);
+#if defined(CJOSE_OPENSSL_111X)
+    tcase_add_test(tc_jwk, test_cjose_jwk_to_json_okp);
+    tcase_add_test(tc_jwk, test_cjose_jwk_OKP_import_export);
+    tcase_add_test(tc_jwk, test_cjose_jwk_OKP_import_invalid);
+#endif
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_valid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_valid);
