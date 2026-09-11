@@ -1610,6 +1610,14 @@ START_TEST(test_cjose_jwk_import_invalid)
         ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
         cjose_jwk_release(jwk);
     }
+
+    // no input at all is reported like any other invalid input
+    err.code = CJOSE_ERR_NONE;
+    ck_assert(NULL == cjose_jwk_import(NULL, 0, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    err.code = CJOSE_ERR_NONE;
+    ck_assert(NULL == cjose_jwk_import("{}", 0, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
 }
 END_TEST
 

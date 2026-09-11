@@ -2211,6 +2211,7 @@ cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
     // check params
     if ((NULL == jwk_str) || (0 == len))
     {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
     }
 
