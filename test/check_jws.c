@@ -54,6 +54,12 @@ static const char *JWK_COMMON_EC = "{ \"kty\":\"EC\","
                                    "\"y\":\"KbkZ7r_DQ-t67pnxPnFDHObTLBqn44BSjcqn0STUkaM\","
                                    "\"d\":\"RSSjcBQW_EBxm1gzYhejCdWtj3Id_GuwldwEgSuKCEM\" }";
 
+static const char *JWK_COMMON_EC_SECP_256K1 = "{ \"kty\":\"EC\","
+                                              "\"crv\":\"secp256k1\","
+                                              "\"x\":\"dWCvM4fTdeM0KmloF57zxtBPXTOythHPMm1HCLrdd3A\","
+                                              "\"y\":\"36uMVGM7hnw-N6GnjFcihWE3SkrhMLzzLCdPMXPEXlA\","
+                                              "\"d\":\"rhYFsBPF9q3-uZThy7B3c4LDF_8wnozFUAEm5LLC4Zw\" }";
+
 // a JWS encrypted with the above JWK_COMMON key
 static const char *JWS_COMMON
     = "eyAiYWxnIjogIlBTMjU2IiB9."
@@ -80,6 +86,8 @@ static const char *_self_get_jwk_by_alg(const char *alg)
     if ((strcmp(alg, CJOSE_HDR_ALG_HS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS384) == 0)
         || (strcmp(alg, CJOSE_HDR_ALG_HS512) == 0))
         return JWK_COMMON_OCT;
+    if (strcmp(alg, CJOSE_HDR_ALG_ES256K) == 0)
+        return JWK_COMMON_EC_SECP_256K1;
     if ((strcmp(alg, CJOSE_HDR_ALG_ES256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES384) == 0)
         || (strcmp(alg, CJOSE_HDR_ALG_ES512) == 0))
         return JWK_COMMON_EC;
@@ -167,6 +175,7 @@ static void _self_sign_self_verify_all_algs(const uint8_t *plain, size_t plain_l
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_HS384, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_HS512, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES256, err);
+    _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES256K, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES384, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES512, err);
 }
@@ -177,6 +186,71 @@ START_TEST(test_cjose_jws_self_sign_self_verify)
     static const uint8_t plain[] = "If you reveal your secrets to the wind, you should not blame the "
                                    "wind for revealing them to the trees. — Kahlil Gibran";
     _self_sign_self_verify_all_algs(plain, sizeof(plain) - 1, &err);
+}
+END_TEST
+
+START_TEST(test_cjose_jws_verify_es256k)
+{
+    cjose_err err;
+    static const char *JWK = "{ \"kty\":\"EC\","
+                             "\"crv\":\"secp256k1\","
+                             "\"x\":\"dWCvM4fTdeM0KmloF57zxtBPXTOythHPMm1HCLrdd3A\","
+                             "\"y\":\"36uMVGM7hnw-N6GnjFcihWE3SkrhMLzzLCdPMXPEXlA\" }";
+    static const char *JWS = "eyJhbGciOiJFUzI1NksifQ."
+                             "RVMyNTZLIGludGVyb3BlcmFiaWxpdHkgdGVzdA."
+                             "AUxIItkz7WGblbT8WkRzeCTD_k30iOdSVPqEMBUC2qC8BxbrPVTzubweSB2lv27Dsf554vVSrqcwNfE4DHmfPA";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK, strlen(JWK), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+    ck_assert(CJOSE_JWK_EC_SECP_256K1 == cjose_jwk_EC_get_curve(jwk, &err));
+
+    cjose_jws_t *jws = cjose_jws_import(JWS, strlen(JWS), &err);
+    ck_assert_msg(NULL != jws, "cjose_jws_import failed: %s", err.message);
+    ck_assert_msg(cjose_jws_verify(jws, jwk, &err), "cjose_jws_verify failed: %s", err.message);
+
+    uint8_t *plaintext = NULL;
+    size_t plaintext_len = 0;
+    ck_assert(cjose_jws_get_plaintext(jws, &plaintext, &plaintext_len, &err));
+    ck_assert_int_eq(strlen("ES256K interoperability test"), plaintext_len);
+    ck_assert(0 == memcmp("ES256K interoperability test", plaintext, plaintext_len));
+
+    cjose_jws_release(jws);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+START_TEST(test_cjose_jws_es256k_rejects_wrong_curve)
+{
+    cjose_err err;
+    static const char *JWS = "eyJhbGciOiJFUzI1NksifQ."
+                             "RVMyNTZLIGludGVyb3BlcmFiaWxpdHkgdGVzdA."
+                             "AUxIItkz7WGblbT8WkRzeCTD_k30iOdSVPqEMBUC2qC8BxbrPVTzubweSB2lv27Dsf554vVSrqcwNfE4DHmfPA";
+    cjose_jwk_t *p256 = cjose_jwk_import(JWK_COMMON_EC, strlen(JWK_COMMON_EC), &err);
+    cjose_jwk_t *secp256k1 = cjose_jwk_import(JWK_COMMON_EC_SECP_256K1, strlen(JWK_COMMON_EC_SECP_256K1), &err);
+    ck_assert(NULL != p256);
+    ck_assert(NULL != secp256k1);
+
+    cjose_header_t *header = cjose_header_new(&err);
+    ck_assert(NULL != header);
+    ck_assert(cjose_header_set(header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ES256K, &err));
+    cjose_jws_t *jws = cjose_jws_sign(p256, header, (const uint8_t *)"test", 4, &err);
+    ck_assert(NULL == jws);
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    ck_assert(cjose_header_set(header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ES256, &err));
+    jws = cjose_jws_sign(secp256k1, header, (const uint8_t *)"test", 4, &err);
+    ck_assert(NULL == jws);
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    jws = cjose_jws_import(JWS, strlen(JWS), &err);
+    ck_assert(NULL != jws);
+    ck_assert(!cjose_jws_verify(jws, p256, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    cjose_header_release(header);
+    cjose_jws_release(jws);
+    cjose_jwk_release(secp256k1);
+    cjose_jwk_release(p256);
 }
 END_TEST
 
@@ -1121,6 +1195,8 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_verify_rs256);
     tcase_add_test(tc_jws, test_cjose_jws_verify_rs384);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ec256);
+    tcase_add_test(tc_jws, test_cjose_jws_verify_es256k);
+    tcase_add_test(tc_jws, test_cjose_jws_es256k_rejects_wrong_curve);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_header);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_key);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_content);

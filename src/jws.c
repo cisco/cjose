@@ -44,6 +44,8 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
 
 static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
+static bool _cjose_jws_validate_ec_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
+
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,8 +113,8 @@ static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
         jws->fns.sign = _cjose_jws_build_sig_hmac_sha;
         jws->fns.verify = _cjose_jws_verify_sig_hmac_sha;
     }
-    else if ((strcmp(alg, CJOSE_HDR_ALG_ES256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES384) == 0)
-             || (strcmp(alg, CJOSE_HDR_ALG_ES512) == 0))
+    else if ((strcmp(alg, CJOSE_HDR_ALG_ES256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES256K) == 0)
+             || (strcmp(alg, CJOSE_HDR_ALG_ES384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES512) == 0))
     {
         jws->fns.digest = _cjose_jws_build_dig_sha;
         jws->fns.sign = _cjose_jws_build_sig_ec;
@@ -167,7 +169,7 @@ static bool _cjose_jws_build_dig_sha(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     // build digest using SHA-256/384/512 digest algorithm
     const EVP_MD *digest_alg = NULL;
     if ((strcmp(alg, CJOSE_HDR_ALG_RS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS256) == 0)
-        || (strcmp(alg, CJOSE_HDR_ALG_ES256) == 0))
+        || (strcmp(alg, CJOSE_HDR_ALG_ES256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES256K) == 0))
         digest_alg = EVP_sha256();
     else if ((strcmp(alg, CJOSE_HDR_ALG_RS384) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PS384) == 0)
              || (strcmp(alg, CJOSE_HDR_ALG_ES384) == 0))
@@ -551,10 +553,9 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
 {
     bool retval = false;
 
-    // ensure jwk is EC
-    if (jwk->kty != CJOSE_JWK_KTY_EC)
+    const char *alg = json_string_value(json_object_get(jws->hdr, CJOSE_HDR_ALG));
+    if (!_cjose_jws_validate_ec_key(alg, jwk, err))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
@@ -572,6 +573,9 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
     switch (keydata->crv)
     {
     case CJOSE_JWK_EC_P_256:
+        jws->sig_len = 32 * 2;
+        break;
+    case CJOSE_JWK_EC_SECP_256K1:
         jws->sig_len = 32 * 2;
         break;
     case CJOSE_JWK_EC_P_384:
@@ -1082,6 +1086,9 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     case CJOSE_JWK_EC_P_256:
         coordlen = 32;
         break;
+    case CJOSE_JWK_EC_SECP_256K1:
+        coordlen = 32;
+        break;
     case CJOSE_JWK_EC_P_384:
         coordlen = 48;
         break;
@@ -1141,6 +1148,28 @@ _cjose_jws_verify_sig_ec_cleanup:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jws_validate_ec_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    if (jwk->kty != CJOSE_JWK_KTY_EC)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    ec_keydata *keydata = (ec_keydata *)jwk->keydata;
+
+    // RFC 8812 requires secp256k1 keys to be used only with ES256K and
+    // requires ES256K to use a secp256k1 key.
+    if ((strcmp(alg, CJOSE_HDR_ALG_ES256K) == 0) != (keydata->crv == CJOSE_JWK_EC_SECP_256K1))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
     json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
@@ -1174,12 +1203,13 @@ static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
-        && jwk->kty != CJOSE_JWK_KTY_EC)
+    if ((0 == strcmp(alg, CJOSE_HDR_ALG_ES256)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES256K))
+        || (0 == strcmp(alg, CJOSE_HDR_ALG_ES384)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ES512)))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
+        if (!_cjose_jws_validate_ec_key(alg, jwk, err))
+        {
+            return false;
+        }
     }
 
     return true;

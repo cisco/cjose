@@ -221,6 +221,8 @@ typedef enum
      * TODO: Remove this binary compatibility when moved to 1.0.x series.
      */
     CJOSE_JWK_EC_P_256 = 415,
+    /** SECG secp256k1 curve. */
+    CJOSE_JWK_EC_SECP_256K1 = 714,
     /** NIST P-384 Prime Curve (secp384r1). */
     CJOSE_JWK_EC_P_384 = 715,
     /** NIST P-521 Prime Curve (secp521r1). */
