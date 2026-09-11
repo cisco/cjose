@@ -24,6 +24,14 @@
 #define CJOSE_OPENSSL_111X
 #endif
 
+// OpenSSL 1.0.2 (and LibreSSL 2.7) added the OAEP padding functions that take
+// the digest for the hash and for MGF1, RSA_padding_add_PKCS1_OAEP_mgf1 and
+// RSA_padding_check_PKCS1_OAEP_mgf1, which RSA-OAEP-256 needs
+#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)) \
+    || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070000fL)
+#define CJOSE_OPENSSL_102X
+#endif
+
 #ifdef _WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;

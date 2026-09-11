@@ -26,7 +26,8 @@ JWE key management algorithms (`alg`):
 
 | Identifier | Algorithm | Requires |
 |------------|-----------|----------|
-| `RSA-OAEP` | RSAES OAEP | |
+| `RSA-OAEP` | RSAES OAEP with SHA-1 and MGF1 with SHA-1 | |
+| `RSA-OAEP-256` | RSAES OAEP with SHA-256 and MGF1 with SHA-256 | OpenSSL 1.0.2 |
 | `RSA1_5` | RSAES-PKCS1-v1_5 | build option `CJOSE_ENABLE_RSA1_5` |
 | `A128KW`, `A192KW`, `A256KW` | AES Key Wrap | |
 | `dir` | direct use of a shared symmetric key | |

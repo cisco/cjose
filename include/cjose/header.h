@@ -51,6 +51,9 @@ extern "C" {
 /** The JWE algorithm attribute value for RSA-OAEP. */
 #define CJOSE_HDR_ALG_RSA_OAEP "RSA-OAEP"
 
+/** The JWE algorithm attribute value for RSA-OAEP-256 (RSAES OAEP using SHA-256 and MGF1 with SHA-256). */
+#define CJOSE_HDR_ALG_RSA_OAEP_256 "RSA-OAEP-256"
+
 /** The JWE algorithm attribute value for RSA1_5. */
 #define CJOSE_HDR_ALG_RSA1_5 "RSA1_5"
 
