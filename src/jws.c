@@ -13,7 +13,6 @@
 
 #include <string.h>
 #include <openssl/evp.h>
-#include <openssl/crypto.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
 #include <openssl/err.h>
@@ -1071,7 +1070,7 @@ static bool _cjose_jws_verify_sig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *
     diff |= (jws->sig_len != jws->dig_len);
     if (jws->sig_len == jws->dig_len)
     {
-        diff |= CRYPTO_memcmp(jws->dig, jws->sig, jws->dig_len);
+        diff |= cjose_const_memcmp(jws->dig, jws->sig, jws->dig_len);
     }
     if (diff != 0)
     {
