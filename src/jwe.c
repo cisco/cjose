@@ -44,6 +44,12 @@ _cjose_jwe_encrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe
 
 static bool
 _cjose_jwe_decrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+#ifdef CJOSE_OPENSSL_102X
+static bool
+_cjose_jwe_encrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+static bool
+_cjose_jwe_decrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
 static bool _cjose_jwe_encrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
@@ -385,6 +391,13 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep;
     }
+#ifdef CJOSE_OPENSSL_102X
+    if (strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP_256) == 0)
+    {
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep_256;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep_256;
+    }
+#endif // CJOSE_OPENSSL_102X
 #ifdef HAVE_RSA_PKCS1_PADDING
     if (strcmp(alg, CJOSE_HDR_ALG_RSA1_5) == 0)
     {
@@ -722,8 +735,12 @@ static bool _cjose_jwe_decrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// encrypts the CEK with the RSA public key: with padding, one of OpenSSL's
+// RSA_*_PADDING modes, when oaep_md is NULL, and otherwise with OAEP using
+// oaep_md for both the hash and MGF1 (RSA-OAEP-256), which OpenSSL only offers
+// as a separate padding step
 static bool _cjose_jwe_encrypt_ek_rsa_padding(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
+    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, const EVP_MD *oaep_md, cjose_err *err)
 {
     // jwk must be RSA
     if (jwk->kty != CJOSE_JWK_KTY_RSA || NULL == jwk->keydata)
@@ -750,8 +767,11 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
     // the size of the ek will match the size of the RSA key
     recipient->enc_key.raw_len = RSA_size((RSA *)jwk->keydata);
 
-    // for OAEP padding - the RSA size - 41 must be greater than input
-    if (jwe->cek_len >= recipient->enc_key.raw_len - 41)
+    // the CEK must leave room for the padding: 2 * hLen + 2 octets for OAEP
+    // with the given digest (RFC 8017 section 7.1.1); the SHA-1 OAEP and the
+    // PKCS1 v1.5 modes keep the historical RSA size - 41 bound
+    if ((NULL == oaep_md && jwe->cek_len >= recipient->enc_key.raw_len - 41)
+        || (NULL != oaep_md && jwe->cek_len + 2 * (size_t)EVP_MD_size(oaep_md) + 2 > recipient->enc_key.raw_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -763,6 +783,32 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
     {
         return false;
     }
+
+#ifdef CJOSE_OPENSSL_102X
+    if (NULL != oaep_md)
+    {
+        // pad the CEK into a scratch buffer of the modulus size with OAEP
+        // using oaep_md for the hash and for MGF1, then encrypt it raw
+        uint8_t *em = NULL;
+        if (!_cjose_jwe_malloc(recipient->enc_key.raw_len, false, &em, err))
+        {
+            return false;
+        }
+        bool ok
+            = (1
+               == RSA_padding_add_PKCS1_OAEP_mgf1(em, recipient->enc_key.raw_len, jwe->cek, jwe->cek_len, NULL, 0, oaep_md,
+                                                  oaep_md))
+              && (RSA_public_encrypt(recipient->enc_key.raw_len, em, recipient->enc_key.raw, (RSA *)jwk->keydata, RSA_NO_PADDING)
+                  == recipient->enc_key.raw_len);
+        _cjose_cleanse_dealloc(em, recipient->enc_key.raw_len);
+        if (!ok)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+            return false;
+        }
+        return true;
+    }
+#endif // CJOSE_OPENSSL_102X
 
     // encrypt the CEK using RSA v1.5 or OAEP padding
     if (RSA_public_encrypt(jwe->cek_len, jwe->cek, recipient->enc_key.raw, (RSA *)jwk->keydata, padding)
@@ -776,8 +822,10 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// decrypts the CEK with the RSA private key; padding and oaep_md as for
+// _cjose_jwe_encrypt_ek_rsa_padding
 static bool _cjose_jwe_decrypt_ek_rsa_padding(
-    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, cjose_err *err)
+    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, const EVP_MD *oaep_md, cjose_err *err)
 {
     if (NULL == jwe || NULL == jwk)
     {
@@ -826,6 +874,39 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
+#ifdef CJOSE_OPENSSL_102X
+    if (NULL != oaep_md)
+    {
+        // decrypt raw into the scratch buffer, then remove the OAEP padding
+        // with oaep_md for the hash and for MGF1 into a second one, and
+        // require the CEK size dictated by the enc header like below
+        uint8_t *msg = NULL;
+        if (!_cjose_jwe_malloc(buflen, false, &msg, err))
+        {
+            _cjose_cleanse_dealloc(buf, buflen);
+            return false;
+        }
+        int mlen = -1;
+        if (RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, RSA_NO_PADDING)
+            == (int)buflen)
+        {
+            mlen = RSA_padding_check_PKCS1_OAEP_mgf1(msg, buflen, buf, buflen, buflen, NULL, 0, oaep_md, oaep_md);
+        }
+        bool ok = (-1 != mlen && (size_t)mlen == jwe->cek_len);
+        if (ok)
+        {
+            memcpy(jwe->cek, msg, jwe->cek_len);
+        }
+        _cjose_cleanse_dealloc(msg, buflen);
+        _cjose_cleanse_dealloc(buf, buflen);
+        if (!ok)
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        }
+        return ok;
+    }
+#endif // CJOSE_OPENSSL_102X
+
     // decrypt the CEK using RSA v1.5 or OAEP padding and require that its
     // length matches the CEK size dictated by the enc header (RFC 7518 sec 4.2/4.3)
     int len = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, padding);
@@ -846,27 +927,43 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
 static bool
 _cjose_jwe_encrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, NULL, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool
 _cjose_jwe_decrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, err);
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, NULL, err);
 }
+
+#ifdef CJOSE_OPENSSL_102X
+////////////////////////////////////////////////////////////////////////////////
+static bool
+_cjose_jwe_encrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_NO_PADDING, EVP_sha256(), err);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool
+_cjose_jwe_decrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_NO_PADDING, EVP_sha256(), err);
+}
+#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, err);
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, NULL, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_decrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, err);
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_PADDING, NULL, err);
 }
 #endif // HAVE_RSA_PKCS1_PADDING
 
@@ -1879,7 +1976,9 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RSA1_5))) && jwk->kty != CJOSE_JWK_KTY_RSA)
+    if (((0 == strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP)) || (0 == strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP_256))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_RSA1_5)))
+        && jwk->kty != CJOSE_JWK_KTY_RSA)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;

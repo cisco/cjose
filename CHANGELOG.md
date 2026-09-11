@@ -5,6 +5,7 @@
 
 ### Update
 
+* Add the RSA-OAEP-256 key encryption algorithm of RFC 7518 section 4.3 (RSAES OAEP using SHA-256 and MGF1 with SHA-256); needs OpenSSL 1.0.2
 * Add the Octet Key Pair (OKP) JWK type of RFC 8037 holding an Ed25519 or Ed448 signature key (RFC 8032) or an X25519 or X448 key agreement key (RFC 7748): cjose_jwk_create_OKP_random, cjose_jwk_create_OKP_spec, cjose_jwk_OKP_get_curve and import/export; needs OpenSSL 1.1.1
 * Add the fully-specified EdDSA JWS signing algorithms Ed25519 and Ed448 of RFC 9864 over OKP keys; the polymorphic "EdDSA" identifier of RFC 8037, which RFC 9864 deprecates, is not supported
 
