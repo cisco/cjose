@@ -611,6 +611,15 @@ static bool _cjose_jwe_decrypt_ek_dir(_jwe_int_recipient_t *recipient, cjose_jwe
 {
     // do not try and decrypt the ek. that's impossible.
     // instead... only try to realize the truth.  there is no ek.
+    // RFC 7516 section 5.2 step 12: with Direct Encryption the JWE Encrypted
+    // Key must be empty (an empty string may have been allocated for it upon
+    // import, so check the length rather than the pointer)
+    if (0 != recipient->enc_key.raw_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     return jwe->fns.set_cek(jwe, jwk, false, err);
 }
 
@@ -951,6 +960,15 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
+
+    // RFC 7516 section 5.2 step 12: with Direct Key Agreement the JWE
+    // Encrypted Key must be empty (an empty string may have been allocated
+    // for it upon import, so check the length rather than the pointer)
+    if (0 != recipient->enc_key.raw_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
 
     // err is optional in the public API, but the logic below inspects
     // err->code to distinguish an absent EPK header from a real failure;
