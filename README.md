@@ -61,7 +61,7 @@ serialization, with one or more recipients.
 
 * CMake (>= 3.22)
 * A C99 compiler (LLVM/Clang >= 5.1, GCC >= 4.5 or MSVC >= 14)
-* Check (>= 0.9.4) - unit testing (e.g. check-devel)
+* Check (>= 0.12.0) - unit testing (e.g. check-devel)
 * Doxygen (>= 1.8) - API documentation (optional)
 * clang-format - source formatting (optional)
 
