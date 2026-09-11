@@ -14700,19 +14700,19 @@ $as_echo "no" >&6; }
 fi
 
 pkg_failed=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for check >= 0.12.0" >&5
-$as_echo_n "checking for check >= 0.12.0... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for check >= 0.9.4" >&5
+$as_echo_n "checking for check >= 0.9.4... " >&6; }
 
 if test -n "$CHECK_CFLAGS"; then
     pkg_cv_CHECK_CFLAGS="$CHECK_CFLAGS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"check >= 0.12.0\""; } >&5
-  ($PKG_CONFIG --exists --print-errors "check >= 0.12.0") 2>&5
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"check >= 0.9.4\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "check >= 0.9.4") 2>&5
   ac_status=$?
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
   test $ac_status = 0; }; then
-  pkg_cv_CHECK_CFLAGS=`$PKG_CONFIG --cflags "check >= 0.12.0" 2>/dev/null`
+  pkg_cv_CHECK_CFLAGS=`$PKG_CONFIG --cflags "check >= 0.9.4" 2>/dev/null`
 		      test "x$?" != "x0" && pkg_failed=yes
 else
   pkg_failed=yes
@@ -14724,12 +14724,12 @@ if test -n "$CHECK_LIBS"; then
     pkg_cv_CHECK_LIBS="$CHECK_LIBS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"check >= 0.12.0\""; } >&5
-  ($PKG_CONFIG --exists --print-errors "check >= 0.12.0") 2>&5
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"check >= 0.9.4\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "check >= 0.9.4") 2>&5
   ac_status=$?
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
   test $ac_status = 0; }; then
-  pkg_cv_CHECK_LIBS=`$PKG_CONFIG --libs "check >= 0.12.0" 2>/dev/null`
+  pkg_cv_CHECK_LIBS=`$PKG_CONFIG --libs "check >= 0.9.4" 2>/dev/null`
 		      test "x$?" != "x0" && pkg_failed=yes
 else
   pkg_failed=yes
@@ -14750,9 +14750,9 @@ else
         _pkg_short_errors_supported=no
 fi
         if test $_pkg_short_errors_supported = yes; then
-	        CHECK_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "check >= 0.12.0" 2>&1`
+	        CHECK_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "check >= 0.9.4" 2>&1`
         else
-	        CHECK_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "check >= 0.12.0" 2>&1`
+	        CHECK_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "check >= 0.9.4" 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$CHECK_PKG_ERRORS" >&5
