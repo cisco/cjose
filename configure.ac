@@ -19,7 +19,7 @@ DX_INIT_DOXYGEN([CJOSE], [Doxyfile], [doc])
 
 ### Check for CHECK
 PKG_CHECK_MODULES([CHECK],
-        [check >= 0.12.0],
+        [check >= 0.9.4],
         [have_check="yes"],
         [   AC_MSG_WARN([Check not found; cannot run unit tests!]);
             [have_check="no"]
