@@ -17,7 +17,6 @@
 #include <stdio.h>
 
 #include <openssl/bn.h>
-#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/obj_mac.h>
 #include <openssl/rand.h>
@@ -1495,7 +1494,7 @@ cjose_jwk_t *cjose_jwk_create_OKP_spec(const cjose_jwk_okp_keyspec *spec, cjose_
                 CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
                 goto create_OKP_spec_cleanup;
             }
-            if (0 != CRYPTO_memcmp(pub, spec->x, numsize))
+            if (0 != cjose_const_memcmp(pub, spec->x, numsize))
             {
                 CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
                 goto create_OKP_spec_cleanup;

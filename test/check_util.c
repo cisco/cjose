@@ -251,6 +251,28 @@ START_TEST(test_cjose_err_message)
 }
 END_TEST
 
+START_TEST(test_cjose_const_memcmp)
+{
+    static const uint8_t a[] = { 0x00, 0x01, 0x02, 0x03, 0xff };
+    static const uint8_t b[] = { 0x00, 0x01, 0x02, 0x03, 0xff };
+    static const uint8_t first[] = { 0x80, 0x01, 0x02, 0x03, 0xff };
+    static const uint8_t last[] = { 0x00, 0x01, 0x02, 0x03, 0xfe };
+
+    // equal: zero, like memcmp
+    ck_assert_int_eq(0, cjose_const_memcmp(a, b, sizeof(a)));
+    ck_assert_int_eq(0, cjose_const_memcmp(a, a, sizeof(a)));
+
+    // a difference anywhere: non-zero, but only equal/unequal, not ordered
+    ck_assert(0 != cjose_const_memcmp(a, first, sizeof(a)));
+    ck_assert(0 != cjose_const_memcmp(a, last, sizeof(a)));
+    ck_assert(0 != cjose_const_memcmp(last, a, sizeof(a)));
+
+    // only the first size octets take part
+    ck_assert_int_eq(0, cjose_const_memcmp(a, last, sizeof(a) - 1));
+    ck_assert_int_eq(0, cjose_const_memcmp(a, first, 0));
+}
+END_TEST
+
 Suite *cjose_util_suite(void)
 {
     Suite *suite = suite_create("util");
@@ -259,6 +281,7 @@ Suite *cjose_util_suite(void)
     tcase_add_test(tc_util, test_cjose_set_allocators);
     tcase_add_test(tc_util, test_cjose_set_allocators_ex);
     tcase_add_test(tc_util, test_cjose_err_message);
+    tcase_add_test(tc_util, test_cjose_const_memcmp);
     suite_add_tcase(suite, tc_util);
 
     return suite;
