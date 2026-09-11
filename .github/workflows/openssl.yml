@@ -1,0 +1,89 @@
+name: OpenSSL
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  format:
+    uses: ./.github/workflows/format.yml
+
+  build:
+    needs: format
+    runs-on: ubuntu-latest
+    name: OpenSSL ${{ matrix.openssl }}
+
+    # The Build and Archs workflows test against the OpenSSL that the platform
+    # packages provide, which is a recent release. README.md promises OpenSSL
+    # 1.0.1h or newer, so this workflow builds the last release of every
+    # release series from source and tests against it, plus 3.0.7: the release
+    # RHEL 9 is based on and the last 3.0.x whose EdDSA signing dereferences a
+    # missing private key instead of failing (guarded in 3.0.8).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { openssl: 1.0.1u, tag: OpenSSL_1_0_1u, sha256: 4312b4ca1215b6f2c97007503d80db80d5157f76f8f7d3febbe6b4c56ff26739 }
+          - { openssl: 1.0.2u, tag: OpenSSL_1_0_2u, sha256: ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16 }
+          - { openssl: 1.1.0l, tag: OpenSSL_1_1_0l, sha256: 74a2f756c64fd7386a29184dc0344f4831192d61dc2481a93a4c5dd727f41148 }
+          - { openssl: 1.1.1w, tag: OpenSSL_1_1_1w, sha256: cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8 }
+          - { openssl: 3.0.7, tag: openssl-3.0.7, sha256: 83049d042a260e696f62406ac5c08bf706fd84383f945cf21bd61e9ed95c396e }
+          - { openssl: 3.0.22, tag: openssl-3.0.22, sha256: 67ebca7e50d17383028045486653492195b83db95f8558709701bb47b5c1ef81 }
+          - { openssl: 3.1.8, tag: openssl-3.1.8, sha256: d319da6aecde3aa6f426b44bbf997406d95275c5c59ab6f6ef53caaa079f456f }
+          - { openssl: 3.2.6, tag: openssl-3.2.6, sha256: 89681a9ddaa9ed7cf25ea8ef61338db805200bae47d00510490623547380c148 }
+          - { openssl: 3.3.7, tag: openssl-3.3.7, sha256: 4900be54e81c4dfe00bb1a10dad33fd8414833573c40d0e9e3274d4ed32e53a2 }
+          - { openssl: 3.4.7, tag: openssl-3.4.7, sha256: 7261c348e6e59bc7b635a30f98072e8817a1c60a7033bb570737394a3a061842 }
+          - { openssl: 3.5.8, tag: openssl-3.5.8, sha256: a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2 }
+          - { openssl: 3.6.4, tag: openssl-3.6.4, sha256: 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef }
+          - { openssl: 4.0.2, tag: openssl-4.0.2, sha256: 736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8 }
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake pkg-config gcc libjansson-dev check
+        echo "OPENSSL_PREFIX=$HOME/openssl-${{ matrix.openssl }}" >> "$GITHUB_ENV"
+    - name: Cache OpenSSL ${{ matrix.openssl }}
+      id: cache-openssl
+      uses: actions/cache@v6
+      with:
+        path: ~/openssl-${{ matrix.openssl }}
+        key: openssl-${{ matrix.openssl }}-${{ runner.os }}-${{ runner.arch }}
+    - name: Build OpenSSL ${{ matrix.openssl }}
+      if: steps.cache-openssl.outputs.cache-hit != 'true'
+      working-directory: ${{ runner.temp }}
+      run: |
+        curl -fsSLO "https://github.com/openssl/openssl/releases/download/${{ matrix.tag }}/openssl-${{ matrix.openssl }}.tar.gz"
+        echo "${{ matrix.sha256 }}  openssl-${{ matrix.openssl }}.tar.gz" | sha256sum -c -
+        tar xzf "openssl-${{ matrix.openssl }}.tar.gz"
+        cd "openssl-${{ matrix.openssl }}"
+        case "${{ matrix.openssl }}" in
+          1.0.*)
+            # static by default, no --libdir, needs 'make depend', parallel make is unreliable
+            ./config --prefix="$OPENSSL_PREFIX" shared
+            make depend
+            make
+            ;;
+          1.1.0*)
+            # has --libdir but not no-tests
+            ./config --prefix="$OPENSSL_PREFIX" --libdir=lib
+            make -j"$(nproc)"
+            ;;
+          *)
+            ./config --prefix="$OPENSSL_PREFIX" --libdir=lib no-tests
+            make -j"$(nproc)"
+            ;;
+        esac
+        make install_sw
+    - name: Configure
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DOPENSSL_ROOT_DIR="$OPENSSL_PREFIX"
+    - name: Build
+      run: cmake --build build --parallel
+    - name: Check which OpenSSL the tests load
+      run: |
+        LD_LIBRARY_PATH="$OPENSSL_PREFIX/lib" "$OPENSSL_PREFIX/bin/openssl" version
+        ldd build/check_cjose | grep -F "$OPENSSL_PREFIX/lib/libcrypto"
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
