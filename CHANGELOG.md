@@ -1,5 +1,12 @@
 # Release Notes #
 
+<a name="unreleased"></a>
+## [Unreleased](https://github.com/cisco/cjose/0.7.0..master)
+
+### Fix
+
+* Check the key type before the HMAC digest step: cjose_jws_sign with an HS256, HS384 or HS512 header and an EC or RSA key ran the HMAC over the key structure and past the end of its allocation before failing with CJOSE_ERR_INVALID_ARG
+
 <a name="0.7.0"></a>
 ## [0.7.0](https://github.com/cisco/cjose/0.6.3..0.7.0)  (2026-09-09)
 

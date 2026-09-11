@@ -253,6 +253,13 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
     bool retval = false;
     HMAC_CTX *ctx = NULL;
 
+    // ensure jwk is OCT: only then is keydata the raw key material
+    if (jwk->kty != CJOSE_JWK_KTY_OCT)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     // make sure we have an alg header
     json_t *alg_obj = json_object_get(jws->hdr, CJOSE_HDR_ALG);
     if (NULL == alg_obj)
