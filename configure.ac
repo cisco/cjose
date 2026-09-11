@@ -3,7 +3,7 @@
 #
 
 ### Prerequisites
-AC_INIT([cjose], [0.7.0])
+AC_INIT([cjose], [0.8.0])
 AM_INIT_AUTOMAKE([foreign])
 LT_PREREQ([2.2])
 LT_INIT([dlopen])

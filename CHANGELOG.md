@@ -1,7 +1,7 @@
 # Release Notes #
 
-<a name="unreleased"></a>
-## [Unreleased](https://github.com/cisco/cjose/0.7.0..master)
+<a name="0.8.0"></a>
+## [0.8.0](https://github.com/cisco/cjose/0.7.0..0.8.0)  (2026-09-12)
 
 ### Update
 
