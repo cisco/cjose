@@ -67,8 +67,11 @@ _cjose_jwe_import
 _cjose_jwe_import_json
 _cjose_jwe_release
 _cjose_jwk_EC_get_curve
+_cjose_jwk_OKP_get_curve
 _cjose_jwk_create_EC_random
 _cjose_jwk_create_EC_spec
+_cjose_jwk_create_OKP_random
+_cjose_jwk_create_OKP_spec
 _cjose_jwk_create_RSA_random
 _cjose_jwk_create_RSA_spec
 _cjose_jwk_create_oct_random

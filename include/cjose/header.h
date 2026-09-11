@@ -85,6 +85,10 @@ extern "C" {
 #define CJOSE_HDR_ALG_ES384 "ES384"
 #define CJOSE_HDR_ALG_ES512 "ES512"
 
+/** The JWS algorithm attribute values for the fully-specified EdDSA algorithms Ed25519 and Ed448 (RFC 9864). */
+#define CJOSE_HDR_ALG_ED25519 "Ed25519"
+#define CJOSE_HDR_ALG_ED448 "Ed448"
+
 /** The JWE algorithm attribute value for "dir". */
 #define CJOSE_HDR_ALG_DIR "dir"
 
