@@ -766,12 +766,14 @@ void cjose_jws_release(cjose_jws_t *jws)
     }
 
     cjose_get_dealloc()(jws->hdr_b64u);
-    cjose_get_dealloc()(jws->dat);
-    cjose_get_dealloc()(jws->dat_b64u);
+    // the payload may be sensitive: wipe it and the copies that embed it,
+    // like the decrypted plaintext of a JWE
+    _cjose_cleanse_dealloc(jws->dat, jws->dat_len);
+    _cjose_cleanse_dealloc(jws->dat_b64u, jws->dat_b64u_len);
     _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
     _cjose_cleanse_dealloc(jws->sig, jws->sig_len);
     cjose_get_dealloc()(jws->sig_b64u);
-    cjose_get_dealloc()(jws->cser);
+    _cjose_cleanse_dealloc(jws->cser, jws->cser_len);
     cjose_get_dealloc()(jws);
 }
 
