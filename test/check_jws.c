@@ -392,6 +392,43 @@ START_TEST(test_cjose_jws_sign_with_bad_key)
 }
 END_TEST
 
+START_TEST(test_cjose_jws_sign_hmac_with_non_oct_key)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "The mind is everything. What you think you become.";
+    size_t plain_len = sizeof(plain) - 1;
+
+    // HS256/HS384/HS512 take an oct key; for any other key type keydata is a
+    // key structure, not raw key material, and must not be fed to the HMAC.
+    // Before the fix the digest step ran the HMAC over keysize/8 octets of
+    // jwk->keydata and only the signing step rejected the key type: an
+    // over-read of the (much smaller) EC or RSA key structure that valgrind
+    // flags. The P-521 key reads 65 octets from a 16 octet allocation.
+    cjose_jwk_t *keys[3] = { NULL, NULL, NULL };
+    keys[0] = cjose_jwk_import(JWK_COMMON_EC, strlen(JWK_COMMON_EC), &err);
+    keys[1] = cjose_jwk_create_EC_random(CJOSE_JWK_EC_P_521, &err);
+    keys[2] = cjose_jwk_import(JWK_COMMON, strlen(JWK_COMMON), &err); // RSA
+    static const char *ALGS[] = { CJOSE_HDR_ALG_HS256, CJOSE_HDR_ALG_HS384, CJOSE_HDR_ALG_HS512 };
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(NULL != hdr);
+    for (size_t k = 0; k < sizeof(keys) / sizeof(keys[0]); k++)
+    {
+        ck_assert_msg(NULL != keys[k], "creating key %zu failed: %s", k, err.message);
+        for (size_t a = 0; a < sizeof(ALGS) / sizeof(ALGS[0]); a++)
+        {
+            ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, ALGS[a], &err));
+            cjose_jws_t *jws = cjose_jws_sign(keys[k], hdr, plain, plain_len, &err);
+            ck_assert_msg(NULL == jws, "cjose_jws_sign [%s] accepted a non-oct key (key %zu)", ALGS[a], k);
+            ck_assert_msg(err.code == CJOSE_ERR_INVALID_ARG, "cjose_jws_sign [%s] returned wrong err.code (%u:%s)", ALGS[a],
+                          err.code, err.message);
+        }
+        cjose_jwk_release(keys[k]);
+    }
+    cjose_header_release(hdr);
+}
+END_TEST
+
 START_TEST(test_cjose_jws_sign_with_bad_content)
 {
     cjose_err err;
@@ -1199,6 +1236,7 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_es256k_rejects_wrong_curve);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_header);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_key);
+    tcase_add_test(tc_jws, test_cjose_jws_sign_hmac_with_non_oct_key);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_content);
     tcase_add_test(tc_jws, test_cjose_jws_import_export_compare);
     tcase_add_test(tc_jws, test_cjose_jws_import_invalid_serialization);
