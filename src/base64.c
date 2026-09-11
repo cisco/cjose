@@ -40,7 +40,8 @@ static const uint8_t TEBAHPLA_B64[]
 
 // internal functions
 
-static inline bool _decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, bool url, cjose_err *err)
+static inline bool
+_cjose_base64_decode_impl(const char *input, size_t inlen, uint8_t **output, size_t *outlen, bool url, cjose_err *err)
 {
     if ((NULL == input) || (NULL == output) || (NULL == outlen))
     {
@@ -168,7 +169,8 @@ b64_decode_failed:
     return false;
 }
 
-static inline bool _encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, const char *alphabet, cjose_err *err)
+static inline bool
+_cjose_base64_encode_impl(const uint8_t *input, size_t inlen, char **output, size_t *outlen, const char *alphabet, cjose_err *err)
 {
     if ((inlen > 0 && NULL == input) || (NULL == output) || (NULL == outlen))
     {
@@ -255,18 +257,18 @@ static inline bool _encode(const uint8_t *input, size_t inlen, char **output, si
 
 bool cjose_base64_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err)
 {
-    return _encode(input, inlen, output, outlen, ALPHABET_B64, err);
+    return _cjose_base64_encode_impl(input, inlen, output, outlen, ALPHABET_B64, err);
 }
 bool cjose_base64url_encode(const uint8_t *input, size_t inlen, char **output, size_t *outlen, cjose_err *err)
 {
-    return _encode(input, inlen, output, outlen, ALPHABET_B64U, err);
+    return _cjose_base64_encode_impl(input, inlen, output, outlen, ALPHABET_B64U, err);
 }
 
 bool cjose_base64_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
 {
-    return _decode(input, inlen, output, outlen, false, err);
+    return _cjose_base64_decode_impl(input, inlen, output, outlen, false, err);
 }
 bool cjose_base64url_decode(const char *input, size_t inlen, uint8_t **output, size_t *outlen, cjose_err *err)
 {
-    return _decode(input, inlen, output, outlen, true, err);
+    return _cjose_base64_decode_impl(input, inlen, output, outlen, true, err);
 }
