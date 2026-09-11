@@ -68,7 +68,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Cache vcpkg binary archives
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ env.LOCALAPPDATA }}\vcpkg\archives
         key: vcpkg-archives-${{ runner.os }}-x64-windows-openssl-jansson-check

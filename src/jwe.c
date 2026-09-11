@@ -1354,7 +1354,6 @@ static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plai
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
     }
-    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for encryption using the AES GCM cipher and CEK and IV
     if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek, jwe->enc_iv.raw) != 1)
@@ -1558,7 +1557,6 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
-    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
     if (EVP_EncryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
@@ -1664,7 +1662,6 @@ static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_gcm_fail;
     }
-    EVP_CIPHER_CTX_init(ctx);
 
     if (jwe->enc_iv.raw_len != 12)
     {
@@ -1798,7 +1795,6 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_cbc_fail;
     }
-    EVP_CIPHER_CTX_init(ctx);
 
     // initialize context for decryption using the cipher, the 2nd half of the CEK and the IV
     if (EVP_DecryptInit_ex(ctx, cipher, NULL, jwe->cek + jwe->cek_len / 2, jwe->enc_iv.raw) != 1)
