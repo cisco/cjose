@@ -6,6 +6,52 @@
 
 Implementation of JOSE for C/C++
 
+## Supported Algorithms ##
+
+JWS signing algorithms (`alg`):
+
+| Identifier | Algorithm | Requires |
+|------------|-----------|----------|
+| `HS256`, `HS384`, `HS512` | HMAC with SHA-2 | |
+| `RS256`, `RS384`, `RS512` | RSASSA-PKCS1-v1_5 with SHA-2 | |
+| `PS256`, `PS384`, `PS512` | RSASSA-PSS with SHA-2 | |
+| `ES256`, `ES384`, `ES512` | ECDSA with P-256, P-384 and P-521 | |
+| `ES256K` | ECDSA with secp256k1 | OpenSSL built with `secp256k1` |
+| `Ed25519`, `Ed448` | EdDSA (RFC 9864) | OpenSSL 1.1.1 |
+
+The polymorphic `EdDSA` identifier of RFC 8037, deprecated by RFC 9864, and
+`none` are not accepted.
+
+JWE key management algorithms (`alg`):
+
+| Identifier | Algorithm | Requires |
+|------------|-----------|----------|
+| `RSA-OAEP` | RSAES OAEP | |
+| `RSA1_5` | RSAES-PKCS1-v1_5 | build option `CJOSE_ENABLE_RSA1_5` |
+| `A128KW`, `A192KW`, `A256KW` | AES Key Wrap | |
+| `dir` | direct use of a shared symmetric key | |
+| `ECDH-ES` | ECDH-ES direct key agreement | |
+| `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW` | ECDH-ES with AES Key Wrap | |
+
+JWE content encryption algorithms (`enc`):
+
+| Identifier | Algorithm |
+|------------|-----------|
+| `A128GCM`, `A192GCM`, `A256GCM` | AES GCM |
+| `A128CBC-HS256`, `A192CBC-HS384`, `A256CBC-HS512` | AES CBC with HMAC SHA-2 |
+
+JWK key types (`kty`):
+
+| Identifier | Keys | Requires |
+|------------|------|----------|
+| `RSA` | RSA | |
+| `EC` | `P-256`, `P-384`, `P-521`, `secp256k1` | `secp256k1`: OpenSSL built with it |
+| `oct` | symmetric | |
+| `OKP` | `Ed25519`, `Ed448`, `X25519`, `X448` | OpenSSL 1.1.1 |
+
+JWEs can be produced and consumed in both the compact and the JSON
+serialization, with one or more recipients.
+
 ## Prerequisites ##
 
 *MAC OS X* All of the prerequisites can be installed via [brew](http://brew.sh/).
