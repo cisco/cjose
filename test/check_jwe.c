@@ -1381,8 +1381,8 @@ static void _cjose_test_empty_headers(const cjose_jwk_t *key)
                   err.message, err.file, err.function, err.line);
     ck_assert_msg((len == 1) && (*test == 0), "Decrypted data does not match original");
 
-    free(test);
-    free(json);
+    cjose_get_dealloc()(test);
+    cjose_get_dealloc()(json);
     cjose_jwe_release(jwe);
 }
 
