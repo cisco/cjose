@@ -1712,7 +1712,9 @@ START_TEST(test_cjose_jwk_import_empty_private_member)
 {
     cjose_err err;
     static const char *const members[] = { "d", "p", "q", "dp", "dq", "qi" };
-    static const char *const values[] = { "\"\"", "null" };
+    // an empty string, a JSON null, and base64url padding that decodes to
+    // nothing at all
+    static const char *const values[] = { "\"\"", "null", "\"==\"", "\"====\"" };
 
     cjose_jwk_t *rsa = cjose_jwk_create_RSA_random(2048, NULL, 0, &err);
     ck_assert_msg(NULL != rsa, "cjose_jwk_create_RSA_random failed: %s", err.message);

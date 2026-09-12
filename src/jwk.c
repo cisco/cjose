@@ -1943,7 +1943,9 @@ static bool _cjose_jwk_decode_private_attribute(json_t *jwk_json, const char *ke
     {
         return false;
     }
-    if (NULL != json_object_get(jwk_json, key) && NULL == *buffer)
+    // base64url padding on its own decodes to nothing, so the buffer can be
+    // present and still carry no octets
+    if (NULL != json_object_get(jwk_json, key) && (NULL == *buffer || 0 == *buflen))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
