@@ -10,12 +10,7 @@
 #include <check.h>
 #include <cjose/cjose.h>
 #include <jansson.h>
-#include "include/jwk_int.h"
-#include "include/jwe_int.h"
 #include "include/header_int.h"
-#include <openssl/rsa.h>
-#include <openssl/err.h>
-#include <openssl/rand.h>
 
 START_TEST(test_cjose_header_new_release)
 {

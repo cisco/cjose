@@ -95,13 +95,19 @@ cjose_jwk_kty_t cjose_jwk_get_kty(const cjose_jwk_t *jwk, cjose_err *err);
 size_t cjose_jwk_get_keysize(const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
- * Retrieves the raw key data for this JWK.
+ * Retrieves the key data owned by this JWK.
  *
- * \b WARNING: this is the raw data specific to the key type, and could
- * contain private key material.
- * \b NOTE: This key data will be released when the key is released.
+ * For octet keys, the returned pointer addresses the raw key bytes. For all
+ * other key types, it refers to an implementation-specific representation and
+ * must be treated as opaque.
+ *
+ * \b WARNING: The returned data may contain private key material.
+ * \b NOTE: The data is borrowed and must not be modified or freed. It will be
+ * released when the key is released.
  *
  * \param jwk The JWK to retrieve key data from
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
  * \returns The key data specific to the type of key
  */
 void *cjose_jwk_get_keydata(const cjose_jwk_t *jwk, cjose_err *err);

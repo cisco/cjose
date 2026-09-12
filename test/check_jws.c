@@ -85,18 +85,6 @@ static const char *JWS_COMMON
       "whF9FnGng7bmU8qjNPiXCWfQ-n74gopAVzd3KDJ5ai7q66voRc9pCKJVbsaIMHIqcl9OPiMdY5Hz3_PgBalR2632HOdpUlIMvnMOL3EQICvyBwxaYPbhMcCpEc3_"
       "4K-sywOGiCSp9KlaLcRq0knZtAT0ynJszaiOwfR-W18PEFLfGclpeR6e_gop9mq69t36wK7KRUjrQ";
 
-static cjose_alloc_fn_t _jws_saved_alloc = NULL;
-static size_t _jws_fail_alloc_size = 0;
-
-static void *_jws_fail_selected_alloc(size_t size)
-{
-    if (size == _jws_fail_alloc_size)
-    {
-        return NULL;
-    }
-    return _jws_saved_alloc(size);
-}
-
 static const char *_self_get_jwk_by_alg(const char *alg)
 {
     if ((strcmp(alg, CJOSE_HDR_ALG_HS256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_HS384) == 0)
@@ -436,8 +424,8 @@ START_TEST(test_cjose_jws_ed25519_rejects_wrong_key)
     }
 
     // signing needs the private key: the library refuses a public-only key
-    // itself, since OpenSSL 1.1.1 and 3.0.0 to 3.0.7 sign with the missing
-    // private key instead of failing (3.0.8 added the guard)
+    // itself, since OpenSSL 3.0.0 through 3.0.7 signs with the missing private
+    // key instead of failing (3.0.8 added the guard)
     cjose_jwk_t *ed448_pub = cjose_jwk_import(JWK_ED448_PUB, strlen(JWK_ED448_PUB), &err);
     ck_assert(NULL != ed448_pub);
     const struct
@@ -1419,35 +1407,6 @@ START_TEST(test_cjose_jws_verify_ps_sig_bad_length)
 }
 END_TEST
 
-START_TEST(test_cjose_jws_verify_ps_alloc_failure)
-{
-    cjose_err err;
-    cjose_jwk_t *jwk = cjose_jwk_import(JWK_COMMON, strlen(JWK_COMMON), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
-
-    cjose_jws_t *jws = cjose_jws_import(JWS_COMMON, strlen(JWS_COMMON), &err);
-    ck_assert_msg(NULL != jws, "cjose_jws_import failed: %s", err.message);
-
-    cjose_alloc_fn_t saved_alloc = cjose_get_alloc();
-    cjose_realloc_fn_t saved_realloc = cjose_get_realloc();
-    cjose_dealloc_fn_t saved_dealloc = cjose_get_dealloc();
-    _jws_saved_alloc = saved_alloc;
-    _jws_fail_alloc_size = jws->sig_len;
-    cjose_set_alloc_funcs(_jws_fail_selected_alloc, saved_realloc, saved_dealloc);
-
-    bool verified = cjose_jws_verify(jws, jwk, &err);
-    cjose_set_alloc_funcs(saved_alloc, saved_realloc, saved_dealloc);
-    _jws_saved_alloc = NULL;
-    _jws_fail_alloc_size = 0;
-
-    ck_assert_msg(!verified, "cjose_jws_verify succeeded when its encoded-message allocation failed");
-    ck_assert_msg(err.code == CJOSE_ERR_NO_MEMORY, "expected CJOSE_ERR_NO_MEMORY, got (%i:%s)", err.code, err.message);
-
-    cjose_jws_release(jws);
-    cjose_jwk_release(jwk);
-}
-END_TEST
-
 // regression: the JWS ECDSA signature must be exactly R || S for the key's
 // curve; _cjose_jws_verify_sig_ec used sig_len / 2 without a length check,
 // so a valid signature with a trailing octet appended still verified
@@ -1573,7 +1532,6 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_verify_bad_params);
     tcase_add_test(tc_jws, test_cjose_jws_none);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ps_sig_bad_length);
-    tcase_add_test(tc_jws, test_cjose_jws_verify_ps_alloc_failure);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ec_sig_bad_length);
     suite_add_tcase(suite, tc_jws);
 
