@@ -1670,7 +1670,42 @@ START_TEST(test_cjose_jwk_import_invalid)
 }
 END_TEST
 
-// RFC 7517 gives every private member a base64url value: one that is present
+// RFC 7518 section 6.3.2.7: cjose does not support multi-prime RSA keys, so
+// an RSA JWK carrying the "oth" private-key parameter must not be used
+START_TEST(test_cjose_jwk_import_unsupported_rsa_oth)
+{
+    cjose_err err;
+    static const char *const oth_values[] = {
+        "[{\"r\":\"AQ\",\"d\":\"AQ\",\"t\":\"AQ\"}]",
+        "null",
+    };
+
+    cjose_jwk_t *rsa = cjose_jwk_create_RSA_random(2048, NULL, 0, &err);
+    ck_assert_msg(NULL != rsa, "cjose_jwk_create_RSA_random failed: %s", err.message);
+    char *priv = cjose_jwk_to_json(rsa, true, &err);
+    ck_assert(NULL != priv);
+
+    for (size_t i = 0; i < sizeof(oth_values) / sizeof(oth_values[0]); i++)
+    {
+        size_t len = strlen(priv) + strlen(oth_values[i]) + 16;
+        char *with_oth = malloc(len);
+        ck_assert(NULL != with_oth);
+        snprintf(with_oth, len, "%.*s,\"oth\":%s}", (int)strlen(priv) - 1, priv, oth_values[i]);
+
+        memset(&err, 0, sizeof(err));
+        cjose_jwk_t *bad = cjose_jwk_import(with_oth, strlen(with_oth), &err);
+        ck_assert_msg(NULL == bad, "RSA JWK with oth value %s was accepted", oth_values[i]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_jwk_release(bad);
+        free(with_oth);
+    }
+
+    cjose_get_dealloc()(priv);
+    cjose_jwk_release(rsa);
+}
+END_TEST
+
+// RFC 7518 section 6.3.2 gives every private member a base64url value: one that is present
 // but carries no value is a malformed key, and reading it as an absent member
 // turned the key into a public one
 START_TEST(test_cjose_jwk_import_empty_private_member)
@@ -2217,6 +2252,7 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_valid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_invalid);
+    tcase_add_test(tc_jwk, test_cjose_jwk_import_unsupported_rsa_oth);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_empty_private_member);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_underflow_length);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_no_zero_termination);
