@@ -106,9 +106,9 @@ set(CJOSE_EXPORTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/exports")
 add_library(cjose_objects OBJECT ${CJOSE_SOURCES} ${CJOSE_INTERNAL_HEADERS})
 set_target_properties(cjose_objects PROPERTIES
     POSITION_INDEPENDENT_CODE ON
-    C_STANDARD 99
+    C_STANDARD 17
     C_STANDARD_REQUIRED ON
-    C_EXTENSIONS ON)
+    C_EXTENSIONS OFF)
 
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
@@ -377,9 +377,9 @@ if(CJOSE_BUILD_TESTS)
             ${CJOSE_PLATFORM_LIBRARIES})
 
         set_target_properties(check_cjose PROPERTIES
-            C_STANDARD 99
+            C_STANDARD 17
             C_STANDARD_REQUIRED ON
-            C_EXTENSIONS ON)
+            C_EXTENSIONS OFF)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
         endif()

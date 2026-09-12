@@ -107,7 +107,7 @@ void _cjose_cleanse_dealloc(void *ptr, size_t len)
 
 int cjose_const_memcmp(const uint8_t *a, const uint8_t *b, const size_t size) { return CRYPTO_memcmp(a, b, size); }
 
-char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err)
+char *_cjose_strndup(const char *str, ptrdiff_t len, cjose_err *err)
 {
     if (NULL == str)
     {

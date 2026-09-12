@@ -11,17 +11,13 @@
 #include <cjose/error.h>
 
 #include <jansson.h>
+#include <stddef.h>
 #include <string.h>
-
-#ifdef _WIN32
-#include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-#endif
 
 // NOTE: unlike POSIX strndup this copies exactly len bytes (len < 0 means
 // strlen(str)); it does not stop at an embedded NUL, so len must not exceed
 // strlen(str) or the copy over-reads str.
-char *_cjose_strndup(const char *str, ssize_t len, cjose_err *err);
+char *_cjose_strndup(const char *str, ptrdiff_t len, cjose_err *err);
 json_t *_cjose_json_stringn(const char *value, size_t len, cjose_err *err);
 
 void *cjose_alloc3_default(size_t n, const char *file, int line);

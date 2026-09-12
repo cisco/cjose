@@ -60,7 +60,7 @@ serialization, with one or more recipients.
 ### Build Tools ###
 
 * CMake (>= 3.22)
-* A C99 compiler (LLVM/Clang >= 5.1, GCC >= 4.5 or MSVC >= 14)
+* A C17 compiler (LLVM/Clang >= 6.0, GCC >= 8.1 or MSVC >= 19.28)
 * Check (>= 0.12.0) - unit testing (e.g. check-devel)
 * Doxygen (>= 1.8) - API documentation (optional)
 * clang-format - source formatting (optional)
