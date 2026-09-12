@@ -214,12 +214,10 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A192GCM, JWK_RSA, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
-#ifdef CJOSE_OPENSSL_102X
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A128GCM, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A128CBC_HS256, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256CBC_HS512, JWK_RSA, plain1, plain1_len);
-#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
@@ -352,9 +350,7 @@ static void _self_encrypt_self_decrypt_with_key_iv(
 static void _self_encrypt_self_decrypt_iv(const uint8_t *plain1, size_t plain1_len)
 {
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
-#ifdef CJOSE_OPENSSL_102X
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
-#endif // CJOSE_OPENSSL_102X
 
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1, plain1_len);
 
@@ -1081,7 +1077,7 @@ END_TEST
 // build a compact JWE from a valid AES-KW JWE but with the encrypted_key segment
 // replaced by an oversized (attacker-controlled) base64url blob, then confirm that
 // importing parses fine but decryption fails gracefully instead of overflowing the
-// fixed-size CEK buffer in AES_unwrap_key (RFC 3394 wrapped key is always cek_len + 8)
+// fixed-size CEK buffer (RFC 3394 wrapped key is always cek_len + 8)
 static void _decrypt_oversized_aes_kw_ek(const char *alg, const char *enc, const char *key)
 {
     cjose_err err;
@@ -1659,14 +1655,21 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
 
     // recover the real 32-byte A256GCM CEK by unwrapping the encrypted_key
     // segment with the private key
-    RSA *rsa = (RSA *)jwk->keydata;
-    int ek_len = RSA_size(rsa);
+    EVP_PKEY *rsa = _cjose_jwk_rsa_key(jwk);
+    size_t ek_len = EVP_PKEY_get_size(rsa);
     uint8_t *orig_ek = NULL;
     size_t orig_ek_len = 0;
     ck_assert(cjose_base64url_decode(first_dot + 1, second_dot - first_dot - 1, &orig_ek, &orig_ek_len, &err));
-    ck_assert_int_eq(ek_len, orig_ek_len);
+    ck_assert_uint_eq(ek_len, orig_ek_len);
     uint8_t cek[256];
-    ck_assert_int_eq(32, RSA_private_decrypt(orig_ek_len, orig_ek, cek, rsa, RSA_PKCS1_OAEP_PADDING));
+    size_t cek_len = sizeof(cek);
+    EVP_PKEY_CTX *rsa_ctx = EVP_PKEY_CTX_new(rsa, NULL);
+    ck_assert(NULL != rsa_ctx);
+    ck_assert_int_eq(1, EVP_PKEY_decrypt_init(rsa_ctx));
+    ck_assert_int_eq(1, EVP_PKEY_CTX_set_rsa_padding(rsa_ctx, RSA_PKCS1_OAEP_PADDING));
+    ck_assert_int_eq(1, EVP_PKEY_decrypt(rsa_ctx, cek, &cek_len, orig_ek, orig_ek_len));
+    ck_assert_uint_eq(32, cek_len);
+    EVP_PKEY_CTX_free(rsa_ctx);
 
     // RSA-OAEP-encrypt that CEK followed by 8 trailing bytes (40 bytes in
     // total) with the same public key
@@ -1675,7 +1678,14 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
     memset(bad_cek + 32, 0x42, sizeof(bad_cek) - 32);
     uint8_t *ek = (uint8_t *)malloc(ek_len);
     ck_assert(NULL != ek);
-    ck_assert(RSA_public_encrypt(sizeof(bad_cek), bad_cek, ek, rsa, RSA_PKCS1_OAEP_PADDING) == ek_len);
+    size_t encrypted_len = ek_len;
+    rsa_ctx = EVP_PKEY_CTX_new(rsa, NULL);
+    ck_assert(NULL != rsa_ctx);
+    ck_assert_int_eq(1, EVP_PKEY_encrypt_init(rsa_ctx));
+    ck_assert_int_eq(1, EVP_PKEY_CTX_set_rsa_padding(rsa_ctx, RSA_PKCS1_OAEP_PADDING));
+    ck_assert_int_eq(1, EVP_PKEY_encrypt(rsa_ctx, ek, &encrypted_len, bad_cek, sizeof(bad_cek)));
+    ck_assert_uint_eq(ek_len, encrypted_len);
+    EVP_PKEY_CTX_free(rsa_ctx);
 
     char *ek_b64u = NULL;
     size_t ek_b64u_len = 0;
@@ -1915,7 +1925,6 @@ START_TEST(test_cjose_jwe_direct_rejects_encrypted_key)
     }
 }
 END_TEST
-#ifdef CJOSE_OPENSSL_102X
 // RSA-OAEP-256 JWEs produced by python-jwcrypto with the JWK_RSA key over the
 // plaintext below: the compact serialization with A256GCM and with
 // A128CBC-HS256, and the JSON serialization with two recipients for the same
@@ -2013,38 +2022,6 @@ START_TEST(test_cjose_jwe_rsa_oaep_256)
     cjose_jwk_release(jwk);
 }
 END_TEST
-#else  // !CJOSE_OPENSSL_102X
-START_TEST(test_cjose_jwe_rsa_oaep_256_unavailable)
-{
-    // OpenSSL before 1.0.2 has no OAEP with a digest other than SHA-1: the
-    // identifier is refused for encryption and for decryption
-    cjose_err err;
-    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
-
-    cjose_header_t *hdr = cjose_header_new(&err);
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP_256, &err));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
-    ck_assert(NULL == cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, sizeof(PLAINTEXT) - 1, &err));
-    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
-
-    // header {"alg":"RSA-OAEP-256","enc":"A256GCM"} with dummy segments
-    static const char *cser = "eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.AAAA.AAAA.AAAA.AAAA";
-    cjose_jwe_t *jwe = cjose_jwe_import(cser, strlen(cser), &err);
-    if (NULL != jwe)
-    {
-        size_t plain_len = 0;
-        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
-        ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded with RSA-OAEP-256 although it is unavailable");
-        cjose_jwe_release(jwe);
-    }
-    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
-
-    cjose_header_release(hdr);
-    cjose_jwk_release(jwk);
-}
-END_TEST
-#endif // CJOSE_OPENSSL_102X
 
 Suite *cjose_jwe_suite(void)
 {
@@ -2076,11 +2053,7 @@ Suite *cjose_jwe_suite(void)
 #ifndef HAVE_RSA_PKCS1_PADDING
     tcase_add_test(tc_jwe, test_cjose_jwe_rsa1_5_disabled);
 #endif
-#ifdef CJOSE_OPENSSL_102X
     tcase_add_test(tc_jwe, test_cjose_jwe_rsa_oaep_256);
-#else
-    tcase_add_test(tc_jwe, test_cjose_jwe_rsa_oaep_256_unavailable);
-#endif
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);

@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
-#include <openssl/opensslv.h>
 
 Suite *cjose_suite(void)
 {
@@ -18,12 +17,6 @@ Suite *cjose_suite(void)
 
 int main(void)
 {
-    // initialize "OpenSSL" crypto (automatic since OpenSSL 1.1.0)
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    ERR_load_crypto_strings();
-    OpenSSL_add_all_algorithms();
-#endif
-
     // setup suites
     SRunner *runner = srunner_create(cjose_suite());
 
@@ -41,12 +34,6 @@ int main(void)
     srunner_run_all(runner, CK_VERBOSE);
     int failed = srunner_ntests_failed(runner);
     srunner_free(runner);
-
-    // cleanup "OpenSSL" crypto (automatic since OpenSSL 1.1.0)
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_cleanup();
-    ERR_free_strings();
-#endif
 
     return (0 == failed) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

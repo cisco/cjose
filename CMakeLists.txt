@@ -48,7 +48,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
-find_package(OpenSSL 1.0.1 REQUIRED)
+find_package(OpenSSL 3.0.0 REQUIRED)
 find_package(Jansson 2.3 REQUIRED)
 
 if(WIN32)
@@ -118,7 +118,6 @@ set_target_properties(cjose_objects PROPERTIES
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS ON)
 
-target_compile_definitions(cjose_objects PRIVATE OPENSSL_API_COMPAT=0x10100000L)
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
 endif()
@@ -392,7 +391,6 @@ if(CJOSE_BUILD_TESTS)
             C_STANDARD 99
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS ON)
-        target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
         endif()

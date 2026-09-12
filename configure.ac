@@ -45,6 +45,18 @@ AC_CHECK_LIB([crypto],
     [AC_MSG_ERROR([OpenSSL is missing; it is required for this software])]
 )
 
+AC_COMPILE_IFELSE(
+    [AC_LANG_PROGRAM(
+        [[#include <openssl/opensslv.h>]],
+        [[
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#error "OpenSSL 3.0.0 or later is required"
+#endif
+        ]])],
+    [],
+    [AC_MSG_ERROR([OpenSSL 3.0.0 or later is required])]
+)
+
 ##### Check for Fundamental EC #####
 AC_CHECK_HEADERS([openssl/fec.h])
 

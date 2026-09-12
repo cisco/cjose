@@ -76,7 +76,7 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc, cjose_realloc_fn_t realloc, c
 
 /**
  * Sets the enhanced allocator and deallocator functions. This function provides
- * improved support for OpenSSL >= 1.1.x.
+ * support for OpenSSL's allocator callbacks.
  *
  * **NOTE:** This function is mutually exclusive from
  * <tt>cjose_set_alloc_funcs()</tt>. Both SHOULD NOT be called.
@@ -89,11 +89,11 @@ void cjose_set_alloc_funcs(cjose_alloc_fn_t alloc, cjose_realloc_fn_t realloc, c
  * is used.
  *
  * \param alloc3 [in] The custom allocator function to use for
- *        OpenSSL >= 1.1.0, called with extra file/line params.
+ *        OpenSSL, called with extra file/line params.
  * \param realloc3 [in] The custom reallocator function to use for
- *        OpenSSL >= 1.1.0, called with extra file/line params.
+ *        OpenSSL, called with extra file/line params.
  * \param dealloc3 [in] The custom deallocator function to use for
- *        OpenSSL >= 1.1.0, called with extra file/line params.
+ *        OpenSSL, called with extra file/line params.
  */
 void cjose_set_alloc_ex_funcs(cjose_alloc3_fn_t alloc3, cjose_realloc3_fn_t realloc3, cjose_dealloc3_fn_t dealloc3);
 

@@ -11,26 +11,7 @@
 #include <cjose/error.h>
 
 #include <jansson.h>
-#include <openssl/opensslv.h>
 #include <string.h>
-
-#if OPENSSL_VERSION_NUMBER >= 0x10100005L && !defined(LIBRESSL_VERSION_NUMBER)
-#define CJOSE_OPENSSL_11X
-#endif
-
-// the raw key API (EVP_PKEY_new_raw_private_key & co.) and PureEdDSA arrived
-// in OpenSSL 1.1.1; the OKP key type and the EdDSA algorithms depend on them
-#if OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)
-#define CJOSE_OPENSSL_111X
-#endif
-
-// OpenSSL 1.0.2 (and LibreSSL 2.7) added the OAEP padding functions that take
-// the digest for the hash and for MGF1, RSA_padding_add_PKCS1_OAEP_mgf1 and
-// RSA_padding_check_PKCS1_OAEP_mgf1, which RSA-OAEP-256 needs
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)) \
-    || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070000fL)
-#define CJOSE_OPENSSL_102X
-#endif
 
 #ifdef _WIN32
 #include <BaseTsd.h>
