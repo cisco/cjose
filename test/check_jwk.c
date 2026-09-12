@@ -1670,6 +1670,54 @@ START_TEST(test_cjose_jwk_import_invalid)
 }
 END_TEST
 
+// RFC 7517 gives every private member a base64url value: one that is present
+// but carries no value is a malformed key, and reading it as an absent member
+// turned the key into a public one
+START_TEST(test_cjose_jwk_import_empty_private_member)
+{
+    cjose_err err;
+    static const char *const members[] = { "d", "p", "q", "dp", "dq", "qi" };
+    static const char *const values[] = { "\"\"", "null" };
+
+    cjose_jwk_t *rsa = cjose_jwk_create_RSA_random(2048, NULL, 0, &err);
+    ck_assert_msg(NULL != rsa, "cjose_jwk_create_RSA_random failed: %s", err.message);
+    char *pub = cjose_jwk_to_json(rsa, false, &err);
+    ck_assert(NULL != pub);
+    ck_assert(NULL == strstr(pub, "\"d\""));
+
+    for (size_t m = 0; m < sizeof(members) / sizeof(members[0]); m++)
+    {
+        for (size_t v = 0; v < sizeof(values) / sizeof(values[0]); v++)
+        {
+            char *buf = malloc(strlen(pub) + 32);
+            ck_assert(NULL != buf);
+            sprintf(buf, "%.*s,\"%s\":%s}", (int)strlen(pub) - 1, pub, members[m], values[v]);
+            memset(&err, 0, sizeof(err));
+            cjose_jwk_t *bad = cjose_jwk_import(buf, strlen(buf), &err);
+            ck_assert_msg(NULL == bad, "a %s of %s was accepted", members[m], values[v]);
+            ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+            cjose_jwk_release(bad);
+            free(buf);
+        }
+    }
+
+    // the key itself still imports, public and private alike
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *ok = cjose_jwk_import(pub, strlen(pub), &err);
+    ck_assert_msg(NULL != ok, "the public key must still import: %s", err.message);
+    cjose_jwk_release(ok);
+    char *priv = cjose_jwk_to_json(rsa, true, &err);
+    ck_assert(NULL != priv);
+    ok = cjose_jwk_import(priv, strlen(priv), &err);
+    ck_assert_msg(NULL != ok, "the private key must still import: %s", err.message);
+    cjose_jwk_release(ok);
+
+    cjose_get_dealloc()(priv);
+    cjose_get_dealloc()(pub);
+    cjose_jwk_release(rsa);
+}
+END_TEST
+
 START_TEST(test_cjose_jwk_import_underflow_length)
 {
     cjose_err err;
@@ -2055,6 +2103,7 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_valid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_invalid);
+    tcase_add_test(tc_jwk, test_cjose_jwk_import_empty_private_member);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_underflow_length);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_no_zero_termination);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_with_base64url_padding);
