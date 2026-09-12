@@ -8,8 +8,8 @@ URL:            https://github.com/cisco/cjose
 Source0:        cjose-%{version}.tar.gz
 
 BuildRoot:      %{_tmppath}/cjose-%{version}-%{release}-build
-Requires:       openssl, jansson
-BuildRequires:  cmake, openssl-devel, jansson-devel, check-devel
+Requires:       openssl >= 3.0.0, jansson
+BuildRequires:  cmake, openssl-devel >= 3.0.0, jansson-devel, check-devel
 
 %define _topdir /opt/rpmbuild
 %define debug_package %{nil}

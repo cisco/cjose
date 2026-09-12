@@ -364,9 +364,6 @@ typedef struct
  * \b NOTE: The caller MUST call cjose_jwk_release() to release the JWK's
  * resources.
  *
- * \b NOTE: OKP keys require OpenSSL 1.1.1 or later; with an older OpenSSL
- * this function fails with CJOSE_ERR_INVALID_ARG.
- *
  * \param crv The curve to generate the key pair for
  * \param err [out] An optional error object which can be used to get additional
  *        information in the event of an error.

@@ -17,7 +17,7 @@ JWS signing algorithms (`alg`):
 | `PS256`, `PS384`, `PS512` | RSASSA-PSS with SHA-2 | |
 | `ES256`, `ES384`, `ES512` | ECDSA with P-256, P-384 and P-521 | |
 | `ES256K` | ECDSA with secp256k1 | OpenSSL built with `secp256k1` |
-| `Ed25519`, `Ed448` | EdDSA (RFC 9864) | OpenSSL 1.1.1 |
+| `Ed25519`, `Ed448` | EdDSA (RFC 9864) | |
 
 The polymorphic `EdDSA` identifier of RFC 8037, deprecated by RFC 9864, and
 `none` are not accepted.
@@ -27,7 +27,7 @@ JWE key management algorithms (`alg`):
 | Identifier | Algorithm | Requires |
 |------------|-----------|----------|
 | `RSA-OAEP` | RSAES OAEP with SHA-1 and MGF1 with SHA-1 | |
-| `RSA-OAEP-256` | RSAES OAEP with SHA-256 and MGF1 with SHA-256 | OpenSSL 1.0.2 |
+| `RSA-OAEP-256` | RSAES OAEP with SHA-256 and MGF1 with SHA-256 | |
 | `RSA1_5` | RSAES-PKCS1-v1_5 | build option `CJOSE_ENABLE_RSA1_5` |
 | `A128KW`, `A192KW`, `A256KW` | AES Key Wrap | |
 | `dir` | direct use of a shared symmetric key | |
@@ -48,7 +48,7 @@ JWK key types (`kty`):
 | `RSA` | RSA | |
 | `EC` | `P-256`, `P-384`, `P-521`, `secp256k1` | `secp256k1`: OpenSSL built with it |
 | `oct` | symmetric | |
-| `OKP` | `Ed25519`, `Ed448`, `X25519`, `X448` | OpenSSL 1.1.1 |
+| `OKP` | `Ed25519`, `Ed448`, `X25519`, `X448` | |
 
 JWEs can be produced and consumed in both the compact and the JSON
 serialization, with one or more recipients.
@@ -67,7 +67,7 @@ serialization, with one or more recipients.
 
 ### Libraries ###
 
-* OpenSSL >= 1.0.1h (or its API equivalent)
+* OpenSSL >= 3.0.0
 * Jansson >= 2.3
 
 ## Getting Started ##
