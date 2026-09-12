@@ -587,7 +587,7 @@ START_TEST(test_cjose_jws_self_sign_self_verify_many)
     // sign and verify a whole lot of randomly sized payloads
     for (int i = 0; i < 100; ++i)
     {
-        size_t len = (size_t)(random() % 1024) + 1;
+        size_t len = (size_t)(rand() % 1024) + 1;
         uint8_t *plain = malloc(len);
         ck_assert_msg(RAND_bytes(plain, len) == 1, "RAND_bytes failed");
         plain[len - 1] = 0;

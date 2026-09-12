@@ -7,10 +7,6 @@
 
 #include <check.h>
 
-#ifdef _WIN32
-#define random rand
-#endif
-
 Suite *cjose_version_suite(void);
 Suite *cjose_util_suite(void);
 Suite *cjose_base64_suite(void);
