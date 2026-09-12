@@ -911,6 +911,19 @@ _cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *j
         return false;
     }
 
+    // the "iv" and "tag" parameters are produced here: if the caller supplied
+    // either of them in one of its header objects, the parameter would end up
+    // in two of the three header locations, which RFC 7516 section 7.2.1 does
+    // not allow, and the wrong one could be picked up when decrypting
+    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_IV)
+        || NULL
+               != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected,
+                                                   CJOSE_HDR_TAG))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     // generate random CEK
     if (!jwe->fns.set_cek(jwe, NULL, true, err))
     {
