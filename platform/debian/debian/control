@@ -5,7 +5,7 @@ Standards-Version: 3.9.4
 Section: utils
 Priority: extra
 
-Package: libcjose0
+Package: libcjose1
 Architecture: any
 Pre-depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -16,6 +16,6 @@ Description: C library implementing the Javascript Object Signing and Encryption
 Package: libcjose-dev
 Section: libdevel
 Architecture: any
-Depends: libcjose0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: libcjose1 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: Development files for libcjose
  Development files for building software using libcjose
