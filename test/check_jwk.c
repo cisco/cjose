@@ -456,7 +456,6 @@ START_TEST(test_cjose_jwk_create_oct_random_inval)
 }
 END_TEST
 
-#if defined(CJOSE_OPENSSL_111X)
 static void _test_cjose_jwk_create_OKP_spec(cjose_jwk_okp_curve crv, size_t keysize, const char *d, const char *x)
 {
     cjose_err err;
@@ -666,7 +665,6 @@ START_TEST(test_cjose_jwk_OKP_get_curve_invalid)
     cjose_jwk_release(jwk);
 }
 END_TEST
-#endif // CJOSE_OPENSSL_111X
 
 START_TEST(test_cjose_jwk_retain_release)
 {
@@ -716,11 +714,9 @@ START_TEST(test_cjose_jwk_get_kty)
     ck_assert(CJOSE_JWK_KTY_EC == cjose_jwk_get_kty(jwk, &err));
     cjose_jwk_release(jwk);
 
-#if defined(CJOSE_OPENSSL_111X)
     jwk = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_ED25519, &err);
     ck_assert(CJOSE_JWK_KTY_OKP == cjose_jwk_get_kty(jwk, &err));
     cjose_jwk_release(jwk);
-#endif
 }
 END_TEST
 
@@ -856,7 +852,6 @@ START_TEST(test_cjose_jwk_to_json_rsa)
 }
 END_TEST
 
-#if defined(CJOSE_OPENSSL_111X)
 START_TEST(test_cjose_jwk_to_json_okp)
 {
     cjose_err err;
@@ -1020,7 +1015,6 @@ START_TEST(test_cjose_jwk_OKP_import_invalid)
     }
 }
 END_TEST
-#endif // CJOSE_OPENSSL_111X
 
 START_TEST(test_cjose_jwk_import_json_valid)
 {
@@ -1985,7 +1979,6 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_oct_random_inval);
-#if defined(CJOSE_OPENSSL_111X)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_Ed25519_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_Ed448_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_X25519_spec);
@@ -1993,17 +1986,14 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_spec_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_OKP_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_OKP_get_curve_invalid);
-#endif
     tcase_add_test(tc_jwk, test_cjose_jwk_retain_release);
     tcase_add_test(tc_jwk, test_cjose_jwk_get_kty);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_oct);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_ec);
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_rsa);
-#if defined(CJOSE_OPENSSL_111X)
     tcase_add_test(tc_jwk, test_cjose_jwk_to_json_okp);
     tcase_add_test(tc_jwk, test_cjose_jwk_OKP_import_export);
     tcase_add_test(tc_jwk, test_cjose_jwk_OKP_import_invalid);
-#endif
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_valid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_json_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_valid);

@@ -46,7 +46,6 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
 static bool _cjose_jws_validate_ec_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
 
-#if defined(CJOSE_OPENSSL_111X)
 static bool _cjose_jws_build_dig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_build_sig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
@@ -54,7 +53,6 @@ static bool _cjose_jws_build_sig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk,
 static bool _cjose_jws_verify_sig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_validate_okp_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
-#endif
 
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
@@ -130,14 +128,12 @@ static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
         jws->fns.sign = _cjose_jws_build_sig_ec;
         jws->fns.verify = _cjose_jws_verify_sig_ec;
     }
-#if defined(CJOSE_OPENSSL_111X)
     else if ((strcmp(alg, CJOSE_HDR_ALG_ED25519) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ED448) == 0))
     {
         jws->fns.digest = _cjose_jws_build_dig_eddsa;
         jws->fns.sign = _cjose_jws_build_sig_eddsa;
         jws->fns.verify = _cjose_jws_verify_sig_eddsa;
     }
-#endif
     else
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -325,20 +321,12 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
     }
 
     // instantiate and initialize a new mac digest context
-#if defined(CJOSE_OPENSSL_11X)
     ctx = HMAC_CTX_new();
-#else
-    ctx = cjose_get_alloc()(sizeof(HMAC_CTX));
-#endif
     if (NULL == ctx)
     {
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto _cjose_jws_build_dig_hmac_sha_cleanup;
     }
-
-#if !defined(CJOSE_OPENSSL_11X)
-    HMAC_CTX_init(ctx);
-#endif
 
     // create digest as DIGEST(B64U(HEADER).B64U(DATA))
     if (HMAC_Init_ex(ctx, jwk->keydata, jwk->keysize / 8, digest_alg, NULL) != 1)
@@ -373,12 +361,7 @@ static bool _cjose_jws_build_dig_hmac_sha(cjose_jws_t *jws, const cjose_jwk_t *j
 _cjose_jws_build_dig_hmac_sha_cleanup:
     if (NULL != ctx)
     {
-#if defined(CJOSE_OPENSSL_11X)
         HMAC_CTX_free(ctx);
-#else
-        HMAC_CTX_cleanup(ctx);
-        cjose_get_dealloc()(ctx);
-#endif
     }
 
     return retval;
@@ -624,12 +607,7 @@ static bool _cjose_jws_build_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, cj
     memset(jws->sig, 0, jws->sig_len);
 
     const BIGNUM *pr, *ps;
-#if defined(CJOSE_OPENSSL_11X)
     ECDSA_SIG_get0(ecdsa_sig, &pr, &ps);
-#else
-    pr = ecdsa_sig->r;
-    ps = ecdsa_sig->s;
-#endif
 
     int rlen = BN_num_bytes(pr);
     int slen = BN_num_bytes(ps);
@@ -1140,7 +1118,6 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     }
     int key_len = jws->sig_len / 2;
 
-#if defined(CJOSE_OPENSSL_11X)
     BIGNUM *pr = BN_new();
     BIGNUM *ps = BN_new();
     if (pr == NULL || ps == NULL)
@@ -1153,10 +1130,6 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
     BN_bin2bn(jws->sig, key_len, pr);
     BN_bin2bn(jws->sig + key_len, key_len, ps);
     ECDSA_SIG_set0(ecdsa_sig, pr, ps); // takes ownership of pr and ps
-#else
-    BN_bin2bn(jws->sig, key_len, ecdsa_sig->r);
-    BN_bin2bn(jws->sig + key_len, key_len, ecdsa_sig->s);
-#endif
 
     if (ECDSA_do_verify(jws->dig, jws->dig_len, ecdsa_sig, ec) != 1)
     {
@@ -1197,8 +1170,6 @@ static bool _cjose_jws_validate_ec_key(const char *alg, const cjose_jwk_t *jwk, 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-#if defined(CJOSE_OPENSSL_111X)
-
 // the fixed size of an EdDSA signature (RFC 8032 sections 5.1.6 and 5.2.6)
 static size_t _cjose_jws_eddsa_sig_len(cjose_jwk_okp_curve crv)
 {
@@ -1419,8 +1390,6 @@ _cjose_jws_verify_sig_eddsa_cleanup:
     return retval;
 }
 
-#endif // CJOSE_OPENSSL_111X
-
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
@@ -1464,7 +1433,6 @@ static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *
         }
     }
 
-#if defined(CJOSE_OPENSSL_111X)
     if ((0 == strcmp(alg, CJOSE_HDR_ALG_ED25519)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ED448)))
     {
         if (!_cjose_jws_validate_okp_key(alg, jwk, err))
@@ -1472,7 +1440,6 @@ static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *
             return false;
         }
     }
-#endif
 
     return true;
 }
