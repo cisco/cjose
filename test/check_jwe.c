@@ -852,11 +852,16 @@ START_TEST(test_cjose_jwe_crit_ecdh_es_params)
 
     for (size_t p = 0; p < sizeof(params) / sizeof(params[0]); p++)
     {
-        // accepted for ECDH-ES
+        // accepted for ECDH-ES, as long as the parameter is in the header: the
+        // key agreement writes "epk" itself, "apu" and "apv" come from the caller
         memset(&err, 0, sizeof(err));
         cjose_header_t *hdr = cjose_header_new(&err);
         ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
         ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+        if (0 != strcmp(params[p], CJOSE_HDR_EPK))
+        {
+            ck_assert(cjose_header_set(hdr, params[p], "cGFydHk", &err));
+        }
         json_t *crit = json_array();
         json_array_append_new(crit, json_string(params[p]));
         json_object_set_new((json_t *)hdr, "crit", crit);
@@ -864,7 +869,24 @@ START_TEST(test_cjose_jwe_crit_ecdh_es_params)
         ck_assert(NULL != ec);
         cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
         ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed for ECDH-ES crit %s: %s", params[p], err.message);
+        // what the encryption produces imports again
+        char *round = cjose_jwe_export(jwe, &err);
+        ck_assert(NULL != round);
+        cjose_jwe_t *back = cjose_jwe_import(round, strlen(round), &err);
+        ck_assert_msg(NULL != back, "cjose_jwe_import failed for ECDH-ES crit %s: %s", params[p], err.message);
+        cjose_jwe_release(back);
+        cjose_get_dealloc()(round);
         cjose_jwe_release(jwe);
+
+        // ... and refused when the critical parameter never occurs in the header
+        if (0 != strcmp(params[p], CJOSE_HDR_EPK))
+        {
+            memset(&err, 0, sizeof(err));
+            json_object_del((json_t *)hdr, params[p]);
+            ck_assert_msg(NULL == cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err),
+                          "cjose_jwe_encrypt accepted crit %s without the parameter", params[p]);
+            ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        }
         cjose_jwk_release(ec);
         cjose_header_release(hdr);
 
@@ -911,6 +933,84 @@ START_TEST(test_cjose_jwe_crit_ecdh_es_params)
     cjose_get_dealloc()(compact);
     cjose_header_release(hdr);
     cjose_jwk_release(oct);
+}
+END_TEST
+
+// a parameter the algorithm produces itself must not come from the caller, and
+// the JWE that leaves the encryption has to be one that can be imported again
+START_TEST(test_cjose_jwe_generated_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    static const char *const EPK = "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"BB\"}";
+
+    // in the protected header, where the key agreement would replace it
+    memset(&err, 0, sizeof(err));
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+    ck_assert(cjose_header_set_raw(hdr, CJOSE_HDR_EPK, EPK, &err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err), "caller supplied epk accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(hdr);
+
+    // in a per-recipient header, which would leave "epk" in two locations
+    memset(&err, 0, sizeof(err));
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+    cjose_header_t *rec_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(rec_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    ck_assert(cjose_header_set_raw(rec_hdr, CJOSE_HDR_EPK, EPK, &err));
+    cjose_jwe_recipient_t one[] = { { ec, rec_hdr } };
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(one, 1, protected_header, NULL, plain, sizeof(plain) - 1, &err),
+                  "epk in a recipient header accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // in the shared unprotected header
+    memset(&err, 0, sizeof(err));
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set_raw(shared, CJOSE_HDR_EPK, EPK, &err));
+    cjose_header_t *plain_rec = cjose_header_new(&err);
+    ck_assert(cjose_header_set(plain_rec, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    cjose_jwe_recipient_t one_shared[] = { { ec, plain_rec } };
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(one_shared, 1, protected_header, shared, plain, sizeof(plain) - 1, &err),
+                  "epk in the shared header accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(plain_rec);
+    cjose_header_release(shared);
+    cjose_header_release(rec_hdr);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(ec);
+
+    // the AES GCM key wrapping parameters keep the same treatment, and a JWE
+    // that marks one of them critical round-trips
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    ck_assert(NULL != jwk16);
+    hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    json_t *crit = json_array();
+    json_array_append_new(crit, json_string(CJOSE_HDR_IV));
+    json_object_set_new((json_t *)hdr, "crit", crit);
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk16, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_t *back = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != back, "cjose_jwe_import failed: %s", err.message);
+    size_t plain_len = 0;
+    uint8_t *decrypted = cjose_jwe_decrypt(back, jwk16, &plain_len, &err);
+    ck_assert_msg(NULL != decrypted, "cjose_jwe_decrypt failed: %s", err.message);
+    cjose_get_dealloc()(decrypted);
+    cjose_jwe_release(back);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk16);
 }
 END_TEST
 
@@ -2688,6 +2788,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_crit);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_caller_supplied_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_crit_ecdh_es_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_generated_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_json_header_rules);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);

@@ -370,6 +370,20 @@ static json_t *_cjose_jwe_recipient_param_target(cjose_jwe_t *jwe, _jwe_int_reci
     return copy;
 }
 
+// a header parameter that the key agreement or the key wrapping produces itself
+// must not be supplied by the caller: it would either end up in two of the three
+// header locations, which RFC 7516 section 7.2.1 does not allow, or silently
+// replace what the caller set
+static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, const char *name, cjose_err *err)
+{
+    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    return true;
+}
+
 static bool _cjose_jwe_alg_is_ecdh_es(const char *alg)
 {
     return (NULL != alg)
@@ -934,16 +948,10 @@ _cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *j
         return false;
     }
 
-    // the "iv" and "tag" parameters are produced here: if the caller supplied
-    // either of them in one of its header objects, the parameter would end up
-    // in two of the three header locations, which RFC 7516 section 7.2.1 does
-    // not allow, and the wrong one could be picked up when decrypting
-    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_IV)
-        || NULL
-               != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected,
-                                                   CJOSE_HDR_TAG))
+    // the "iv" and "tag" parameters are produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_IV, err)
+        || !_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_TAG, err))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
@@ -1258,6 +1266,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     uint8_t *derived = NULL;
     bool result = false;
 
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
+
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
     if (NULL == epk_jwk)
@@ -1439,6 +1453,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
     size_t otherinfo_len = 0;
     uint8_t *kek = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -2349,6 +2369,25 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
 
         // build JWE content-encryption key and encrypted key
         if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, recipients[i].jwk, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+    }
+
+    // the algorithms have written the parameters they produce by now, so the
+    // assembled headers are validated once more: what leaves here has to be a
+    // JWE that can be imported again, with the names of its header locations
+    // disjoint (RFC 7516 section 7.2.1) and every critical parameter present
+    // in its JOSE header (RFC 7515 section 4.1.11)
+    for (size_t i = 0; i < recipient_count; i++)
+    {
+        cjose_header_t *headers[]
+            = { (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, (cjose_header_t *)jwe->to[i].unprotected };
+        const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
+
+        if (!_cjose_header_validate_disjoint(headers, headers_len, err)
+            || !_cjose_header_validate_crit_present(headers, headers_len, err))
         {
             cjose_jwe_release(jwe);
             return NULL;
