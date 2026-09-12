@@ -86,10 +86,7 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
     return true;
 }
 
-void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
-{
-    RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
-}
+void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q) { RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q); }
 
 bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
 {
