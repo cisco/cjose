@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(cjose
-    VERSION 0.8.0
+    VERSION 1.0.0
     DESCRIPTION "JOSE implementation for C"
     HOMEPAGE_URL "https://github.com/cisco/cjose"
     LANGUAGES C)

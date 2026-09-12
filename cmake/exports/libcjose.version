@@ -1,9 +1,12 @@
 # GNU ld / gold version script for the CJOSE shared library.
 # Only the public API symbols are made global; every other symbol
 # (internal helpers, third-party statics, etc.) is kept local/hidden.
-# An anonymous version node is used so the exported symbols remain
-# unversioned.
-{
+# The exported symbols carry the CJOSE_1.0 symbol version, the first
+# release of the library whose SONAME is libcjose.so.1. Symbols added by
+# a later release go into a node of their own that inherits from this
+# one, e.g. `CJOSE_1.1 { global: cjose_new_function; } CJOSE_1.0;`, so
+# that a binary records the release it needs.
+CJOSE_1.0 {
     global:
         CJOSE_HDR_ALG;
         CJOSE_HDR_ALG_A128KW;

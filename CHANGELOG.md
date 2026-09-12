@@ -1,5 +1,16 @@
 # Release Notes #
 
+<a name="1.0.0"></a>
+## 1.0.0 (unreleased)
+
+### Breaking
+
+* The shared library has ABI version 1: it installs as libcjose.so.1 with SONAME libcjose.so.1, its exported symbols carry the CJOSE_1.0 symbol version, and the Debian package is named libcjose1. Programs built against libcjose.so.0 must be rebuilt
+* cjose_jwk_get_keydata returns implementation-specific data that must be treated as opaque for RSA, EC and OKP keys; it no longer hands out OpenSSL RSA and EC_KEY objects (#181)
+* OpenSSL 3.0.0 or newer is required and only non-deprecated OpenSSL APIs are used (#179, #180, #181)
+* The autoconf build is removed; CMake 3.22 or newer is the only build system (#178)
+* The library and the tests are built as strict C17 (#182); the tests need Check 0.12.0 or newer (#176)
+
 <a name="0.8.0"></a>
 ## [0.8.0](https://github.com/cisco/cjose/0.7.0..0.8.0)  (2026-09-12)
 
