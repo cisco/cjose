@@ -214,12 +214,10 @@ static void _self_encrypt_self_decrypt(const uint8_t *plain1, size_t plain1_len)
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A192GCM, JWK_RSA, plain1, plain1_len);
 
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
-#ifdef CJOSE_OPENSSL_102X
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A128GCM, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A128CBC_HS256, JWK_RSA, plain1, plain1_len);
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256CBC_HS512, JWK_RSA, plain1, plain1_len);
-#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
     _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_RSA1_5, CJOSE_HDR_ENC_A256GCM, JWK_RSA, plain1, plain1_len);
@@ -352,9 +350,7 @@ static void _self_encrypt_self_decrypt_with_key_iv(
 static void _self_encrypt_self_decrypt_iv(const uint8_t *plain1, size_t plain1_len)
 {
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
-#ifdef CJOSE_OPENSSL_102X
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_RSA_OAEP_256, CJOSE_HDR_ENC_A256GCM, JWK_RSA, 12, plain1, plain1_len);
-#endif // CJOSE_OPENSSL_102X
 
     _self_encrypt_self_decrypt_with_key_iv(CJOSE_HDR_ALG_DIR, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, 12, plain1, plain1_len);
 
@@ -1915,7 +1911,6 @@ START_TEST(test_cjose_jwe_direct_rejects_encrypted_key)
     }
 }
 END_TEST
-#ifdef CJOSE_OPENSSL_102X
 // RSA-OAEP-256 JWEs produced by python-jwcrypto with the JWK_RSA key over the
 // plaintext below: the compact serialization with A256GCM and with
 // A128CBC-HS256, and the JSON serialization with two recipients for the same
@@ -2013,38 +2008,6 @@ START_TEST(test_cjose_jwe_rsa_oaep_256)
     cjose_jwk_release(jwk);
 }
 END_TEST
-#else  // !CJOSE_OPENSSL_102X
-START_TEST(test_cjose_jwe_rsa_oaep_256_unavailable)
-{
-    // OpenSSL before 1.0.2 has no OAEP with a digest other than SHA-1: the
-    // identifier is refused for encryption and for decryption
-    cjose_err err;
-    cjose_jwk_t *jwk = cjose_jwk_import(JWK_RSA, strlen(JWK_RSA), &err);
-    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
-
-    cjose_header_t *hdr = cjose_header_new(&err);
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_RSA_OAEP_256, &err));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
-    ck_assert(NULL == cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, sizeof(PLAINTEXT) - 1, &err));
-    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
-
-    // header {"alg":"RSA-OAEP-256","enc":"A256GCM"} with dummy segments
-    static const char *cser = "eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.AAAA.AAAA.AAAA.AAAA";
-    cjose_jwe_t *jwe = cjose_jwe_import(cser, strlen(cser), &err);
-    if (NULL != jwe)
-    {
-        size_t plain_len = 0;
-        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
-        ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded with RSA-OAEP-256 although it is unavailable");
-        cjose_jwe_release(jwe);
-    }
-    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
-
-    cjose_header_release(hdr);
-    cjose_jwk_release(jwk);
-}
-END_TEST
-#endif // CJOSE_OPENSSL_102X
 
 Suite *cjose_jwe_suite(void)
 {
@@ -2076,11 +2039,7 @@ Suite *cjose_jwe_suite(void)
 #ifndef HAVE_RSA_PKCS1_PADDING
     tcase_add_test(tc_jwe, test_cjose_jwe_rsa1_5_disabled);
 #endif
-#ifdef CJOSE_OPENSSL_102X
     tcase_add_test(tc_jwe, test_cjose_jwe_rsa_oaep_256);
-#else
-    tcase_add_test(tc_jwe, test_cjose_jwe_rsa_oaep_256_unavailable);
-#endif
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);

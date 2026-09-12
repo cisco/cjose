@@ -44,12 +44,10 @@ _cjose_jwe_encrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe
 
 static bool
 _cjose_jwe_decrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
-#ifdef CJOSE_OPENSSL_102X
 static bool
 _cjose_jwe_encrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 static bool
 _cjose_jwe_decrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
-#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
 static bool _cjose_jwe_encrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
@@ -391,13 +389,11 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep;
     }
-#ifdef CJOSE_OPENSSL_102X
     if (strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP_256) == 0)
     {
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_rsa_oaep_256;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_rsa_oaep_256;
     }
-#endif // CJOSE_OPENSSL_102X
 #ifdef HAVE_RSA_PKCS1_PADDING
     if (strcmp(alg, CJOSE_HDR_ALG_RSA1_5) == 0)
     {
@@ -784,7 +780,6 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
         return false;
     }
 
-#ifdef CJOSE_OPENSSL_102X
     if (NULL != oaep_md)
     {
         // pad the CEK into a scratch buffer of the modulus size with OAEP
@@ -808,7 +803,6 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
         }
         return true;
     }
-#endif // CJOSE_OPENSSL_102X
 
     // encrypt the CEK using RSA v1.5 or OAEP padding
     if (RSA_public_encrypt(jwe->cek_len, jwe->cek, recipient->enc_key.raw, (RSA *)jwk->keydata, padding)
@@ -874,7 +868,6 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
-#ifdef CJOSE_OPENSSL_102X
     if (NULL != oaep_md)
     {
         // decrypt raw into the scratch buffer, then remove the OAEP padding
@@ -905,7 +898,6 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         }
         return ok;
     }
-#endif // CJOSE_OPENSSL_102X
 
     // decrypt the CEK using RSA v1.5 or OAEP padding and require that its
     // length matches the CEK size dictated by the enc header (RFC 7518 sec 4.2/4.3)
@@ -937,7 +929,6 @@ _cjose_jwe_decrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe
     return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, NULL, err);
 }
 
-#ifdef CJOSE_OPENSSL_102X
 ////////////////////////////////////////////////////////////////////////////////
 static bool
 _cjose_jwe_encrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
@@ -951,7 +942,6 @@ _cjose_jwe_decrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t 
 {
     return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_NO_PADDING, EVP_sha256(), err);
 }
-#endif // CJOSE_OPENSSL_102X
 
 #ifdef HAVE_RSA_PKCS1_PADDING
 ////////////////////////////////////////////////////////////////////////////////
@@ -1419,14 +1409,6 @@ static bool _cjose_jwe_set_iv_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     return true;
 }
 
-#if defined(CJOSE_OPENSSL_11X)
-#define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_AEAD_GET_TAG
-#define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_AEAD_SET_TAG
-#else
-#define CJOSE_EVP_CTRL_GCM_GET_TAG EVP_CTRL_GCM_GET_TAG
-#define CJOSE_EVP_CTRL_GCM_SET_TAG EVP_CTRL_GCM_SET_TAG
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plaintext, size_t plaintext_len, cjose_err *err)
 {
@@ -1525,7 +1507,7 @@ static bool _cjose_jwe_encrypt_dat_aes_gcm(cjose_jwe_t *jwe, const uint8_t *plai
     }
 
     // get the GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_GET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_encrypt_dat_fail;
@@ -1797,7 +1779,7 @@ static bool _cjose_jwe_decrypt_dat_aes_gcm(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // set the expected GCM-mode authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx, CJOSE_EVP_CTRL_GCM_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, jwe->enc_auth_tag.raw_len, jwe->enc_auth_tag.raw) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_decrypt_dat_aes_gcm_fail;

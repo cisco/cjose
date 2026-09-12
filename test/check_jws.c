@@ -61,7 +61,6 @@ static const char *JWK_COMMON_EC_SECP_256K1 = "{ \"kty\":\"EC\","
                                               "\"y\":\"36uMVGM7hnw-N6GnjFcihWE3SkrhMLzzLCdPMXPEXlA\","
                                               "\"d\":\"rhYFsBPF9q3-uZThy7B3c4LDF_8wnozFUAEm5LLC4Zw\" }";
 
-#if defined(CJOSE_OPENSSL_111X)
 // RFC 8037 appendix A.1: an Ed25519 key pair
 static const char *JWK_COMMON_OKP_ED25519 = "{\"kty\":\"OKP\",\"crv\":\"Ed25519\","
                                             "\"d\":\"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A\","
@@ -76,7 +75,6 @@ static const char *JWK_COMMON_OKP_ED448 = "{\"kty\":\"OKP\",\"crv\":\"Ed448\","
 static const char *JWK_COMMON_OKP_X25519 = "{\"kty\":\"OKP\",\"crv\":\"X25519\","
                                            "\"d\":\"dwdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LCo\","
                                            "\"x\":\"hSDwCYkwp1R0i33ctD73Wg2_Og0mOBr066SpjqqbTmo\"}";
-#endif
 
 // a JWS encrypted with the above JWK_COMMON key
 static const char *JWS_COMMON
@@ -109,12 +107,10 @@ static const char *_self_get_jwk_by_alg(const char *alg)
     if ((strcmp(alg, CJOSE_HDR_ALG_ES256) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ES384) == 0)
         || (strcmp(alg, CJOSE_HDR_ALG_ES512) == 0))
         return JWK_COMMON_EC;
-#if defined(CJOSE_OPENSSL_111X)
     if (strcmp(alg, CJOSE_HDR_ALG_ED25519) == 0)
         return JWK_COMMON_OKP_ED25519;
     if (strcmp(alg, CJOSE_HDR_ALG_ED448) == 0)
         return JWK_COMMON_OKP_ED448;
-#endif
     return JWK_COMMON;
 }
 
@@ -202,10 +198,8 @@ static void _self_sign_self_verify_all_algs(const uint8_t *plain, size_t plain_l
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES256K, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES384, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ES512, err);
-#if defined(CJOSE_OPENSSL_111X)
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ED25519, err);
     _self_sign_self_verify(plain, plain_len, CJOSE_HDR_ALG_ED448, err);
-#endif
 }
 
 START_TEST(test_cjose_jws_self_sign_self_verify)
@@ -282,7 +276,6 @@ START_TEST(test_cjose_jws_es256k_rejects_wrong_curve)
 }
 END_TEST
 
-#if defined(CJOSE_OPENSSL_111X)
 // RFC 9864 fully-specified {"alg":"Ed25519"} over the RFC 8037 appendix A.4
 // payload "Example of Ed25519 signing" with the RFC 8037 appendix A.1 key; the
 // (deterministic) signature was produced with "openssl pkeyutl -sign -rawin"
@@ -582,7 +575,6 @@ START_TEST(test_cjose_jws_verify_ed25519_sig_bad_length)
     cjose_jwk_release(jwk);
 }
 END_TEST
-#endif // CJOSE_OPENSSL_111X
 
 START_TEST(test_cjose_jws_self_sign_self_verify_short)
 {
@@ -1564,14 +1556,12 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_verify_ec256);
     tcase_add_test(tc_jws, test_cjose_jws_verify_es256k);
     tcase_add_test(tc_jws, test_cjose_jws_es256k_rejects_wrong_curve);
-#if defined(CJOSE_OPENSSL_111X)
     tcase_add_test(tc_jws, test_cjose_jws_verify_ed25519);
     tcase_add_test(tc_jws, test_cjose_jws_sign_ed25519);
     tcase_add_test(tc_jws, test_cjose_jws_sign_verify_ed448);
     tcase_add_test(tc_jws, test_cjose_jws_ed25519_rejects_wrong_key);
     tcase_add_test(tc_jws, test_cjose_jws_eddsa_deprecated);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ed25519_sig_bad_length);
-#endif
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_header);
     tcase_add_test(tc_jws, test_cjose_jws_sign_with_bad_key);
     tcase_add_test(tc_jws, test_cjose_jws_sign_hmac_with_non_oct_key);

@@ -56,13 +56,7 @@ void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **rsa_n, BIGNUM **rsa_e, BIGNUM **rsa_d
 {
     if (rsa == NULL)
         return;
-#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_key(rsa, (const BIGNUM **)rsa_n, (const BIGNUM **)rsa_e, (const BIGNUM **)rsa_d);
-#else
-    *rsa_n = rsa->n;
-    *rsa_e = rsa->e;
-    *rsa_d = rsa->d;
-#endif
 }
 
 bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e_len, uint8_t *d, size_t d_len)
@@ -80,7 +74,6 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
     if (d && d_len > 0)
         rsa_d = BN_bin2bn(d, d_len, NULL);
 
-#if defined(CJOSE_OPENSSL_11X)
     if (1 != RSA_set0_key(rsa, rsa_n, rsa_e, rsa_d))
     {
         // the setter takes ownership only on success; free the BIGNUMs it
@@ -91,23 +84,9 @@ bool _cjose_jwk_rsa_set(RSA *rsa, uint8_t *n, size_t n_len, uint8_t *e, size_t e
         return false;
     }
     return true;
-#else
-    rsa->n = rsa_n;
-    rsa->e = rsa_e;
-    rsa->d = rsa_d;
-    return true;
-#endif
 }
 
-void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q)
-{
-#if defined(CJOSE_OPENSSL_11X)
-    RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q);
-#else
-    *p = rsa->p;
-    *q = rsa->q;
-#endif
-}
+void _cjose_jwk_rsa_get_factors(RSA *rsa, BIGNUM **p, BIGNUM **q) { RSA_get0_factors(rsa, (const BIGNUM **)p, (const BIGNUM **)q); }
 
 bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, size_t q_len)
 {
@@ -131,29 +110,18 @@ bool _cjose_jwk_rsa_set_factors(RSA *rsa, uint8_t *p, size_t p_len, uint8_t *q, 
         return false;
     }
 
-#if defined(CJOSE_OPENSSL_11X)
     if (1 != RSA_set0_factors(rsa, rsa_p, rsa_q))
     {
         BN_free(rsa_p);
         BN_free(rsa_q);
         return false;
     }
-#else
-    rsa->p = rsa_p;
-    rsa->q = rsa_q;
-#endif
     return true;
 }
 
 void _cjose_jwk_rsa_get_crt(RSA *rsa, BIGNUM **dmp1, BIGNUM **dmq1, BIGNUM **iqmp)
 {
-#if defined(CJOSE_OPENSSL_11X)
     RSA_get0_crt_params(rsa, (const BIGNUM **)dmp1, (const BIGNUM **)dmq1, (const BIGNUM **)iqmp);
-#else
-    *dmp1 = rsa->dmp1;
-    *dmq1 = rsa->dmq1;
-    *iqmp = rsa->iqmp;
-#endif
 }
 
 bool _cjose_jwk_rsa_set_crt(
@@ -182,7 +150,6 @@ bool _cjose_jwk_rsa_set_crt(
         return false;
     }
 
-#if defined(CJOSE_OPENSSL_11X)
     if (1 != RSA_set0_crt_params(rsa, rsa_dmp1, rsa_dmq1, rsa_iqmp))
     {
         BN_free(rsa_dmp1);
@@ -190,11 +157,6 @@ bool _cjose_jwk_rsa_set_crt(
         BN_free(rsa_iqmp);
         return false;
     }
-#else
-    rsa->dmp1 = rsa_dmp1;
-    rsa->dmq1 = rsa_dmq1;
-    rsa->iqmp = rsa_iqmp;
-#endif
 
     return true;
 }
@@ -1127,8 +1089,6 @@ cjose_jwk_ec_curve cjose_jwk_EC_get_curve(const cjose_jwk_t *jwk, cjose_err *err
 //////////////// Octet Key Pair ////////////////
 // internal data & functions -- Octet Key Pair (RFC 8037)
 
-#if defined(CJOSE_OPENSSL_111X)
-
 static const char CJOSE_JWK_OKP_ED25519_STR[] = "Ed25519";
 static const char CJOSE_JWK_OKP_ED448_STR[] = "Ed448";
 static const char CJOSE_JWK_OKP_X25519_STR[] = "X25519";
@@ -1525,24 +1485,6 @@ create_OKP_spec_cleanup:
 
     return jwk;
 }
-
-#else // !CJOSE_OPENSSL_111X
-
-// the OKP key type needs the raw key API that arrived in OpenSSL 1.1.1
-
-cjose_jwk_t *cjose_jwk_create_OKP_random(cjose_jwk_okp_curve crv, cjose_err *err)
-{
-    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-    return NULL;
-}
-
-cjose_jwk_t *cjose_jwk_create_OKP_spec(const cjose_jwk_okp_keyspec *spec, cjose_err *err)
-{
-    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-    return NULL;
-}
-
-#endif // CJOSE_OPENSSL_111X
 
 cjose_jwk_okp_curve cjose_jwk_OKP_get_curve(const cjose_jwk_t *jwk, cjose_err *err)
 {
@@ -2127,7 +2069,6 @@ import_oct_cleanup:
     return jwk;
 }
 
-#if defined(CJOSE_OPENSSL_111X)
 static cjose_jwk_t *_cjose_jwk_import_OKP(json_t *jwk_json, cjose_err *err)
 {
     cjose_jwk_t *jwk = NULL;
@@ -2195,14 +2136,6 @@ import_OKP_cleanup:
 
     return jwk;
 }
-#else
-static cjose_jwk_t *_cjose_jwk_import_OKP(json_t *jwk_json, cjose_err *err)
-{
-    // the OKP key type needs the raw key API that arrived in OpenSSL 1.1.1
-    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-    return NULL;
-}
-#endif // CJOSE_OPENSSL_111X
 
 cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 {
