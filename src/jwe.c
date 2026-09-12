@@ -384,6 +384,26 @@ static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipie
     return true;
 }
 
+// RFC 7518 section 4.6.1.1: the "epk" header holds the public key parameters of
+// the ephemeral key and nothing else, so a private member is refused on sight,
+// whatever the import would make of its value
+static bool _cjose_jwe_epk_is_public(const char *epk_json, cjose_err *err)
+{
+    json_t *epk = json_loads(epk_json, 0, NULL);
+    if (NULL == epk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const bool result = (NULL == json_object_get(epk, "d"));
+    json_decref(epk);
+    if (!result)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    }
+    return result;
+}
+
 static bool _cjose_jwe_alg_is_ecdh_es(const char *alg)
 {
     return (NULL != alg)
@@ -1347,7 +1367,10 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     char *epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
-        epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        if (_cjose_jwe_epk_is_public(epk_json, err))
+        {
+            epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        }
     }
     else if (CJOSE_ERR_NONE == err->code)
     {
@@ -1521,7 +1544,10 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
     epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
-        epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        if (_cjose_jwe_epk_is_public(epk_json, err))
+        {
+            epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        }
     }
     else if (CJOSE_ERR_NONE == err->code)
     {

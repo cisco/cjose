@@ -2711,14 +2711,26 @@ START_TEST(test_cjose_jwe_ecdh_es_private_epk)
     // the public ephemeral key the encryption published still decrypts
     _ecdh_decrypt_ok(compact, JWK_EC, plain, sizeof(plain) - 1);
 
-    // the same key with its private part in "epk" is refused
+    // the same key with its private part in "epk" is refused, and so is one
+    // that merely names "d", which the import would otherwise read as a public
+    // key (RFC 7518 section 4.6.1.1 allows public parameters only)
     char *private_epk = cjose_jwk_to_json(ec, true, &err);
-    ck_assert(NULL != private_epk);
-    ck_assert(NULL != strstr(private_epk, "\"d\""));
-    char *modified = _jwe_with_epk(compact, private_epk);
-    _ecdh_decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
-    free(modified);
+    char *public_epk = cjose_jwk_to_json(ec, false, &err);
+    ck_assert(NULL != private_epk && NULL != public_epk);
+    ck_assert(NULL != strstr(private_epk, "\"d\"") && NULL == strstr(public_epk, "\"d\""));
+    char empty_d[512], null_d[512];
+    ck_assert(strlen(public_epk) < sizeof(empty_d) - 16);
+    snprintf(empty_d, sizeof(empty_d), "%.*s,\"d\":\"\"}", (int)strlen(public_epk) - 1, public_epk);
+    snprintf(null_d, sizeof(null_d), "%.*s,\"d\":null}", (int)strlen(public_epk) - 1, public_epk);
+    const char *bad_epks[] = { private_epk, empty_d, null_d };
+    for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
+    {
+        char *modified = _jwe_with_epk(compact, bad_epks[i]);
+        _ecdh_decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
+        free(modified);
+    }
 
+    cjose_get_dealloc()(public_epk);
     cjose_get_dealloc()(private_epk);
     cjose_get_dealloc()(compact);
     cjose_jwk_release(ec);
@@ -2771,7 +2783,13 @@ START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
     // does not allow in the "epk" header
     char *x25519_private_epk = cjose_jwk_to_json(x25519, true, &err);
     ck_assert(NULL != x25519_private_epk);
-    const char *epks[] = { ec_epk, x448_epk, "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"AAAA\"}", x25519_private_epk };
+    static const char *const X25519_PUB
+        = "\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"gJ2aLU9SQ7QA9UhajNXbHjoN4DXkpeJyqJpR9NlAmW0\"";
+    char okp_empty_d[256], okp_null_d[256];
+    snprintf(okp_empty_d, sizeof(okp_empty_d), "{%s,\"d\":\"\"}", X25519_PUB);
+    snprintf(okp_null_d, sizeof(okp_null_d), "{%s,\"d\":null}", X25519_PUB);
+    const char *epks[]
+        = { ec_epk, x448_epk, "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"AAAA\"}", x25519_private_epk, okp_empty_d, okp_null_d };
     for (size_t i = 0; i < sizeof(epks) / sizeof(epks[0]); i++)
     {
         char *modified = _jwe_with_epk(compact, epks[i]);

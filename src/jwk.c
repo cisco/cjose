@@ -1976,9 +1976,12 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
         goto import_EC_cleanup;
     }
 
-    // get the decoded value of the private key d
+    // get the decoded value of the private key d; a "d" that is present but
+    // carries no value is a malformed key, not a public one (the OKP import
+    // makes the same distinction)
     d_buflen = (size_t)_cjose_jwk_ec_size_for_curve(crv, err);
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
+    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err)
+        || (NULL != json_object_get(jwk_json, CJOSE_JWK_D_STR) && NULL == d_buffer))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
