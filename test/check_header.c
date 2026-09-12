@@ -115,41 +115,86 @@ START_TEST(test_cjose_header_set_get_raw)
 }
 END_TEST
 
-// regression: RFC 7515 section 4.1.11 requires a "crit" list, if present, to
-// be non-empty; _cjose_header_validate_crit accepted an empty list
+// RFC 7515 section 4.1.11: a "crit" list names extensions that have to be
+// understood and processed, and a producer may not list a name the JOSE
+// specifications define. cjose implements no extension, so a header carrying
+// the list is refused wherever it appears
 START_TEST(test_cjose_header_validate_crit)
 {
     cjose_err err;
-    static const char *const supported[] = { "alg", "cty" };
-    const size_t supported_len = sizeof(supported) / sizeof(supported[0]);
 
     cjose_header_t *header = cjose_header_new(&err);
     ck_assert_msg(NULL != header, "cjose_header_new failed");
+    cjose_header_t *headers[] = { header, NULL };
+    const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
 
     // no "crit" header at all is fine
-    ck_assert(_cjose_header_validate_crit(header, supported, supported_len, &err));
+    ck_assert(_cjose_header_validate_crit(headers, headers_len, &err));
 
-    // a supported extension is fine
-    ck_assert(cjose_header_set_raw(header, "crit", "[\"cty\"]", &err));
-    ck_assert(_cjose_header_validate_crit(header, supported, supported_len, &err));
+    // any list is refused, whatever it holds
+    static const char *const lists[] = { "[\"cty\"]", "[\"exp\"]", "[]", "[\"alg\",\"alg\"]", "\"cty\"" };
+    for (size_t i = 0; i < sizeof(lists) / sizeof(lists[0]); i++)
+    {
+        memset(&err, 0, sizeof(err));
+        ck_assert(cjose_header_set_raw(header, "crit", lists[i], &err));
+        ck_assert_msg(!_cjose_header_validate_crit(headers, headers_len, &err), "crit %s accepted", lists[i]);
+        ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+    }
 
-    // an unsupported extension is rejected
-    ck_assert(cjose_header_set_raw(header, "crit", "[\"exp\"]", &err));
-    ck_assert(!_cjose_header_validate_crit(header, supported, supported_len, &err));
-    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
-
-    // a non-array value is rejected
-    ck_assert(cjose_header_set(header, "crit", "cty", &err));
-    ck_assert(!_cjose_header_validate_crit(header, supported, supported_len, &err));
-    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
-
-    // an empty list is rejected (RFC 7515 section 4.1.11)
+    // also when it sits in a header other than the first
     memset(&err, 0, sizeof(err));
-    ck_assert(cjose_header_set_raw(header, "crit", "[]", &err));
-    ck_assert(!_cjose_header_validate_crit(header, supported, supported_len, &err));
+    json_object_del((json_t *)header, "crit");
+    cjose_header_t *other = cjose_header_new(&err);
+    ck_assert(NULL != other);
+    ck_assert(cjose_header_set_raw(other, "crit", "[\"cty\"]", &err));
+    cjose_header_t *both[] = { header, other };
+    ck_assert(!_cjose_header_validate_crit(both, 2, &err));
     ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
 
+    cjose_header_release(other);
     cjose_header_release(header);
+}
+END_TEST
+
+// RFC 7516 section 7.2.1: the member names of the JWE protected header, the
+// shared unprotected header and a per-recipient unprotected header are disjoint
+START_TEST(test_cjose_header_validate_disjoint)
+{
+    cjose_err err;
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    cjose_header_t *shared = cjose_header_new(&err);
+    cjose_header_t *personal = cjose_header_new(&err);
+    ck_assert(NULL != protected_header && NULL != shared && NULL != personal);
+    ck_assert(cjose_header_set(protected_header, "enc", "A128GCM", &err));
+    ck_assert(cjose_header_set(shared, "cty", "JWT", &err));
+    ck_assert(cjose_header_set(personal, "alg", "A128KW", &err));
+
+    cjose_header_t *headers[] = { protected_header, shared, personal };
+    const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
+    ck_assert(_cjose_header_validate_disjoint(headers, headers_len, &err));
+
+    // a NULL entry is skipped
+    cjose_header_t *with_null[] = { protected_header, NULL, personal };
+    ck_assert(_cjose_header_validate_disjoint(with_null, headers_len, &err));
+
+    // the same name in the protected and the per-recipient header is refused
+    ck_assert(cjose_header_set(personal, "enc", "A128GCM", &err));
+    ck_assert(!_cjose_header_validate_disjoint(headers, headers_len, &err));
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    // ... as is the same name in the shared and the per-recipient header
+    memset(&err, 0, sizeof(err));
+    ck_assert(cjose_header_set_raw(personal, "enc", "null", &err));
+    json_object_del((json_t *)personal, "enc");
+    ck_assert(_cjose_header_validate_disjoint(headers, headers_len, &err));
+    ck_assert(cjose_header_set(personal, "cty", "JWT", &err));
+    ck_assert(!_cjose_header_validate_disjoint(headers, headers_len, &err));
+    ck_assert_int_eq(err.code, CJOSE_ERR_INVALID_ARG);
+
+    cjose_header_release(personal);
+    cjose_header_release(shared);
+    cjose_header_release(protected_header);
 }
 END_TEST
 
@@ -163,6 +208,7 @@ Suite *cjose_header_suite(void)
     tcase_add_test(tc_header, test_cjose_header_set_get);
     tcase_add_test(tc_header, test_cjose_header_set_get_raw);
     tcase_add_test(tc_header, test_cjose_header_validate_crit);
+    tcase_add_test(tc_header, test_cjose_header_validate_disjoint);
     suite_add_tcase(suite, tc_header);
 
     return suite;

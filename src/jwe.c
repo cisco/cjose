@@ -39,6 +39,12 @@ static bool _cjose_jwe_encrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_
 static bool _cjose_jwe_decrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool
+_cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool
+_cjose_jwe_decrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool
 _cjose_jwe_encrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool
@@ -318,6 +324,80 @@ static const char *_cjose_jwe_get_from_headers(cjose_header_t *protected_header,
     return NULL;
 }
 
+// like _cjose_jwe_get_from_headers, but returns the JSON value so that a
+// parameter can be checked for its expected type (borrowed reference)
+static json_t *_cjose_jwe_get_json_from_headers(cjose_header_t *protected_header,
+                                                cjose_header_t *unprotected_header,
+                                                cjose_header_t *personal_header,
+                                                const char *key)
+{
+    cjose_header_t *headers[] = { personal_header, unprotected_header, protected_header };
+    for (int i = 0; i < 3; i++)
+    {
+        if (NULL == headers[i])
+        {
+            continue;
+        }
+        json_t *obj = json_object_get((json_t *)headers[i], key);
+        if (NULL != obj)
+        {
+            return obj;
+        }
+    }
+    return NULL;
+}
+
+// the header object a per-recipient parameter (like the "iv" and "tag" of the
+// AES GCM key wrapping algorithms) is written to when encrypting: the protected
+// header for a single recipient, so that the compact serialization carries it,
+// and the recipient's own header otherwise. The caller's header objects are
+// never modified: the JWE holds a deep copy of the protected header already and
+// gets one of the recipient header here.
+static json_t *_cjose_jwe_recipient_param_target(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, cjose_err *err)
+{
+    if (jwe->to_count < 2)
+    {
+        return jwe->hdr;
+    }
+    json_t *copy = (NULL == recipient->unprotected) ? json_object() : json_deep_copy(recipient->unprotected);
+    if (NULL == copy)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+    json_decref(recipient->unprotected);
+    recipient->unprotected = copy;
+    return copy;
+}
+
+// a header parameter that the key agreement or the key wrapping produces itself
+// must not be supplied by the caller: it would either end up in two of the three
+// header locations, which RFC 7516 section 7.2.1 does not allow, or silently
+// replace what the caller set
+static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, const char *name, cjose_err *err)
+{
+    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    return true;
+}
+
+static bool _cjose_jwe_alg_is_ecdh_es(const char *alg)
+{
+    return (NULL != alg)
+           && ((0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A128KW))
+               || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A192KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A256KW)));
+}
+
+static bool _cjose_jwe_alg_is_aes_gcm_kw(const char *alg)
+{
+    return (NULL != alg)
+           && ((0 == strcmp(alg, CJOSE_HDR_ALG_A128GCMKW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192GCMKW))
+               || (0 == strcmp(alg, CJOSE_HDR_ALG_A256GCMKW)));
+}
+
 static bool _cjose_jwe_validate_enc(cjose_jwe_t *jwe, cjose_header_t *protected_header, cjose_err *err)
 {
 
@@ -361,14 +441,12 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
                                     _jwe_int_recipient_t *recipient,
                                     cjose_err *err)
 {
-    static const char *const supported_crit_headers[] = { "alg", "enc", "cty", "epk", "apu", "apv" };
+    cjose_header_t *headers[] = { protected_header, unprotected_header, (cjose_header_t *)recipient->unprotected };
+    const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
 
-    if (!_cjose_header_validate_crit(protected_header, supported_crit_headers,
-                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
-        || !_cjose_header_validate_crit(unprotected_header, supported_crit_headers,
-                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
-        || !_cjose_header_validate_crit((cjose_header_t *)recipient->unprotected, supported_crit_headers,
-                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
+    // RFC 7516 section 7.2.1: the three header locations must be disjoint, and
+    // RFC 7515 section 4.1.11: none of them may carry a "crit" list
+    if (!_cjose_header_validate_disjoint(headers, headers_len, err) || !_cjose_header_validate_crit(headers, headers_len, err))
     {
         return false;
     }
@@ -381,6 +459,8 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
+
+    const bool is_aes_gcm_kw = _cjose_jwe_alg_is_aes_gcm_kw(alg);
 
     // set JWE build functions based on header contents
     if (strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP) == 0)
@@ -455,6 +535,12 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
     {
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_kw;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_kw;
+    }
+
+    if (is_aes_gcm_kw)
+    {
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_gcm_kw;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_gcm_kw;
     }
 
     // ensure required builders have been assigned
@@ -754,6 +840,233 @@ static bool _cjose_jwe_decrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// AES GCM key wrapping (RFC 7518 section 4.7): the CEK is encrypted with AES GCM
+// under a key encryption key of the size the "alg" names, with a random 96-bit
+// IV and no additional authenticated data; the IV and the 128-bit tag travel as
+// the "iv" and "tag" header parameters of the recipient
+#define CJOSE_JWE_AES_GCM_KW_IV_LEN 12
+#define CJOSE_JWE_AES_GCM_KW_TAG_LEN 16
+
+static size_t _cjose_jwe_aes_gcm_kw_keylen(const char *alg)
+{
+    if (NULL == alg)
+    {
+        return 0;
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_A128GCMKW))
+    {
+        return 16;
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_A192GCMKW))
+    {
+        return 24;
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_A256GCMKW))
+    {
+        return 32;
+    }
+    return 0;
+}
+
+static const EVP_CIPHER *_cjose_jwe_aes_gcm_cipher(size_t key_len)
+{
+    switch (key_len)
+    {
+    case 16:
+        return EVP_aes_128_gcm();
+    case 24:
+        return EVP_aes_192_gcm();
+    case 32:
+        return EVP_aes_256_gcm();
+    default:
+        return NULL;
+    }
+}
+
+// the key encryption key of the AES GCM key wrapping algorithms is a symmetric
+// key of exactly the size the "alg" names
+static size_t
+_cjose_jwe_aes_gcm_kw_kek_len(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    const char *alg
+        = _cjose_jwe_get_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_ALG);
+    const size_t kek_len = _cjose_jwe_aes_gcm_kw_keylen(alg);
+    if (0 == kek_len || CJOSE_JWK_KTY_OCT != jwk->kty || NULL == jwk->keydata || jwk->keysize != kek_len * 8)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return 0;
+    }
+    return kek_len;
+}
+
+static bool
+_cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    EVP_CIPHER_CTX *ctx = NULL;
+    uint8_t iv[CJOSE_JWE_AES_GCM_KW_IV_LEN];
+    uint8_t tag[CJOSE_JWE_AES_GCM_KW_TAG_LEN];
+    char *iv_b64u = NULL;
+    char *tag_b64u = NULL;
+    size_t b64u_len = 0;
+    int len = 0;
+    int final_len = 0;
+    bool result = false;
+
+    if (NULL == jwe || NULL == jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const size_t kek_len = _cjose_jwe_aes_gcm_kw_kek_len(recipient, jwe, jwk, err);
+    if (0 == kek_len)
+    {
+        return false;
+    }
+
+    // the "iv" and "tag" parameters are produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_IV, err)
+        || !_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_TAG, err))
+    {
+        return false;
+    }
+
+    // generate random CEK
+    if (!jwe->fns.set_cek(jwe, NULL, true, err))
+    {
+        return false;
+    }
+
+    if (RAND_bytes(iv, sizeof(iv)) != 1)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return false;
+    }
+
+    // AES GCM does not expand its input: the encrypted key is as long as the CEK
+    cjose_get_dealloc()(recipient->enc_key.raw);
+    recipient->enc_key.raw = NULL;
+    recipient->enc_key.raw_len = 0;
+    if (!_cjose_jwe_malloc(jwe->cek_len, false, &recipient->enc_key.raw, err))
+    {
+        return false;
+    }
+    recipient->enc_key.raw_len = jwe->cek_len;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (NULL == ctx || EVP_EncryptInit_ex(ctx, _cjose_jwe_aes_gcm_cipher(kek_len), NULL, jwk->keydata, iv) != 1
+        || EVP_EncryptUpdate(ctx, recipient->enc_key.raw, &len, jwe->cek, jwe->cek_len) != 1 || (size_t)len != jwe->cek_len
+        || EVP_EncryptFinal_ex(ctx, NULL, &final_len) != 1 || 0 != final_len
+        || EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, sizeof(tag), tag) != 1)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto cjose_encrypt_ek_aes_gcm_kw_finish;
+    }
+
+    // publish the IV and the tag with the recipient
+    json_t *target = _cjose_jwe_recipient_param_target(jwe, recipient, err);
+    if (NULL == target || !cjose_base64url_encode(iv, sizeof(iv), &iv_b64u, &b64u_len, err)
+        || !cjose_header_set((cjose_header_t *)target, CJOSE_HDR_IV, iv_b64u, err)
+        || !cjose_base64url_encode(tag, sizeof(tag), &tag_b64u, &b64u_len, err)
+        || !cjose_header_set((cjose_header_t *)target, CJOSE_HDR_TAG, tag_b64u, err))
+    {
+        goto cjose_encrypt_ek_aes_gcm_kw_finish;
+    }
+
+    result = true;
+
+cjose_encrypt_ek_aes_gcm_kw_finish:
+
+    EVP_CIPHER_CTX_free(ctx);
+    cjose_get_dealloc()(iv_b64u);
+    cjose_get_dealloc()(tag_b64u);
+
+    return result;
+}
+
+static bool
+_cjose_jwe_decrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    EVP_CIPHER_CTX *ctx = NULL;
+    uint8_t *iv = NULL;
+    size_t iv_len = 0;
+    uint8_t *tag = NULL;
+    size_t tag_len = 0;
+    int len = 0;
+    int final_len = 0;
+    bool result = false;
+
+    if (NULL == jwe || NULL == jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const size_t kek_len = _cjose_jwe_aes_gcm_kw_kek_len(recipient, jwe, jwk, err);
+    if (0 == kek_len)
+    {
+        return false;
+    }
+
+    // the "iv" and "tag" parameters must be present with the recipient and
+    // have their fixed sizes: check that before touching the encrypted key
+    json_t *iv_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_IV);
+    json_t *tag_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_TAG);
+    if (!json_is_string(iv_obj) || !json_is_string(tag_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    if (!cjose_base64url_decode(json_string_value(iv_obj), strlen(json_string_value(iv_obj)), &iv, &iv_len, err)
+        || !cjose_base64url_decode(json_string_value(tag_obj), strlen(json_string_value(tag_obj)), &tag, &tag_len, err))
+    {
+        goto cjose_decrypt_ek_aes_gcm_kw_finish;
+    }
+    if (CJOSE_JWE_AES_GCM_KW_IV_LEN != iv_len || CJOSE_JWE_AES_GCM_KW_TAG_LEN != tag_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_aes_gcm_kw_finish;
+    }
+
+    // the CEK buffer has the size the enc header dictates and the encrypted
+    // key must be exactly that long, so an attacker-controlled encrypted key
+    // can never be written past it
+    if (!jwe->fns.set_cek(jwe, NULL, false, err))
+    {
+        goto cjose_decrypt_ek_aes_gcm_kw_finish;
+    }
+    if (recipient->enc_key.raw_len != jwe->cek_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_aes_gcm_kw_finish;
+    }
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (NULL == ctx || EVP_DecryptInit_ex(ctx, _cjose_jwe_aes_gcm_cipher(kek_len), NULL, jwk->keydata, iv) != 1
+        || EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, (int)tag_len, tag) != 1
+        || EVP_DecryptUpdate(ctx, jwe->cek, &len, recipient->enc_key.raw, recipient->enc_key.raw_len) != 1
+        || (size_t)len != jwe->cek_len || EVP_DecryptFinal_ex(ctx, NULL, &final_len) != 1)
+    {
+        // the tag did not verify: do not leave the unauthenticated output behind
+        _cjose_release_cek(&jwe->cek, jwe->cek_len);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto cjose_decrypt_ek_aes_gcm_kw_finish;
+    }
+
+    result = true;
+
+cjose_decrypt_ek_aes_gcm_kw_finish:
+
+    EVP_CIPHER_CTX_free(ctx);
+    cjose_get_dealloc()(iv);
+    cjose_get_dealloc()(tag);
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_ek_rsa_padding(
     _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, const EVP_MD *oaep_md, cjose_err *err)
 {
@@ -928,6 +1241,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -1110,6 +1429,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
     size_t otherinfo_len = 0;
     uint8_t *kek = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -1907,16 +2232,14 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
     }
 
     if (((0 == strcmp(alg, CJOSE_HDR_ALG_A128KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192KW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || _cjose_jwe_alg_is_aes_gcm_kw(alg) || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
         && jwk->kty != CJOSE_JWK_KTY_OCT)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A128KW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A192KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A256KW)))
-        && jwk->kty != CJOSE_JWK_KTY_EC)
+    if (_cjose_jwe_alg_is_ecdh_es(alg) && jwk->kty != CJOSE_JWK_KTY_EC)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -1999,7 +2322,7 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
         jwe->to[i].unprotected = json_incref(recipients[i].unprotected_header);
 
         // make sure we have an alg header
-        if (!_cjose_jwe_validate_alg(protected_header, jwe->to[i].unprotected, recipient_count > 1, jwe->to + i, err))
+        if (!_cjose_jwe_validate_alg(protected_header, shared_unprotected_header, recipient_count > 1, jwe->to + i, err))
         {
             cjose_jwe_release(jwe);
             return NULL;
@@ -2020,6 +2343,21 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
 
         // build JWE content-encryption key and encrypted key
         if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, recipients[i].jwk, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+    }
+
+    // the algorithms have written the parameters they produce by now, so the
+    // names of the assembled headers are checked once more: what leaves here
+    // has to be a JWE that can be imported again (RFC 7516 section 7.2.1)
+    for (size_t i = 0; i < recipient_count; i++)
+    {
+        cjose_header_t *headers[]
+            = { (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, (cjose_header_t *)jwe->to[i].unprotected };
+
+        if (!_cjose_header_validate_disjoint(headers, sizeof(headers) / sizeof(headers[0]), err))
         {
             cjose_jwe_release(jwe);
             return NULL;

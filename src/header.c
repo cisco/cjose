@@ -14,57 +14,58 @@
 static const char *CJOSE_HDR_CRIT = "crit";
 
 ////////////////////////////////////////////////////////////////////////////////
-bool _cjose_header_validate_crit(cjose_header_t *header, const char *const *supported, size_t supported_len, cjose_err *err)
+bool _cjose_header_validate_crit(cjose_header_t *const *headers, size_t headers_len, cjose_err *err)
 {
-    if (NULL == header)
+    if (NULL == headers)
     {
         return true;
     }
 
-    json_t *crit = json_object_get((json_t *)header, CJOSE_HDR_CRIT);
-    if (NULL == crit)
+    // RFC 7515 section 4.1.11: the "crit" list names extensions to the JOSE
+    // specifications that a recipient has to understand and process, and a
+    // producer must not list a name the specifications or JWA define. cjose
+    // implements no extension, so every name a list can carry is either one
+    // it must reject as unsupported or one the producer was not allowed to
+    // put there: a header that carries the list at all is refused.
+    for (size_t i = 0; i < headers_len; i++)
     {
-        return true;
-    }
-
-    if (!json_is_array(crit))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
-
-    // RFC 7515 section 4.1.11: if present, the "crit" list MUST NOT be empty
-    if (0 == json_array_size(crit))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
-
-    size_t index = 0;
-    json_t *entry = NULL;
-    json_array_foreach(crit, index, entry)
-    {
-        if (!json_is_string(entry))
+        if (NULL != headers[i] && NULL != json_object_get((json_t *)headers[i], CJOSE_HDR_CRIT))
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             return false;
         }
+    }
 
-        const char *name = json_string_value(entry);
-        bool found = false;
-        for (size_t i = 0; i < supported_len; i++)
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool _cjose_header_validate_disjoint(cjose_header_t *const *headers, size_t headers_len, cjose_err *err)
+{
+    if (NULL == headers)
+    {
+        return true;
+    }
+
+    for (size_t i = 0; i < headers_len; i++)
+    {
+        if (NULL == headers[i])
         {
-            if (0 == strcmp(name, supported[i]))
+            continue;
+        }
+
+        const char *name = NULL;
+        json_t *value = NULL;
+        json_object_foreach((json_t *)headers[i], name, value)
+        {
+            for (size_t j = i + 1; j < headers_len; j++)
             {
-                found = true;
-                break;
+                if (NULL != headers[j] && NULL != json_object_get((json_t *)headers[j], name))
+                {
+                    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+                    return false;
+                }
             }
-        }
-
-        if (!found)
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            return false;
         }
     }
 

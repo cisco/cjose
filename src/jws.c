@@ -83,10 +83,9 @@ static bool _cjose_jws_build_hdr(cjose_jws_t *jws, cjose_header_t *header, cjose
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
 {
-    static const char *const supported_crit_headers[] = { "alg", "cty" };
+    cjose_header_t *headers[] = { (cjose_header_t *)jws->hdr };
 
-    if (!_cjose_header_validate_crit((cjose_header_t *)jws->hdr, supported_crit_headers,
-                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
+    if (!_cjose_header_validate_crit(headers, sizeof(headers) / sizeof(headers[0]), err))
     {
         return false;
     }

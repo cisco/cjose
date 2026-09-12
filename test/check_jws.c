@@ -1499,6 +1499,57 @@ START_TEST(test_cjose_jws_verify_ec_sig_bad_length)
 }
 END_TEST
 
+// RFC 7515 section 4.1.11: cjose implements no extension, so a JWS whose
+// header carries a "crit" list is refused, when signing and when verifying
+START_TEST(test_cjose_jws_crit_refused)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_COMMON_OCT, strlen(JWK_COMMON_OCT), &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_import failed: %s", err.message);
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_HS256, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_CTY, "JWT", &err));
+    ck_assert(cjose_header_set_raw(hdr, "crit", "[\"cty\"]", &err));
+    ck_assert_msg(NULL == cjose_jws_sign(jwk, hdr, plain, sizeof(plain) - 1, &err), "cjose_jws_sign accepted a crit list");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // the same JWS, made without the list and given one afterwards, is refused
+    // when it is imported
+    memset(&err, 0, sizeof(err));
+    json_object_del((json_t *)hdr, "crit");
+    cjose_jws_t *jws = cjose_jws_sign(jwk, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jws, "cjose_jws_sign failed: %s", err.message);
+    const char *compact = NULL;
+    ck_assert(cjose_jws_export(jws, &compact, &err));
+
+    json_t *header = json_pack("{s:s,s:s,s:[s]}", "alg", "HS256", "cty", "JWT", "crit", "cty");
+    char *header_str = json_dumps(header, JSON_COMPACT);
+    char *header_b64u = NULL;
+    size_t header_b64u_len = 0;
+    ck_assert(cjose_base64url_encode((const uint8_t *)header_str, strlen(header_str), &header_b64u, &header_b64u_len, &err));
+    const char *rest = strchr(compact, '.');
+    char *tampered = malloc(header_b64u_len + strlen(rest) + 1);
+    ck_assert(NULL != tampered);
+    memcpy(tampered, header_b64u, header_b64u_len);
+    strcpy(tampered + header_b64u_len, rest);
+
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jws_import(tampered, strlen(tampered), &err), "cjose_jws_import accepted a crit list");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    free(tampered);
+    cjose_get_dealloc()(header_b64u);
+    cjose_get_dealloc()(header_str);
+    json_decref(header);
+    cjose_jws_release(jws);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jws_suite(void)
 {
     Suite *suite = suite_create("jws");
@@ -1533,6 +1584,7 @@ Suite *cjose_jws_suite(void)
     tcase_add_test(tc_jws, test_cjose_jws_none);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ps_sig_bad_length);
     tcase_add_test(tc_jws, test_cjose_jws_verify_ec_sig_bad_length);
+    tcase_add_test(tc_jws, test_cjose_jws_crit_refused);
     suite_add_tcase(suite, tc_jws);
 
     return suite;
