@@ -370,6 +370,13 @@ static json_t *_cjose_jwe_recipient_param_target(cjose_jwe_t *jwe, _jwe_int_reci
     return copy;
 }
 
+static bool _cjose_jwe_alg_is_aes_gcm_kw(const char *alg)
+{
+    return (NULL != alg)
+           && ((0 == strcmp(alg, CJOSE_HDR_ALG_A128GCMKW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192GCMKW))
+               || (0 == strcmp(alg, CJOSE_HDR_ALG_A256GCMKW)));
+}
+
 static bool _cjose_jwe_validate_enc(cjose_jwe_t *jwe, cjose_header_t *protected_header, cjose_err *err)
 {
 
@@ -413,17 +420,12 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
                                     _jwe_int_recipient_t *recipient,
                                     cjose_err *err)
 {
-    static const char *const supported_crit_headers[] = { "alg", "enc", "cty", "epk", "apu", "apv", "iv", "tag" };
+    static const char *const supported_crit_headers[] = { "alg", "enc", "cty", "epk", "apu", "apv" };
 
-    if (!_cjose_header_validate_crit(protected_header, supported_crit_headers,
-                                     sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
-        || !_cjose_header_validate_crit(unprotected_header, supported_crit_headers,
-                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
-        || !_cjose_header_validate_crit((cjose_header_t *)recipient->unprotected, supported_crit_headers,
-                                        sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err))
-    {
-        return false;
-    }
+    // RFC 7518 section 4.7 defines "iv" and "tag" for the AES GCM key wrapping
+    // algorithms alone, and they are only processed there, so they are accepted
+    // as critical parameters for those algorithms and refused for every other
+    static const char *const supported_crit_headers_aes_gcm_kw[] = { "alg", "enc", "cty", "epk", "apu", "apv", "iv", "tag" };
 
     const char *alg = _cjose_jwe_get_from_headers(protected_header, unprotected_header, (cjose_header_t *)recipient->unprotected,
                                                   CJOSE_HDR_ALG);
@@ -431,6 +433,19 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
     if (NULL == alg)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const bool is_aes_gcm_kw = _cjose_jwe_alg_is_aes_gcm_kw(alg);
+    const char *const *crit_headers = is_aes_gcm_kw ? supported_crit_headers_aes_gcm_kw : supported_crit_headers;
+    const size_t crit_headers_len = is_aes_gcm_kw
+                                        ? sizeof(supported_crit_headers_aes_gcm_kw) / sizeof(supported_crit_headers_aes_gcm_kw[0])
+                                        : sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]);
+
+    if (!_cjose_header_validate_crit(protected_header, crit_headers, crit_headers_len, err)
+        || !_cjose_header_validate_crit(unprotected_header, crit_headers, crit_headers_len, err)
+        || !_cjose_header_validate_crit((cjose_header_t *)recipient->unprotected, crit_headers, crit_headers_len, err))
+    {
         return false;
     }
 
@@ -509,8 +524,7 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_kw;
     }
 
-    if ((strcmp(alg, CJOSE_HDR_ALG_A128GCMKW) == 0) || (strcmp(alg, CJOSE_HDR_ALG_A192GCMKW) == 0)
-        || (strcmp(alg, CJOSE_HDR_ALG_A256GCMKW) == 0))
+    if (is_aes_gcm_kw)
     {
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_gcm_kw;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_gcm_kw;
@@ -2186,9 +2200,7 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
     }
 
     if (((0 == strcmp(alg, CJOSE_HDR_ALG_A128KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192KW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A128GCMKW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_A192GCMKW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A256GCMKW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || _cjose_jwe_alg_is_aes_gcm_kw(alg) || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
         && jwk->kty != CJOSE_JWK_KTY_OCT)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);

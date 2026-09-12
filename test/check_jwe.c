@@ -666,6 +666,103 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_multiple_recipients)
 }
 END_TEST
 
+static void _jwe_hdr_crit_iv(json_t *hdr)
+{
+    json_t *crit = json_array();
+    json_array_append_new(crit, json_string(CJOSE_HDR_IV));
+    json_object_set_new(hdr, "crit", crit);
+}
+
+// "iv" and "tag" are understood as critical parameters for the AES GCM key
+// wrapping algorithms, which process them, and for no other algorithm
+START_TEST(test_cjose_jwe_aes_gcm_kw_crit)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    struct
+    {
+        const char *alg;
+        const char *key;
+        bool accepted;
+    } cases[] = {
+        { CJOSE_HDR_ALG_A128GCMKW, JWK_OCT_16, true },
+        { CJOSE_HDR_ALG_A256GCMKW, JWK_OCT_32, true },
+        { CJOSE_HDR_ALG_A128KW, JWK_OCT_16, false },
+        { CJOSE_HDR_ALG_DIR, JWK_OCT_32, false },
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        for (size_t p = 0; p < 2; p++)
+        {
+            const char *param = (0 == p) ? CJOSE_HDR_IV : CJOSE_HDR_TAG;
+            memset(&err, 0, sizeof(err));
+            cjose_header_t *hdr = cjose_header_new(&err);
+            ck_assert(NULL != hdr);
+            ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, cases[i].alg, &err));
+            ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+            json_t *crit = json_array();
+            json_array_append_new(crit, json_string(param));
+            json_object_set_new((json_t *)hdr, "crit", crit);
+
+            cjose_jwk_t *jwk = cjose_jwk_import(cases[i].key, strlen(cases[i].key), &err);
+            ck_assert(NULL != jwk);
+            cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+            if (cases[i].accepted)
+            {
+                ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed for %s crit %s: %s", cases[i].alg, param, err.message);
+                cjose_jwe_release(jwe);
+            }
+            else
+            {
+                ck_assert_msg(NULL == jwe, "cjose_jwe_encrypt accepted crit %s for %s", param, cases[i].alg);
+                ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+            }
+            cjose_jwk_release(jwk);
+            cjose_header_release(hdr);
+        }
+    }
+
+    // the same on import: a JWE of another algorithm that marks "iv" critical
+    // is refused, where the AES GCM key wrapping one is not
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    ck_assert(NULL != jwk16);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk16, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+    char *modified = _jwe_with_modified_header(compact, _jwe_hdr_crit_iv);
+    memset(&err, 0, sizeof(err));
+    ck_assert(NULL == cjose_jwe_import(modified, strlen(modified), &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    free(modified);
+    cjose_get_dealloc()(compact);
+    cjose_header_release(hdr);
+
+    cjose_header_t *gcm_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(gcm_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+    ck_assert(cjose_header_set(gcm_hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    jwe = cjose_jwe_encrypt(jwk16, gcm_hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+    modified = _jwe_with_modified_header(compact, _jwe_hdr_crit_iv);
+    jwe = cjose_jwe_import(modified, strlen(modified), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
+    cjose_jwe_release(jwe);
+    free(modified);
+    cjose_get_dealloc()(compact);
+    cjose_header_release(gcm_hdr);
+    cjose_jwk_release(jwk16);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
 {
     static const uint8_t plain[] = "";
@@ -2326,6 +2423,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_self_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_multiple_recipients);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_crit);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
