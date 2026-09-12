@@ -13,7 +13,6 @@
 #include "include/jwe_int.h"
 #include "include/util_int.h"
 #include <openssl/rsa.h>
-#include <openssl/err.h>
 #include <openssl/rand.h>
 #include <cjose/error.h>
 
@@ -1077,7 +1076,7 @@ END_TEST
 // build a compact JWE from a valid AES-KW JWE but with the encrypted_key segment
 // replaced by an oversized (attacker-controlled) base64url blob, then confirm that
 // importing parses fine but decryption fails gracefully instead of overflowing the
-// fixed-size CEK buffer in AES_unwrap_key (RFC 3394 wrapped key is always cek_len + 8)
+// fixed-size CEK buffer (RFC 3394 wrapped key is always cek_len + 8)
 static void _decrypt_oversized_aes_kw_ek(const char *alg, const char *enc, const char *key)
 {
     cjose_err err;
@@ -1655,14 +1654,21 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
 
     // recover the real 32-byte A256GCM CEK by unwrapping the encrypted_key
     // segment with the private key
-    RSA *rsa = (RSA *)jwk->keydata;
-    int ek_len = RSA_size(rsa);
+    EVP_PKEY *rsa = _cjose_jwk_rsa_key(jwk);
+    size_t ek_len = EVP_PKEY_get_size(rsa);
     uint8_t *orig_ek = NULL;
     size_t orig_ek_len = 0;
     ck_assert(cjose_base64url_decode(first_dot + 1, second_dot - first_dot - 1, &orig_ek, &orig_ek_len, &err));
-    ck_assert_int_eq(ek_len, orig_ek_len);
+    ck_assert_uint_eq(ek_len, orig_ek_len);
     uint8_t cek[256];
-    ck_assert_int_eq(32, RSA_private_decrypt(orig_ek_len, orig_ek, cek, rsa, RSA_PKCS1_OAEP_PADDING));
+    size_t cek_len = sizeof(cek);
+    EVP_PKEY_CTX *rsa_ctx = EVP_PKEY_CTX_new(rsa, NULL);
+    ck_assert(NULL != rsa_ctx);
+    ck_assert_int_eq(1, EVP_PKEY_decrypt_init(rsa_ctx));
+    ck_assert_int_eq(1, EVP_PKEY_CTX_set_rsa_padding(rsa_ctx, RSA_PKCS1_OAEP_PADDING));
+    ck_assert_int_eq(1, EVP_PKEY_decrypt(rsa_ctx, cek, &cek_len, orig_ek, orig_ek_len));
+    ck_assert_uint_eq(32, cek_len);
+    EVP_PKEY_CTX_free(rsa_ctx);
 
     // RSA-OAEP-encrypt that CEK followed by 8 trailing bytes (40 bytes in
     // total) with the same public key
@@ -1671,7 +1677,14 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
     memset(bad_cek + 32, 0x42, sizeof(bad_cek) - 32);
     uint8_t *ek = (uint8_t *)malloc(ek_len);
     ck_assert(NULL != ek);
-    ck_assert(RSA_public_encrypt(sizeof(bad_cek), bad_cek, ek, rsa, RSA_PKCS1_OAEP_PADDING) == ek_len);
+    size_t encrypted_len = ek_len;
+    rsa_ctx = EVP_PKEY_CTX_new(rsa, NULL);
+    ck_assert(NULL != rsa_ctx);
+    ck_assert_int_eq(1, EVP_PKEY_encrypt_init(rsa_ctx));
+    ck_assert_int_eq(1, EVP_PKEY_CTX_set_rsa_padding(rsa_ctx, RSA_PKCS1_OAEP_PADDING));
+    ck_assert_int_eq(1, EVP_PKEY_encrypt(rsa_ctx, ek, &encrypted_len, bad_cek, sizeof(bad_cek)));
+    ck_assert_uint_eq(ek_len, encrypted_len);
+    EVP_PKEY_CTX_free(rsa_ctx);
 
     char *ek_b64u = NULL;
     size_t ek_b64u_len = 0;

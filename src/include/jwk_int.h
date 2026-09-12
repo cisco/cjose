@@ -9,19 +9,7 @@
 
 #include <jansson.h>
 
-#ifdef HAVE_OPENSSL_FEC_H
-
-#include <openssl/fec.h>
-#include <openssl/fecdh.h>
-#include <openssl/fecdsa.h>
-
-#else
-
-#include <openssl/ec.h>
-#include <openssl/ecdh.h>
-#include <openssl/ecdsa.h>
-
-#endif
+#include <openssl/evp.h>
 
 #ifndef SRC_JWK_INT_H
 #define SRC_JWK_INT_H
@@ -49,7 +37,8 @@ struct _cjose_jwk_int
 typedef struct _ec_keydata_int
 {
     cjose_jwk_ec_curve crv;
-    EC_KEY *key;
+    EVP_PKEY *key;
+    bool has_private;
 } ec_keydata;
 
 // OKP-specific keydata (RFC 8037): the EVP_PKEY holds the raw Ed25519,
@@ -58,11 +47,25 @@ typedef struct _okp_keydata_int
 {
     cjose_jwk_okp_curve crv;
     EVP_PKEY *key;
+    bool has_private;
 } okp_keydata;
 
-// RSA-specific keydata = OpenSSL RSA struct
-// (just uses RSA struct)
-void _cjose_jwk_rsa_get(RSA *rsa, BIGNUM **n, BIGNUM **e, BIGNUM **d);
+typedef struct _rsa_keydata_int
+{
+    EVP_PKEY *key;
+    bool has_private;
+    bool has_factors;
+    bool has_crt;
+    BIGNUM *p;
+    BIGNUM *q;
+    BIGNUM *dp;
+    BIGNUM *dq;
+    BIGNUM *qi;
+} rsa_keydata;
+
+static inline EVP_PKEY *_cjose_jwk_rsa_key(const cjose_jwk_t *jwk) { return ((rsa_keydata *)jwk->keydata)->key; }
+
+bool _cjose_jwk_rsa_has_private(const cjose_jwk_t *jwk);
 
 bool cjose_jwk_derive_ecdh_bits(
     const cjose_jwk_t *jwk_self, const cjose_jwk_t *jwk_peer, uint8_t **output, size_t *output_len, cjose_err *err);

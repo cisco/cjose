@@ -109,16 +109,27 @@ START_TEST(test_cjose_jwk_create_RSA_spec)
     ck_assert(2048 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     cjose_jwk_release(jwk);
 
-    // only private is not possible after the OpenSSL 1.1.x changes because e & n always need to be set
-
-    // minimal private
+    // CRT parameters without the factors are accepted and preserved.
     cjose_get_dealloc()(specPriv.p);
     specPriv.p = NULL;
     cjose_get_dealloc()(specPriv.q);
     specPriv.q = NULL;
+    jwk = cjose_jwk_create_RSA_spec(&specPriv, &err);
+    ck_assert(NULL != jwk);
+    char *json = cjose_jwk_to_json(jwk, true, &err);
+    ck_assert(NULL != json);
+    ck_assert(NULL != strstr(json, RSA_dp));
+    ck_assert(NULL != strstr(json, RSA_dq));
+    ck_assert(NULL != strstr(json, RSA_qi));
+    cjose_get_dealloc()(json);
+    cjose_jwk_release(jwk);
+
+    // RSA private keys still require the public n and e components.
+
+    // minimal private
     cjose_get_dealloc()(specPriv.dp);
     specPriv.dp = NULL;
     cjose_get_dealloc()(specPriv.dq);
@@ -132,7 +143,7 @@ START_TEST(test_cjose_jwk_create_RSA_spec)
     ck_assert(2048 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     cjose_jwk_release(jwk);
 
     cjose_get_dealloc()(specPriv.n);
@@ -154,13 +165,38 @@ START_TEST(test_cjose_jwk_create_RSA_spec)
     ck_assert(2048 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     cjose_jwk_release(jwk);
 
     cjose_get_dealloc()(specPub.n);
     specPub.n = NULL;
     cjose_get_dealloc()(specPub.e);
     specPub.e = NULL;
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_create_RSA_spec_byte_rounded_keysize)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = NULL;
+    uint8_t n[257] = { 0 };
+    uint8_t e[] = { 0x01, 0x00, 0x01 };
+    cjose_jwk_rsa_keyspec spec = { 0 };
+
+    // A 2049-bit modulus occupies 257 bytes. Preserve RSA_size() * 8
+    // semantics, which report the byte-rounded size rather than BN_num_bits().
+    n[0] = 0x01;
+    n[sizeof(n) - 1] = 0x01;
+    spec.n = n;
+    spec.nlen = sizeof(n);
+    spec.e = e;
+    spec.elen = sizeof(e);
+
+    jwk = cjose_jwk_create_RSA_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk, "failed to create 2049-bit RSA JWK: %s", err.message);
+    ck_assert(2056 == cjose_jwk_get_keysize(jwk, &err));
+
+    cjose_jwk_release(jwk);
 }
 END_TEST
 
@@ -178,7 +214,7 @@ START_TEST(test_cjose_jwk_create_RSA_random)
     ck_assert(2048 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
 
     cjose_jwk_release(jwk);
 
@@ -189,7 +225,7 @@ START_TEST(test_cjose_jwk_create_RSA_random)
     ck_assert(2048 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
 
     cjose_jwk_release(jwk);
 }
@@ -217,7 +253,7 @@ START_TEST(test_cjose_jwk_create_EC_P256_spec)
     ck_assert(256 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_256 == cjose_jwk_EC_get_curve(jwk, &err));
     cjose_get_dealloc()(spec.d);
     cjose_get_dealloc()(spec.x);
@@ -227,6 +263,24 @@ START_TEST(test_cjose_jwk_create_EC_P256_spec)
     cjose_jwk_release(jwk);
 }
 END_TEST
+
+START_TEST(test_cjose_jwk_create_EC_rejects_out_of_range_private)
+{
+    // The P-256 group order plus one. Multiplication wraps this scalar to the
+    // generator, but the private scalar itself is invalid and must be rejected.
+    uint8_t invalid_d[] = { 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                            0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17, 0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63, 0x25, 0x52 };
+    cjose_jwk_ec_keyspec spec = { 0 };
+    spec.crv = CJOSE_JWK_EC_P_256;
+    spec.d = invalid_d;
+    spec.dlen = sizeof(invalid_d);
+
+    cjose_err err;
+    ck_assert(NULL == cjose_jwk_create_EC_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+}
+END_TEST
+
 START_TEST(test_cjose_jwk_create_EC_P256_random)
 {
     cjose_err err;
@@ -238,7 +292,7 @@ START_TEST(test_cjose_jwk_create_EC_P256_random)
     ck_assert(256 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_256 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
@@ -268,7 +322,7 @@ START_TEST(test_cjose_jwk_create_EC_secp256k1_spec)
     ck_assert(256 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_SECP_256K1 == cjose_jwk_EC_get_curve(jwk, &err));
 
     char *json = cjose_jwk_to_json(jwk, true, &err);
@@ -324,7 +378,7 @@ START_TEST(test_cjose_jwk_create_EC_P384_spec)
     ck_assert(384 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_384 == cjose_jwk_EC_get_curve(jwk, &err));
     cjose_get_dealloc()(spec.d);
     cjose_get_dealloc()(spec.x);
@@ -345,7 +399,7 @@ START_TEST(test_cjose_jwk_create_EC_P384_random)
     ck_assert(384 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_384 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
@@ -375,7 +429,7 @@ START_TEST(test_cjose_jwk_create_EC_P521_spec)
     ck_assert(521 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_521 == cjose_jwk_EC_get_curve(jwk, &err));
     cjose_get_dealloc()(spec.d);
     cjose_get_dealloc()(spec.x);
@@ -396,7 +450,7 @@ START_TEST(test_cjose_jwk_create_EC_P521_random)
     ck_assert(521 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(CJOSE_JWK_EC_P_521 == cjose_jwk_EC_get_curve(jwk, &err));
 
     // cleanup
@@ -420,8 +474,9 @@ START_TEST(test_cjose_jwk_create_oct_spec)
     ck_assert(klen * 8 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
-    ck_assert_bin_eq(k, jwk->keydata, klen);
+    const uint8_t *keydata = cjose_jwk_get_keydata(jwk, &err);
+    ck_assert(NULL != keydata);
+    ck_assert_bin_eq(k, keydata, klen);
     cjose_get_dealloc()(k);
 
     // cleanup
@@ -439,7 +494,7 @@ START_TEST(test_cjose_jwk_create_oct_random)
     ck_assert(128 == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
 
     // cleanup
     cjose_jwk_release(jwk);
@@ -485,7 +540,7 @@ static void _test_cjose_jwk_create_OKP_spec(cjose_jwk_okp_curve crv, size_t keys
     ck_assert(keysize == jwk->keysize);
     ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
     ck_assert(NULL != jwk->keydata);
-    ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+    ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
     ck_assert(crv == cjose_jwk_OKP_get_curve(jwk, &err));
     // an OKP key is not an EC key
     ck_assert(CJOSE_JWK_EC_INVALID == cjose_jwk_EC_get_curve(jwk, &err));
@@ -630,7 +685,7 @@ START_TEST(test_cjose_jwk_create_OKP_random)
         ck_assert(curves[i].keysize == jwk->keysize);
         ck_assert(cjose_jwk_get_keysize(jwk, &err) == jwk->keysize);
         ck_assert(NULL != jwk->keydata);
-        ck_assert(cjose_jwk_get_keydata(jwk, &err) == jwk->keydata);
+        ck_assert(NULL != cjose_jwk_get_keydata(jwk, &err));
         ck_assert(curves[i].crv == cjose_jwk_OKP_get_curve(jwk, &err));
 
         char *json = cjose_jwk_to_json(jwk, true, &err);
@@ -1965,10 +2020,12 @@ Suite *cjose_jwk_suite(void)
     tcase_set_timeout(tc_jwk, 120.0);
     tcase_add_test(tc_jwk, test_cjose_jwk_name_for_kty);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec_byte_rounded_keysize);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random_weak_keysize);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec_weak_modulus);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_spec);
+    tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_rejects_out_of_range_private);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_secp256k1_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_secp256k1_random);

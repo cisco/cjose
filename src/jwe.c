@@ -10,9 +10,8 @@
 #include <cjose/jwe.h>
 #include <cjose/util.h>
 
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <limits.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
@@ -632,6 +631,53 @@ static bool _cjose_jwe_decrypt_ek_dir(_jwe_int_recipient_t *recipient, cjose_jwe
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static const EVP_CIPHER *_cjose_jwe_aes_kw_cipher(size_t key_len)
+{
+    switch (key_len)
+    {
+    case 16:
+        return EVP_aes_128_wrap();
+    case 24:
+        return EVP_aes_192_wrap();
+    case 32:
+        return EVP_aes_256_wrap();
+    default:
+        return NULL;
+    }
+}
+
+static bool _cjose_jwe_aes_kw_wrap(
+    const uint8_t *kek, size_t kek_len, const uint8_t *plain, size_t plain_len, uint8_t *wrapped, size_t *wrapped_len)
+{
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    int update_len = 0;
+    int final_len = 0;
+    const EVP_CIPHER *cipher = _cjose_jwe_aes_kw_cipher(kek_len);
+    bool result = ctx != NULL && cipher != NULL && EVP_EncryptInit_ex(ctx, cipher, NULL, kek, NULL) == 1
+                  && EVP_EncryptUpdate(ctx, wrapped, &update_len, plain, plain_len) == 1
+                  && EVP_EncryptFinal_ex(ctx, wrapped + update_len, &final_len) == 1;
+    if (result)
+        *wrapped_len = (size_t)update_len + final_len;
+    EVP_CIPHER_CTX_free(ctx);
+    return result;
+}
+
+static bool _cjose_jwe_aes_kw_unwrap(
+    const uint8_t *kek, size_t kek_len, const uint8_t *wrapped, size_t wrapped_len, uint8_t *plain, size_t *plain_len)
+{
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    int update_len = 0;
+    int final_len = 0;
+    const EVP_CIPHER *cipher = _cjose_jwe_aes_kw_cipher(kek_len);
+    bool result = ctx != NULL && cipher != NULL && EVP_DecryptInit_ex(ctx, cipher, NULL, kek, NULL) == 1
+                  && EVP_DecryptUpdate(ctx, plain, &update_len, wrapped, wrapped_len) == 1
+                  && EVP_DecryptFinal_ex(ctx, plain + update_len, &final_len) == 1;
+    if (result)
+        *plain_len = (size_t)update_len + final_len;
+    EVP_CIPHER_CTX_free(ctx);
+    return result;
+}
+
 static bool _cjose_jwe_encrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     if (NULL == jwe || NULL == jwk)
@@ -653,29 +699,18 @@ static bool _cjose_jwe_encrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_
         return false;
     }
 
-    // create the AES encryption key from the shared key
-    AES_KEY akey;
-    if (AES_set_encrypt_key(jwk->keydata, jwk->keysize, &akey) < 0)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        return false;
-    }
-
     // allocate buffer for encrypted CEK (=cek_len + 8)
     if (!_cjose_jwe_malloc(jwe->cek_len + 8, false, &recipient->enc_key.raw, err))
     {
         return false;
     }
 
-    // AES wrap the CEK
-    int len = AES_wrap_key(&akey, NULL, recipient->enc_key.raw, jwe->cek, jwe->cek_len);
-    if (len <= 0)
+    if (!_cjose_jwe_aes_kw_wrap(jwk->keydata, jwk->keysize / 8, jwe->cek, jwe->cek_len, recipient->enc_key.raw,
+                                &recipient->enc_key.raw_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
-    recipient->enc_key.raw_len = len;
-
     return true;
 }
 
@@ -695,46 +730,30 @@ static bool _cjose_jwe_decrypt_ek_aes_kw(_jwe_int_recipient_t *recipient, cjose_
         return false;
     }
 
-    // create the AES decryption key from the shared key
-    AES_KEY akey;
-    if (AES_set_decrypt_key(jwk->keydata, jwk->keysize, &akey) < 0)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        return false;
-    }
-
     if (!jwe->fns.set_cek(jwe, NULL, false, err))
     {
         return false;
     }
 
-    // the wrapped key (RFC 3394) is always the plaintext CEK length plus 8 bytes;
-    // enforce this before calling AES_unwrap_key, which would otherwise copy the
-    // attacker-controlled encrypted_key into the fixed-size jwe->cek buffer
+    // The wrapped key (RFC 3394) is always the plaintext CEK length plus 8 bytes.
+    // Enforce this before unwrapping so the attacker-controlled encrypted key
+    // cannot be copied into the fixed-size jwe->cek buffer.
     if (recipient->enc_key.raw_len != jwe->cek_len + 8)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
-    // AES unwrap the CEK in to jwe->cek
-    int len = AES_unwrap_key(&akey, (const unsigned char *)NULL, jwe->cek, (const unsigned char *)recipient->enc_key.raw,
-                             recipient->enc_key.raw_len);
-    if (len <= 0)
+    if (!_cjose_jwe_aes_kw_unwrap(jwk->keydata, jwk->keysize / 8, recipient->enc_key.raw, recipient->enc_key.raw_len, jwe->cek,
+                                  &jwe->cek_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
-    jwe->cek_len = len;
-
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// encrypts the CEK with the RSA public key: with padding, one of OpenSSL's
-// RSA_*_PADDING modes, when oaep_md is NULL, and otherwise with OAEP using
-// oaep_md for both the hash and MGF1 (RSA-OAEP-256), which OpenSSL only offers
-// as a separate padding step
 static bool _cjose_jwe_encrypt_ek_rsa_padding(
     _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, const EVP_MD *oaep_md, cjose_err *err)
 {
@@ -745,14 +764,7 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
         return false;
     }
 
-    // jwk must have the necessary public parts set
-    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
-    _cjose_jwk_rsa_get((RSA *)jwk->keydata, &rsa_n, &rsa_e, &rsa_d);
-    if (NULL == rsa_e || NULL == rsa_n)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
+    EVP_PKEY *key = _cjose_jwk_rsa_key(jwk);
 
     // generate random cek
     if (!jwe->fns.set_cek(jwe, NULL, true, err))
@@ -761,7 +773,7 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
     }
 
     // the size of the ek will match the size of the RSA key
-    recipient->enc_key.raw_len = RSA_size((RSA *)jwk->keydata);
+    recipient->enc_key.raw_len = EVP_PKEY_get_size(key);
 
     // the CEK must leave room for the padding: 2 * hLen + 2 octets for OAEP
     // with the given digest (RFC 8017 section 7.1.1); the SHA-1 OAEP and the
@@ -780,44 +792,23 @@ static bool _cjose_jwe_encrypt_ek_rsa_padding(
         return false;
     }
 
-    if (NULL != oaep_md)
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);
+    size_t encrypted_len = recipient->enc_key.raw_len;
+    if (ctx == NULL || EVP_PKEY_encrypt_init(ctx) != 1 || EVP_PKEY_CTX_set_rsa_padding(ctx, padding) != 1
+        || (oaep_md != NULL && (EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaep_md) != 1 || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, oaep_md) != 1))
+        || EVP_PKEY_encrypt(ctx, recipient->enc_key.raw, &encrypted_len, jwe->cek, jwe->cek_len) != 1
+        || encrypted_len != recipient->enc_key.raw_len)
     {
-        // pad the CEK into a scratch buffer of the modulus size with OAEP
-        // using oaep_md for the hash and for MGF1, then encrypt it raw
-        uint8_t *em = NULL;
-        if (!_cjose_jwe_malloc(recipient->enc_key.raw_len, false, &em, err))
-        {
-            return false;
-        }
-        bool ok
-            = (1
-               == RSA_padding_add_PKCS1_OAEP_mgf1(em, recipient->enc_key.raw_len, jwe->cek, jwe->cek_len, NULL, 0, oaep_md,
-                                                  oaep_md))
-              && (RSA_public_encrypt(recipient->enc_key.raw_len, em, recipient->enc_key.raw, (RSA *)jwk->keydata, RSA_NO_PADDING)
-                  == recipient->enc_key.raw_len);
-        _cjose_cleanse_dealloc(em, recipient->enc_key.raw_len);
-        if (!ok)
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-            return false;
-        }
-        return true;
-    }
-
-    // encrypt the CEK using RSA v1.5 or OAEP padding
-    if (RSA_public_encrypt(jwe->cek_len, jwe->cek, recipient->enc_key.raw, (RSA *)jwk->keydata, padding)
-        != recipient->enc_key.raw_len)
-    {
+        EVP_PKEY_CTX_free(ctx);
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
+    EVP_PKEY_CTX_free(ctx);
 
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// decrypts the CEK with the RSA private key; padding and oaep_md as for
-// _cjose_jwe_encrypt_ek_rsa_padding
 static bool _cjose_jwe_decrypt_ek_rsa_padding(
     _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, int padding, const EVP_MD *oaep_md, cjose_err *err)
 {
@@ -834,10 +825,8 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
-    // jwk must have the necessary private parts set
-    BIGNUM *rsa_n = NULL, *rsa_e = NULL, *rsa_d = NULL;
-    _cjose_jwk_rsa_get((RSA *)jwk->keydata, &rsa_n, &rsa_e, &rsa_d);
-    if (NULL == rsa_e || NULL == rsa_n || NULL == rsa_d)
+    EVP_PKEY *key = _cjose_jwk_rsa_key(jwk);
+    if (!_cjose_jwk_rsa_has_private(jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -851,63 +840,34 @@ static bool _cjose_jwe_decrypt_ek_rsa_padding(
         return false;
     }
 
-    // a valid RSA encrypted key segment is exactly the size of the modulus;
-    // reject other lengths before they reach RSA_private_decrypt
-    size_t buflen = RSA_size((RSA *)jwk->keydata);
+    size_t buflen = EVP_PKEY_get_size(key);
     if (recipient->enc_key.raw_len != buflen)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
 
-    // decrypt into a scratch buffer; the recovered plaintext can be up to
-    // RSA_size bytes, larger than the pinned CEK buffer
+    // Decrypt into a scratch buffer; the recovered plaintext can be up to the
+    // RSA modulus size, larger than the pinned CEK buffer.
     uint8_t *buf = NULL;
     if (!_cjose_jwe_malloc(buflen, false, &buf, err))
     {
         return false;
     }
 
-    if (NULL != oaep_md)
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);
+    size_t plain_len = buflen;
+    if (ctx == NULL || EVP_PKEY_decrypt_init(ctx) != 1 || EVP_PKEY_CTX_set_rsa_padding(ctx, padding) != 1
+        || (oaep_md != NULL && (EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaep_md) != 1 || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, oaep_md) != 1))
+        || EVP_PKEY_decrypt(ctx, buf, &plain_len, recipient->enc_key.raw, recipient->enc_key.raw_len) != 1
+        || plain_len != jwe->cek_len)
     {
-        // decrypt raw into the scratch buffer, then remove the OAEP padding
-        // with oaep_md for the hash and for MGF1 into a second one, and
-        // require the CEK size dictated by the enc header like below
-        uint8_t *msg = NULL;
-        if (!_cjose_jwe_malloc(buflen, false, &msg, err))
-        {
-            _cjose_cleanse_dealloc(buf, buflen);
-            return false;
-        }
-        int mlen = -1;
-        if (RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, RSA_NO_PADDING)
-            == (int)buflen)
-        {
-            mlen = RSA_padding_check_PKCS1_OAEP_mgf1(msg, buflen, buf, buflen, buflen, NULL, 0, oaep_md, oaep_md);
-        }
-        bool ok = (-1 != mlen && (size_t)mlen == jwe->cek_len);
-        if (ok)
-        {
-            memcpy(jwe->cek, msg, jwe->cek_len);
-        }
-        _cjose_cleanse_dealloc(msg, buflen);
-        _cjose_cleanse_dealloc(buf, buflen);
-        if (!ok)
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        }
-        return ok;
-    }
-
-    // decrypt the CEK using RSA v1.5 or OAEP padding and require that its
-    // length matches the CEK size dictated by the enc header (RFC 7518 sec 4.2/4.3)
-    int len = RSA_private_decrypt(recipient->enc_key.raw_len, recipient->enc_key.raw, buf, (RSA *)jwk->keydata, padding);
-    if (-1 == len || (size_t)len != jwe->cek_len)
-    {
+        EVP_PKEY_CTX_free(ctx);
         _cjose_cleanse_dealloc(buf, buflen);
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;
     }
+    EVP_PKEY_CTX_free(ctx);
 
     memcpy(jwe->cek, buf, jwe->cek_len);
     _cjose_cleanse_dealloc(buf, buflen);
@@ -933,14 +893,14 @@ _cjose_jwe_decrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe
 static bool
 _cjose_jwe_encrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_NO_PADDING, EVP_sha256(), err);
+    return _cjose_jwe_encrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, EVP_sha256(), err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool
 _cjose_jwe_decrypt_ek_rsa_oaep_256(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_NO_PADDING, EVP_sha256(), err);
+    return _cjose_jwe_decrypt_ek_rsa_padding(recipient, jwe, jwk, RSA_PKCS1_OAEP_PADDING, EVP_sha256(), err);
 }
 
 #ifdef HAVE_RSA_PKCS1_PADDING
@@ -1194,26 +1154,16 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
         goto cjose_encrypt_ek_ecdh_es_kw_finish;
     }
 
-    // wrap the CEK with the derived KEK
-    AES_KEY akey;
-    if (AES_set_encrypt_key(kek, kek_keysize * 8, &akey) < 0)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto cjose_encrypt_ek_ecdh_es_kw_finish;
-    }
-
     if (!_cjose_jwe_malloc(jwe->cek_len + 8, false, &recipient->enc_key.raw, err))
     {
         goto cjose_encrypt_ek_ecdh_es_kw_finish;
     }
 
-    int len = AES_wrap_key(&akey, NULL, recipient->enc_key.raw, jwe->cek, jwe->cek_len);
-    if (len <= 0)
+    if (!_cjose_jwe_aes_kw_wrap(kek, kek_keysize, jwe->cek, jwe->cek_len, recipient->enc_key.raw, &recipient->enc_key.raw_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto cjose_encrypt_ek_ecdh_es_kw_finish;
     }
-    recipient->enc_key.raw_len = len;
     result = true;
 
 cjose_encrypt_ek_ecdh_es_kw_finish:
@@ -1282,35 +1232,25 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
 
-    AES_KEY akey;
-    if (AES_set_decrypt_key(kek, kek_keysize * 8, &akey) < 0)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto cjose_decrypt_ek_ecdh_es_kw_finish;
-    }
-
     if (!jwe->fns.set_cek(jwe, NULL, false, err))
     {
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
 
-    // the wrapped key (RFC 3394) is always the plaintext CEK length plus 8 bytes;
-    // enforce this before calling AES_unwrap_key, which would otherwise copy the
-    // attacker-controlled encrypted_key into the fixed-size jwe->cek buffer
+    // The wrapped key (RFC 3394) is always the plaintext CEK length plus 8 bytes.
+    // Enforce this before unwrapping so the attacker-controlled encrypted key
+    // cannot be copied into the fixed-size jwe->cek buffer.
     if (recipient->enc_key.raw_len != jwe->cek_len + 8)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
 
-    int len = AES_unwrap_key(&akey, (const unsigned char *)NULL, jwe->cek, (const unsigned char *)recipient->enc_key.raw,
-                             recipient->enc_key.raw_len);
-    if (len <= 0)
+    if (!_cjose_jwe_aes_kw_unwrap(kek, kek_keysize, recipient->enc_key.raw, recipient->enc_key.raw_len, jwe->cek, &jwe->cek_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
-    jwe->cek_len = len;
     result = true;
 
 cjose_decrypt_ek_ecdh_es_kw_finish:

@@ -55,14 +55,6 @@ if(WIN32)
     set(CJOSE_PLATFORM_LIBRARIES ws2_32)
 endif()
 
-# Optional Cisco "Fundamental EC" OpenSSL extension (openssl/fec.h).
-include(CheckIncludeFile)
-include(CMakePushCheckState)
-cmake_push_check_state(RESET)
-set(CMAKE_REQUIRED_LIBRARIES OpenSSL::Crypto)
-check_include_file("openssl/fec.h" CJOSE_HAVE_OPENSSL_FEC_H)
-cmake_pop_check_state()
-
 # ---------------------------------------------------------------------------
 # Generated public header (version.h)
 # ---------------------------------------------------------------------------
@@ -118,12 +110,8 @@ set_target_properties(cjose_objects PROPERTIES
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS ON)
 
-target_compile_definitions(cjose_objects PRIVATE OPENSSL_API_COMPAT=0x10100000L)
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
-endif()
-if(CJOSE_HAVE_OPENSSL_FEC_H)
-    target_compile_definitions(cjose_objects PRIVATE HAVE_OPENSSL_FEC_H=1)
 endif()
 if(MSVC)
     target_compile_options(cjose_objects PRIVATE /W3 /WX /wd4267)
@@ -392,7 +380,6 @@ if(CJOSE_BUILD_TESTS)
             C_STANDARD 99
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS ON)
-        target_compile_definitions(check_cjose PRIVATE OPENSSL_API_COMPAT=0x10100000L)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
         endif()
