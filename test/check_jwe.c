@@ -451,6 +451,221 @@ START_TEST(test_cjose_jwe_ecdh_es_kw_self_encrypt_self_decrypt)
 }
 END_TEST
 
+START_TEST(test_cjose_jwe_aes_gcm_kw_self_encrypt_self_decrypt)
+{
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128GCMKW, CJOSE_HDR_ENC_A128GCM, JWK_OCT_16, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A128GCMKW, CJOSE_HDR_ENC_A256CBC_HS512, JWK_OCT_16, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192GCMKW, CJOSE_HDR_ENC_A192GCM, JWK_OCT_24, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A192GCMKW, CJOSE_HDR_ENC_A128CBC_HS256, JWK_OCT_24, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256GCMKW, CJOSE_HDR_ENC_A256GCM, JWK_OCT_32, plain, sizeof(plain) - 1);
+    _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_A256GCMKW, CJOSE_HDR_ENC_A192CBC_HS384, JWK_OCT_32, plain, sizeof(plain) - 1);
+}
+END_TEST
+
+// re-encode the compact serialization with the protected header modified by
+// the given function; the AAD changes with it, but the checks under test run
+// before the content is authenticated
+static char *_jwe_with_modified_header(const char *compact, void (*modify)(json_t *hdr))
+{
+    cjose_err err;
+    const char *dot = strchr(compact, '.');
+    ck_assert(NULL != dot);
+    uint8_t *raw = NULL;
+    size_t raw_len = 0;
+    ck_assert(cjose_base64url_decode(compact, dot - compact, &raw, &raw_len, &err));
+    json_t *hdr = json_loadb((const char *)raw, raw_len, 0, NULL);
+    ck_assert(NULL != hdr);
+    modify(hdr);
+    char *hdr_str = json_dumps(hdr, JSON_COMPACT);
+    ck_assert(NULL != hdr_str);
+    char *hdr_b64u = NULL;
+    size_t hdr_b64u_len = 0;
+    ck_assert(cjose_base64url_encode((const uint8_t *)hdr_str, strlen(hdr_str), &hdr_b64u, &hdr_b64u_len, &err));
+    char *result = malloc(hdr_b64u_len + strlen(dot) + 1);
+    ck_assert(NULL != result);
+    memcpy(result, hdr_b64u, hdr_b64u_len);
+    strcpy(result + hdr_b64u_len, dot);
+    cjose_get_dealloc()(hdr_b64u);
+    cjose_get_dealloc()(hdr_str);
+    json_decref(hdr);
+    cjose_get_dealloc()(raw);
+    return result;
+}
+
+static void _jwe_hdr_short_iv(json_t *hdr) { json_object_set_new(hdr, CJOSE_HDR_IV, json_string("AAAAAAAAAAA")); }
+static void _jwe_hdr_short_tag(json_t *hdr) { json_object_set_new(hdr, CJOSE_HDR_TAG, json_string("AAAAAAAAAAAAAAAAAAAA")); }
+static void _jwe_hdr_drop_tag(json_t *hdr) { json_object_del(hdr, CJOSE_HDR_TAG); }
+static void _jwe_hdr_integer_iv(json_t *hdr) { json_object_set_new(hdr, CJOSE_HDR_IV, json_integer(12)); }
+static void _jwe_hdr_flip_tag(json_t *hdr)
+{
+    const char *tag = json_string_value(json_object_get(hdr, CJOSE_HDR_TAG));
+    char copy[64];
+    ck_assert(NULL != tag && strlen(tag) < sizeof(copy));
+    strcpy(copy, tag);
+    copy[0] = ('A' == copy[0]) ? 'B' : 'A';
+    json_object_set_new(hdr, CJOSE_HDR_TAG, json_string(copy));
+}
+
+// the "iv" and "tag" parameters live with the recipient and are checked
+// before the encrypted key is touched
+static void _decrypt_aes_gcm_kw_expect(const char *compact, const char *key, cjose_errcode expected)
+{
+    cjose_err err;
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert(NULL != jwk);
+    cjose_jwe_t *jwe = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded unexpectedly");
+    ck_assert_int_eq(expected, err.code);
+    cjose_jwe_release(jwe);
+    cjose_jwk_release(jwk);
+}
+
+START_TEST(test_cjose_jwe_aes_gcm_kw_bad_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(NULL != hdr);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    // the key encryption key must be an oct key of the size the alg names
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk32);
+    ck_assert(NULL == cjose_jwe_encrypt(jwk32, hdr, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    ck_assert(NULL == cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // a good JWE, whose protected header carries the "iv" and "tag" parameters
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    ck_assert(NULL != jwk16);
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk16, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    ck_assert(NULL != cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_IV, &err));
+    ck_assert(NULL != cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_TAG, &err));
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+
+    // ... is refused with the wrong key size, the wrong key type and a
+    // tampered, missing, short or non-string parameter
+    _decrypt_aes_gcm_kw_expect(compact, JWK_OCT_32, CJOSE_ERR_INVALID_ARG);
+    _decrypt_aes_gcm_kw_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
+    struct
+    {
+        void (*modify)(json_t *);
+        cjose_errcode expected;
+    } cases[] = {
+        { _jwe_hdr_flip_tag, CJOSE_ERR_CRYPTO },        { _jwe_hdr_drop_tag, CJOSE_ERR_INVALID_ARG },
+        { _jwe_hdr_short_iv, CJOSE_ERR_INVALID_ARG },   { _jwe_hdr_short_tag, CJOSE_ERR_INVALID_ARG },
+        { _jwe_hdr_integer_iv, CJOSE_ERR_INVALID_ARG },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        char *modified = _jwe_with_modified_header(compact, cases[i].modify);
+        _decrypt_aes_gcm_kw_expect(modified, JWK_OCT_16, cases[i].expected);
+        free(modified);
+    }
+
+    // an encrypted key of any other length than the CEK is refused up front
+    size_t len = strlen(compact);
+    char *longer = malloc(len + 12);
+    ck_assert(NULL != longer);
+    const char *ek_end = strchr(strchr(compact, '.') + 1, '.');
+    size_t prefix = ek_end - compact;
+    memcpy(longer, compact, prefix);
+    memcpy(longer + prefix, "AAAAAAAAAAA", 11);
+    strcpy(longer + prefix + 11, ek_end);
+    _decrypt_aes_gcm_kw_expect(longer, JWK_OCT_16, CJOSE_ERR_INVALID_ARG);
+    free(longer);
+
+    cjose_get_dealloc()(compact);
+    cjose_jwk_release(jwk16);
+    cjose_jwk_release(jwk32);
+    cjose_jwk_release(ec);
+    cjose_header_release(hdr);
+}
+END_TEST
+
+// with several recipients the "iv" and "tag" of each go into its own header
+START_TEST(test_cjose_jwe_aes_gcm_kw_multiple_recipients)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk16 && NULL != jwk32);
+    ck_assert(cjose_jwk_set_kid(jwk16, "k16", 3, &err));
+    ck_assert(cjose_jwk_set_kid(jwk32, "k32", 3, &err));
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_header_t *hdr16 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr16, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+    ck_assert(cjose_header_set(hdr16, CJOSE_HDR_KID, "k16", &err));
+    cjose_header_t *hdr32 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr32, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A256GCMKW, &err));
+    ck_assert(cjose_header_set(hdr32, CJOSE_HDR_KID, "k32", &err));
+    cjose_jwe_recipient_t recipients[] = { { jwk16, hdr16 }, { jwk32, hdr32 } };
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(recipients, 2, protected_header, NULL, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+    // the caller's headers are left alone
+    ck_assert(NULL == cjose_header_get(hdr16, CJOSE_HDR_IV, &err));
+    ck_assert(NULL == cjose_header_get(protected_header, CJOSE_HDR_IV, &err));
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != json, "cjose_jwe_export_json failed: %s", err.message);
+    cjose_jwe_release(jwe);
+
+    json_t *form = json_loads(json, 0, NULL);
+    ck_assert(NULL != form);
+    json_t *recs = json_object_get(form, "recipients");
+    ck_assert(json_is_array(recs) && 2 == json_array_size(recs));
+    for (size_t i = 0; i < 2; i++)
+    {
+        json_t *header = json_object_get(json_array_get(recs, i), "header");
+        ck_assert(json_is_string(json_object_get(header, CJOSE_HDR_IV)));
+        ck_assert(json_is_string(json_object_get(header, CJOSE_HDR_TAG)));
+    }
+    json_decref(form);
+
+    // each recipient decrypts on its own
+    cjose_jwe_recipient_t rec16[] = { { jwk16, NULL }, { NULL, NULL } };
+    cjose_jwe_recipient_t rec32[] = { { jwk32, NULL }, { NULL, NULL } };
+    cjose_jwe_recipient_t *locators[] = { rec16, rec32 };
+    for (size_t i = 0; i < 2; i++)
+    {
+        jwe = cjose_jwe_import_json(json, strlen(json), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_import_json failed: %s", err.message);
+        size_t plain_len = 0;
+        uint8_t *plain2 = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, locators[i], &plain_len, &err);
+        ck_assert_msg(NULL != plain2, "cjose_jwe_decrypt_multi failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(sizeof(plain) - 1, plain_len);
+        ck_assert(0 == memcmp(plain, plain2, plain_len));
+        cjose_get_dealloc()(plain2);
+        cjose_jwe_release(jwe);
+    }
+
+    cjose_get_dealloc()(json);
+    cjose_header_release(hdr16);
+    cjose_header_release(hdr32);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(jwk16);
+    cjose_jwk_release(jwk32);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
 {
     static const uint8_t plain[] = "";
@@ -1956,6 +2171,30 @@ static const char *JWE_JSON_RSA_OAEP_256
       "kLDnnVrPaHUEUL79-KWMa-8tZ-SN0aHc2SuKQGNtNZsawMO05A\",\"header\":{\"alg\":\"RSA-OAEP\",\"kid\":\"oaep\"}}],\"tag\""
       ":\"Qc5-QsMtp9mUGBa7L0BXaA\"}";
 
+// AES GCM key wrapping JWEs produced by python-jwcrypto with the JWK_OCT_16,
+// JWK_OCT_24 and JWK_OCT_32 keys over PLAINTEXT_RSA_OAEP_256: three compact
+// serializations and a JSON serialization carrying "iv" and "tag" in the
+// per-recipient header
+static const char *JWE_A128GCMKW_A256GCM
+    = "eyJhbGciOiJBMTI4R0NNS1ciLCJlbmMiOiJBMjU2R0NNIiwiaXYiOiJMQmhoNUFHZENkV0pfQmlGIiwidGFnIjoicGhBMTJUeDl6"
+      "RkhheEdPTnJHVXA3dyJ9.uhEgAJmgwWenubxqB5CoL7YAjwElRrBZoHTMN-mL-yA.OXsulVhRLairug-w.XNgbp7c1mP_f_QlWrA"
+      "9cQGhvacOK6NUJRJqNJObmVJGyNiH1Yid28DDvR6apWhepIl0NV0EkL12kvRe9ote9.wiJ-Q5nNu22TlMWoM_sL9g";
+static const char *JWE_A192GCMKW_A128CBC_HS256
+    = "eyJhbGciOiJBMTkyR0NNS1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwiaXYiOiJGTTl3YXBZTThUMFBOYXlfIiwidGFnIjoiMzNN"
+      "X3lpUXNwMHhpMEJXaDZZZVAwUSJ9.49QP3-SdJsWD_nEUN6ka59Ov3Z_2OlOaY2yAu4MbflA.PnGQh3ngHXIGvBR_2Sl-fA.3WKM"
+      "taH-VJUa4R__qtgjPUy2497u9NWjureWGaSxxB-ES9NgT83jpIM2Erx6hiOg-M-sfxMrKcBL4z-DWXl4rA.eEwnBj13oretdyScV"
+      "xJ45A";
+static const char *JWE_A256GCMKW_A256CBC_HS512
+    = "eyJhbGciOiJBMjU2R0NNS1ciLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIiwiaXYiOiJLRGRTZFZINUtoN1Q0cG5jIiwidGFnIjoieXNy"
+      "cm5uZVRmMkdRVDRMenZ4M2hHUSJ9.OuaUOMHkZl7oY9R1zVZVoGiaD6i9Mcpb6CeCsThzXZt7vgeCQWvsXxBE-eAYqTdvy6COKT8"
+      "3dV4kFp38IFRjfg.Gvgfo5lY_nw0_jvFrzGLBQ.cY1VYnnymEeY3SAHgDlW_8aCsz15bHY0magfUxAs5BpC_tm3wO2uxYJhPNRmg"
+      "PHuwJRCuxmbIfOAqC3R_R2tag.jXD4DClG41phS6M5F5rDht2FZ2QM11EOB-q6ymSLq9g";
+static const char *JWE_JSON_A256GCMKW
+    = "{\"ciphertext\":\"Famyc9uLPYVY1Wvc2_KlX8zJl7m0QzrJSYGIeVqAkm1IMdyN2m97i_vZl6KgGzKq2ZR0VzZX7_7rb8AD2pH6\""
+      ",\"encrypted_key\":\"CWy4y1ebAzgFfqTbPMghLQ\",\"header\":{\"iv\":\"wPnqa0PDy2Uxy1pP\",\"tag\":\"2FbgAiF9nTBIadcDp"
+      "pThRg\"},\"iv\":\"X2V4hXch6jcWGfbw\",\"protected\":\"eyJhbGciOiAiQTI1NkdDTUtXIiwgImVuYyI6ICJBMTI4R0NNIn0\",\"t"
+      "ag\":\"Of1_hDbaoJadMjP7c0h4zg\"}";
+
 START_TEST(test_cjose_jwe_rsa_oaep_256)
 {
     cjose_err err;
@@ -2022,6 +2261,53 @@ START_TEST(test_cjose_jwe_rsa_oaep_256)
 }
 END_TEST
 
+START_TEST(test_cjose_jwe_aes_gcm_kw_interop)
+{
+    cjose_err err;
+    struct
+    {
+        const char *jwe;
+        const char *key;
+        const char *alg;
+    } vectors[] = {
+        { JWE_A128GCMKW_A256GCM, JWK_OCT_16, CJOSE_HDR_ALG_A128GCMKW },
+        { JWE_A192GCMKW_A128CBC_HS256, JWK_OCT_24, CJOSE_HDR_ALG_A192GCMKW },
+        { JWE_A256GCMKW_A256CBC_HS512, JWK_OCT_32, CJOSE_HDR_ALG_A256GCMKW },
+    };
+    for (size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++)
+    {
+        cjose_jwk_t *jwk = cjose_jwk_import(vectors[i].key, strlen(vectors[i].key), &err);
+        ck_assert(NULL != jwk);
+        cjose_jwe_t *jwe = cjose_jwe_import(vectors[i].jwe, strlen(vectors[i].jwe), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_import failed (%zu): %s", i, err.message);
+        ck_assert_str_eq(vectors[i].alg, cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_ALG, &err));
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(strlen(PLAINTEXT_RSA_OAEP_256), plain_len);
+        ck_assert(0 == memcmp(PLAINTEXT_RSA_OAEP_256, plain, plain_len));
+        cjose_get_dealloc()(plain);
+        cjose_jwe_release(jwe);
+        cjose_jwk_release(jwk);
+    }
+
+    // the JSON serialization keeps "iv" and "tag" in the recipient's header
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk);
+    cjose_jwe_t *jwe = cjose_jwe_import_json(JWE_JSON_A256GCMKW, strlen(JWE_JSON_A256GCMKW), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import_json failed: %s", err.message);
+    ck_assert(NULL == cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_IV, &err));
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed: %s", err.message);
+    ck_assert_int_eq(strlen(PLAINTEXT_RSA_OAEP_256), plain_len);
+    ck_assert(0 == memcmp(PLAINTEXT_RSA_OAEP_256, plain, plain_len));
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -2037,6 +2323,10 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_large);
     tcase_add_test(tc_jwe, test_cjose_jwe_self_encrypt_self_decrypt_many);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_kw_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_bad_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_multiple_recipients);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);

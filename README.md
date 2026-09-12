@@ -30,6 +30,7 @@ JWE key management algorithms (`alg`):
 | `RSA-OAEP-256` | RSAES OAEP with SHA-256 and MGF1 with SHA-256 | |
 | `RSA1_5` | RSAES-PKCS1-v1_5 | build option `CJOSE_ENABLE_RSA1_5` |
 | `A128KW`, `A192KW`, `A256KW` | AES Key Wrap | |
+| `A128GCMKW`, `A192GCMKW`, `A256GCMKW` | AES GCM key wrapping | |
 | `dir` | direct use of a shared symmetric key | |
 | `ECDH-ES` | ECDH-ES direct key agreement | |
 | `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW` | ECDH-ES with AES Key Wrap | |

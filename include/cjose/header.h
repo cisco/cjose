@@ -42,6 +42,10 @@ extern "C" {
 #define CJOSE_HDR_APU "apu"
 #define CJOSE_HDR_APV "apv"
 
+/** For the AES GCM key wrapping algorithms, the initialization vector and the authentication tag of the encrypted key. */
+#define CJOSE_HDR_IV "iv"
+#define CJOSE_HDR_TAG "tag"
+
 /** The JWA algorithm attribute value for none. */
 #define CJOSE_HDR_ALG_NONE "none"
 
@@ -61,6 +65,11 @@ extern "C" {
 #define CJOSE_HDR_ALG_A128KW "A128KW"
 #define CJOSE_HDR_ALG_A192KW "A192KW"
 #define CJOSE_HDR_ALG_A256KW "A256KW"
+
+/** The JWE algorithm attribute value for A128GCMKW, A192GCMKW and A256GCMKW (AES GCM key wrapping, RFC 7518 section 4.7). */
+#define CJOSE_HDR_ALG_A128GCMKW "A128GCMKW"
+#define CJOSE_HDR_ALG_A192GCMKW "A192GCMKW"
+#define CJOSE_HDR_ALG_A256GCMKW "A256GCMKW"
 
 /** The JWE algorithm attribute value for ECDH-ES with A128KW, A192KW or A256KW key wrapping. */
 #define CJOSE_HDR_ALG_ECDH_ES_A128KW "ECDH-ES+A128KW"
