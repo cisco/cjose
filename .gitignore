@@ -1,16 +1,3 @@
-# Build files
-autom4te.cache/
-config.log
-config.status
-Makefile
-libtool
-*/.deps
-*/.libs
-include/cjose/version.h
-doc/Doxyfile
-**/*.pkg-tag
-**/*.img-tag
-
 # CMake build directories and artifacts
 /build/
 /build-*/
@@ -22,8 +9,6 @@ _deps/
 
 # Object files
 *.o
-*.lo
-
 # Libraries
 *.lib
 *.a
@@ -33,8 +18,6 @@ _deps/
 *.so
 *.so.*
 *.dylib
-*.la
-
 # Executables
 *.exe
 *.out

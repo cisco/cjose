@@ -9,7 +9,7 @@ Source0:        cjose-%{version}.tar.gz
 
 BuildRoot:      %{_tmppath}/cjose-%{version}-%{release}-build
 Requires:       openssl, jansson
-BuildRequires:  openssl-devel, jansson-devel, check-devel
+BuildRequires:  cmake, openssl-devel, jansson-devel, check-devel
 
 %define _topdir /opt/rpmbuild
 %define debug_package %{nil}
@@ -30,12 +30,13 @@ This package contains the necessary header files to develop applications using C
 
 %build
 
-%configure
-make test
-make doxygen
+%cmake -DCJOSE_BUILD_TESTS=ON
+%cmake_build
+ctest --test-dir %{_vpath_builddir} --output-on-failure
+%cmake_build --target doxygen
 
 %install
-%make_install
+%cmake_install
 
 %clean
 rm -rf $PRM_BUILD_ROOT
