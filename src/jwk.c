@@ -1934,6 +1934,22 @@ static bool _cjose_jwk_decode_json_object_base64url_attribute(
     return true;
 }
 
+// RFC 7517: a private member that is present but carries no value is a
+// malformed key, not a public one, so it must not be read as an absent member
+static bool _cjose_jwk_decode_private_attribute(json_t *jwk_json, const char *key, uint8_t **buffer, size_t *buflen, cjose_err *err)
+{
+    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, key, buffer, buflen, err))
+    {
+        return false;
+    }
+    if (NULL != json_object_get(jwk_json, key) && NULL == *buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    return true;
+}
+
 static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
 {
     cjose_jwk_t *jwk = NULL;
@@ -2054,42 +2070,42 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     }
 
     // get the decoded value of d
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
     // get the decoded value of p
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_P_STR, &p_buffer, &p_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
     // get the decoded value of q
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_Q_STR, &q_buffer, &q_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
     // get the decoded value of dp
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_DP_STR, &dp_buffer, &dp_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
     // get the decoded value of dq
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_DQ_STR, &dq_buffer, &dq_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
     }
 
     // get the decoded value of qi
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_QI_STR, &qi_buffer, &qi_buflen, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_RSA_cleanup;
