@@ -449,8 +449,8 @@ cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err);
  * Note: on successful return of a jwk_ecdh_ephemeral_key, the caller becomes
  * responsible for releasing that JWK wuth the cjose_jwk_release() command.
  *
- * \param jwk_self [in] The caller's own EC key pair.
- * \param jwk_peer [in] The peer's EC public key.
+ * \param jwk_self [in] The caller's own key pair: an EC key, or an OKP key on X25519 or X448.
+ * \param jwk_peer [in] The peer's public key, of the same type and on the same curve.
  * \param salt [in] An optional salt to apply to the HMAC calculation. Unless FIPS mode is required this can be empty.
  * \param salt_len [in] The length of the optional salt.
  * \param err [out] An optional error object which can be used to get additional

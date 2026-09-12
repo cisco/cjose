@@ -1249,7 +1249,7 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     }
 
     // generate and export random EPK
-    epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
+    epk_jwk = _cjose_jwk_ecdh_ephemeral_key(jwk, err);
     if (NULL == epk_jwk)
     {
         // error details already set
@@ -1361,7 +1361,8 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
-    if (cjose_jwk_EC_get_curve(jwk, err) != cjose_jwk_EC_get_curve(epk_jwk, err))
+    // the ephemeral key must be of the recipient key's type and on its curve
+    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto cjose_decrypt_ek_ecdh_es_finish;
@@ -1437,7 +1438,7 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
     }
 
     // generate and export random EPK
-    epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
+    epk_jwk = _cjose_jwk_ecdh_ephemeral_key(jwk, err);
     if (NULL == epk_jwk)
     {
         // error details already set
@@ -1533,7 +1534,8 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
 
-    if (cjose_jwk_EC_get_curve(jwk, err) != cjose_jwk_EC_get_curve(epk_jwk, err))
+    // the ephemeral key must be of the recipient key's type and on its curve
+    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
@@ -2239,7 +2241,7 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
         return false;
     }
 
-    if (_cjose_jwe_alg_is_ecdh_es(alg) && jwk->kty != CJOSE_JWK_KTY_EC)
+    if (_cjose_jwe_alg_is_ecdh_es(alg) && !_cjose_jwk_is_ecdh_key(jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
