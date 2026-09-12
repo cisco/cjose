@@ -1361,8 +1361,9 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
         goto cjose_decrypt_ek_ecdh_es_finish;
     }
 
-    // the ephemeral key must be of the recipient key's type and on its curve
-    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk))
+    // the ephemeral key must be of the recipient key's type and on its curve,
+    // and RFC 7518 section 4.6.1.1 allows it to carry public parameters only
+    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk) || _cjose_jwk_ecdh_has_private(epk_jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto cjose_decrypt_ek_ecdh_es_finish;
@@ -1534,8 +1535,9 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
         goto cjose_decrypt_ek_ecdh_es_kw_finish;
     }
 
-    // the ephemeral key must be of the recipient key's type and on its curve
-    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk))
+    // the ephemeral key must be of the recipient key's type and on its curve,
+    // and RFC 7518 section 4.6.1.1 allows it to carry public parameters only
+    if (!_cjose_jwk_ecdh_curve_match(jwk, epk_jwk) || _cjose_jwk_ecdh_has_private(epk_jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto cjose_decrypt_ek_ecdh_es_kw_finish;

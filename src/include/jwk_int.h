@@ -70,6 +70,9 @@ bool _cjose_jwk_rsa_has_private(const cjose_jwk_t *jwk);
 // ECDH-ES runs on EC keys and on OKP X25519 and X448 keys (RFC 8037 section 3.2)
 bool _cjose_jwk_is_ecdh_key(const cjose_jwk_t *jwk);
 bool _cjose_jwk_ecdh_curve_match(const cjose_jwk_t *a, const cjose_jwk_t *b);
+// true when an EC or OKP key carries its private part; RFC 7518 section 4.6.1.1
+// allows only public parameters in the "epk" header
+bool _cjose_jwk_ecdh_has_private(const cjose_jwk_t *jwk);
 cjose_jwk_t *_cjose_jwk_ecdh_ephemeral_key(const cjose_jwk_t *jwk, cjose_err *err);
 
 bool cjose_jwk_derive_ecdh_bits(

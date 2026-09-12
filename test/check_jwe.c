@@ -2654,6 +2654,24 @@ static char *_jwe_with_epk(const char *compact, const char *epk_json)
     return result;
 }
 
+static void _ecdh_decrypt_ok(const char *compact, const char *key, const uint8_t *expected, size_t expected_len)
+{
+    cjose_err err;
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert(NULL != jwk);
+    cjose_jwe_t *jwe = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed: %s", err.message);
+    ck_assert_int_eq(expected_len, plain_len);
+    ck_assert(0 == memcmp(expected, plain, plain_len));
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe);
+    cjose_jwk_release(jwk);
+}
+
 static void _ecdh_decrypt_expect(const char *compact, const char *key, cjose_errcode expected)
 {
     cjose_err err;
@@ -2669,6 +2687,44 @@ static void _ecdh_decrypt_expect(const char *compact, const char *key, cjose_err
     cjose_jwe_release(jwe);
     cjose_jwk_release(jwk);
 }
+
+// RFC 7518 section 4.6.1.1: the "epk" header carries public key parameters
+// only, for EC keys as well as for the OKP curves
+START_TEST(test_cjose_jwe_ecdh_es_private_epk)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(NULL != hdr);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+
+    // the public ephemeral key the encryption published still decrypts
+    _ecdh_decrypt_ok(compact, JWK_EC, plain, sizeof(plain) - 1);
+
+    // the same key with its private part in "epk" is refused
+    char *private_epk = cjose_jwk_to_json(ec, true, &err);
+    ck_assert(NULL != private_epk);
+    ck_assert(NULL != strstr(private_epk, "\"d\""));
+    char *modified = _jwe_with_epk(compact, private_epk);
+    _ecdh_decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
+    free(modified);
+
+    cjose_get_dealloc()(private_epk);
+    cjose_get_dealloc()(compact);
+    cjose_jwk_release(ec);
+    cjose_header_release(hdr);
+}
+END_TEST
 
 START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
 {
@@ -2711,7 +2767,11 @@ START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
     char *ec_epk = cjose_jwk_to_json(ec, false, &err);
     char *x448_epk = cjose_jwk_to_json(x448, false, &err);
     ck_assert(NULL != ec_epk && NULL != x448_epk);
-    const char *epks[] = { ec_epk, x448_epk, "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"AAAA\"}" };
+    // ... or one that carries the private part, which RFC 7518 section 4.6.1.1
+    // does not allow in the "epk" header
+    char *x25519_private_epk = cjose_jwk_to_json(x25519, true, &err);
+    ck_assert(NULL != x25519_private_epk);
+    const char *epks[] = { ec_epk, x448_epk, "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"AAAA\"}", x25519_private_epk };
     for (size_t i = 0; i < sizeof(epks) / sizeof(epks[0]); i++)
     {
         char *modified = _jwe_with_epk(compact, epks[i]);
@@ -2719,6 +2779,7 @@ START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
         free(modified);
     }
 
+    cjose_get_dealloc()(x25519_private_epk);
     cjose_get_dealloc()(ec_epk);
     cjose_get_dealloc()(x448_epk);
     cjose_get_dealloc()(compact);
@@ -2893,6 +2954,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_self_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_bad_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_private_epk);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);

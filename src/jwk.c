@@ -2361,6 +2361,19 @@ bool _cjose_jwk_ecdh_curve_match(const cjose_jwk_t *a, const cjose_jwk_t *b)
     return ((okp_keydata *)a->keydata)->crv == ((okp_keydata *)b->keydata)->crv;
 }
 
+bool _cjose_jwk_ecdh_has_private(const cjose_jwk_t *jwk)
+{
+    if (!_cjose_jwk_is_ecdh_key(jwk))
+    {
+        return false;
+    }
+    if (CJOSE_JWK_KTY_EC == jwk->kty)
+    {
+        return ((ec_keydata *)jwk->keydata)->has_private;
+    }
+    return ((okp_keydata *)jwk->keydata)->has_private;
+}
+
 // a fresh ephemeral key of the type and curve of the given key
 cjose_jwk_t *_cjose_jwk_ecdh_ephemeral_key(const cjose_jwk_t *jwk, cjose_err *err)
 {
