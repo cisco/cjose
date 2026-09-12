@@ -828,6 +828,203 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_caller_supplied_params)
 }
 END_TEST
 
+static void _jwe_hdr_crit_cty(json_t *hdr)
+{
+    json_t *crit = json_array();
+    json_array_append_new(crit, json_string("cty"));
+    json_object_set_new(hdr, "crit", crit);
+}
+
+static void _jwe_hdr_crit_epk(json_t *hdr)
+{
+    json_t *crit = json_array();
+    json_array_append_new(crit, json_string(CJOSE_HDR_EPK));
+    json_object_set_new(hdr, "crit", crit);
+}
+
+// "epk", "apu" and "apv" are ECDH-ES parameters (RFC 7518 section 4.6) and are
+// understood as critical parameters for those algorithms alone
+START_TEST(test_cjose_jwe_crit_ecdh_es_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+    static const char *const params[] = { CJOSE_HDR_EPK, CJOSE_HDR_APU, CJOSE_HDR_APV };
+
+    for (size_t p = 0; p < sizeof(params) / sizeof(params[0]); p++)
+    {
+        // accepted for ECDH-ES
+        memset(&err, 0, sizeof(err));
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+        json_t *crit = json_array();
+        json_array_append_new(crit, json_string(params[p]));
+        json_object_set_new((json_t *)hdr, "crit", crit);
+        cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+        ck_assert(NULL != ec);
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed for ECDH-ES crit %s: %s", params[p], err.message);
+        cjose_jwe_release(jwe);
+        cjose_jwk_release(ec);
+        cjose_header_release(hdr);
+
+        // refused for an algorithm that does not process them
+        memset(&err, 0, sizeof(err));
+        hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+        crit = json_array();
+        json_array_append_new(crit, json_string(params[p]));
+        json_object_set_new((json_t *)hdr, "crit", crit);
+        cjose_jwk_t *oct = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+        ck_assert(NULL != oct);
+        ck_assert_msg(NULL == cjose_jwe_encrypt(oct, hdr, plain, sizeof(plain) - 1, &err), "crit %s accepted for A128KW",
+                      params[p]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_jwk_release(oct);
+        cjose_header_release(hdr);
+    }
+
+    // an imported JWE marking "epk" critical is refused for the same reason
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *oct = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(oct, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert(NULL != jwe);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+    char *modified = _jwe_with_modified_header(compact, _jwe_hdr_crit_epk);
+    ck_assert(NULL == cjose_jwe_import(modified, strlen(modified), &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    free(modified);
+
+    // a critical parameter that does not occur in the header is refused too
+    memset(&err, 0, sizeof(err));
+    modified = _jwe_with_modified_header(compact, _jwe_hdr_crit_cty);
+    ck_assert(NULL == cjose_jwe_import(modified, strlen(modified), &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    free(modified);
+
+    cjose_get_dealloc()(compact);
+    cjose_header_release(hdr);
+    cjose_jwk_release(oct);
+}
+END_TEST
+
+// rewrite the "protected" member of a JSON serialization and import the result
+static bool _import_json_modified(const char *json, void (*modify)(json_t *form), cjose_err *err)
+{
+    json_t *form = json_loads(json, 0, NULL);
+    ck_assert(NULL != form);
+    modify(form);
+    char *modified = json_dumps(form, JSON_COMPACT);
+    ck_assert(NULL != modified);
+    cjose_jwe_t *jwe = cjose_jwe_import_json(modified, strlen(modified), err);
+    const bool imported = (NULL != jwe);
+    cjose_jwe_release(jwe);
+    free(modified);
+    json_decref(form);
+    return imported;
+}
+
+// the same name in the protected header and in a recipient header
+static void _json_duplicate_name(json_t *form)
+{
+    json_t *header = json_object_get(json_array_get(json_object_get(form, "recipients"), 0), "header");
+    json_object_set_new(header, CJOSE_HDR_ENC, json_string(CJOSE_HDR_ENC_A128GCM));
+}
+
+// the same name in the shared unprotected header and in a recipient header
+static void _json_duplicate_shared(json_t *form)
+{
+    json_t *shared = json_object();
+    json_object_set_new(shared, CJOSE_HDR_KID, json_string("k16"));
+    json_object_set_new(form, "unprotected", shared);
+}
+
+// a "crit" list in a header that is not integrity protected
+static void _json_crit_unprotected(json_t *form)
+{
+    json_t *header = json_object_get(json_array_get(json_object_get(form, "recipients"), 0), "header");
+    json_t *crit = json_array();
+    json_array_append_new(crit, json_string(CJOSE_HDR_ALG));
+    json_object_set_new(header, "crit", crit);
+}
+
+// RFC 7516 section 7.2.1: the names of the three header locations of a JSON
+// serialization must be disjoint, and RFC 7515 section 4.1.11 keeps "crit" in
+// the protected header
+START_TEST(test_cjose_jwe_json_header_rules)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk16 && NULL != jwk32);
+    ck_assert(cjose_jwk_set_kid(jwk16, "k16", 3, &err));
+    ck_assert(cjose_jwk_set_kid(jwk32, "k32", 3, &err));
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_header_t *hdr16 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr16, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(hdr16, CJOSE_HDR_KID, "k16", &err));
+    cjose_header_t *hdr32 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr32, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A256KW, &err));
+    ck_assert(cjose_header_set(hdr32, CJOSE_HDR_KID, "k32", &err));
+    cjose_jwe_recipient_t recipients[] = { { jwk16, hdr16 }, { jwk32, hdr32 } };
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(recipients, 2, protected_header, NULL, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert(NULL != json);
+    cjose_jwe_release(jwe);
+
+    // what cjose produces itself imports again
+    memset(&err, 0, sizeof(err));
+    jwe = cjose_jwe_import_json(json, strlen(json), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import_json failed: %s", err.message);
+    cjose_jwe_release(jwe);
+
+    void (*const cases[])(json_t *) = { _json_duplicate_name, _json_duplicate_shared, _json_crit_unprotected };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        memset(&err, 0, sizeof(err));
+        ck_assert_msg(!_import_json_modified(json, cases[i], &err), "cjose_jwe_import_json accepted case %zu", i);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    }
+
+    // the same names are refused when encrypting, not only when importing
+    memset(&err, 0, sizeof(err));
+    ck_assert(cjose_header_set(hdr16, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(recipients, 2, protected_header, NULL, plain, sizeof(plain) - 1, &err),
+                  "cjose_jwe_encrypt_multi accepted a duplicate header name");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    json_object_del((json_t *)hdr16, CJOSE_HDR_ENC);
+
+    // ... including against the shared unprotected header, which the
+    // encryption path did not look at before
+    memset(&err, 0, sizeof(err));
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set(shared, CJOSE_HDR_KID, "k16", &err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(recipients, 2, protected_header, shared, plain, sizeof(plain) - 1, &err),
+                  "cjose_jwe_encrypt_multi accepted a name shared with a recipient header");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(shared);
+
+    cjose_get_dealloc()(json);
+    cjose_header_release(hdr16);
+    cjose_header_release(hdr32);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(jwk16);
+    cjose_jwk_release(jwk32);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
 {
     static const uint8_t plain[] = "";
@@ -2490,6 +2687,8 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_crit);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_caller_supplied_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_crit_ecdh_es_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_json_header_rules);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
