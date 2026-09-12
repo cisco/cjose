@@ -666,6 +666,71 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_multiple_recipients)
 }
 END_TEST
 
+// the "iv" and "tag" parameters are produced by the encryption: a caller that
+// supplies them itself would get the same name in two header locations, which
+// RFC 7516 section 7.2.1 does not allow
+START_TEST(test_cjose_jwe_aes_gcm_kw_caller_supplied_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+    static const char *const params[] = { CJOSE_HDR_IV, CJOSE_HDR_TAG };
+
+    cjose_jwk_t *jwk16 = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk16 && NULL != jwk32);
+
+    for (size_t p = 0; p < sizeof(params) / sizeof(params[0]); p++)
+    {
+        // in the protected header, with a single recipient
+        memset(&err, 0, sizeof(err));
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+        ck_assert(cjose_header_set(hdr, params[p], "AAAAAAAAAAAAAAAA", &err));
+        ck_assert_msg(NULL == cjose_jwe_encrypt(jwk16, hdr, plain, sizeof(plain) - 1, &err), "caller supplied %s accepted",
+                      params[p]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_header_release(hdr);
+
+        // in the shared unprotected header
+        memset(&err, 0, sizeof(err));
+        hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+        cjose_header_t *shared = cjose_header_new(&err);
+        ck_assert(cjose_header_set(shared, params[p], "AAAAAAAAAAAAAAAA", &err));
+        cjose_jwe_recipient_t one[] = { { jwk16, NULL } };
+        ck_assert_msg(NULL == cjose_jwe_encrypt_multi(one, 1, hdr, shared, plain, sizeof(plain) - 1, &err), "shared %s accepted",
+                      params[p]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_header_release(shared);
+
+        // in a per-recipient header, with several recipients
+        memset(&err, 0, sizeof(err));
+        cjose_header_t *hdr16 = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr16, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128GCMKW, &err));
+        cjose_header_t *hdr32 = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr32, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A256GCMKW, &err));
+        ck_assert(cjose_header_set(hdr32, params[p], "AAAAAAAAAAAAAAAA", &err));
+        cjose_header_t *shared_enc = cjose_header_new(&err);
+        ck_assert(cjose_header_set(shared_enc, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+        cjose_jwe_recipient_t two[] = { { jwk16, hdr16 }, { jwk32, hdr32 } };
+        ck_assert_msg(NULL == cjose_jwe_encrypt_multi(two, 2, shared_enc, NULL, plain, sizeof(plain) - 1, &err),
+                      "per-recipient %s accepted", params[p]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        // the first recipient, which carried no parameter of its own, is untouched
+        ck_assert(NULL == cjose_header_get(hdr16, CJOSE_HDR_IV, &err));
+        cjose_header_release(hdr16);
+        cjose_header_release(hdr32);
+        cjose_header_release(shared_enc);
+        cjose_header_release(hdr);
+    }
+
+    cjose_jwk_release(jwk16);
+    cjose_jwk_release(jwk32);
+}
+END_TEST
+
 START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_empty)
 {
     static const uint8_t plain[] = "";
@@ -2326,6 +2391,7 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_self_encrypt_self_decrypt);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_multiple_recipients);
+    tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_caller_supplied_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
