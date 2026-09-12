@@ -441,19 +441,12 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
                                     _jwe_int_recipient_t *recipient,
                                     cjose_err *err)
 {
-    // the parameters an algorithm family adds are only processed for that
-    // family, so they are understood as critical parameters there alone: "epk",
-    // "apu" and "apv" for ECDH-ES (RFC 7518 section 4.6), "iv" and "tag" for
-    // the AES GCM key wrapping algorithms (RFC 7518 section 4.7)
-    static const char *const supported_crit_headers[] = { "alg", "enc", "cty" };
-    static const char *const supported_crit_headers_ecdh_es[] = { "alg", "enc", "cty", "epk", "apu", "apv" };
-    static const char *const supported_crit_headers_aes_gcm_kw[] = { "alg", "enc", "cty", "iv", "tag" };
-
     cjose_header_t *headers[] = { protected_header, unprotected_header, (cjose_header_t *)recipient->unprotected };
     const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
 
-    // RFC 7516 section 7.2.1: the three header locations must be disjoint
-    if (!_cjose_header_validate_disjoint(headers, headers_len, err))
+    // RFC 7516 section 7.2.1: the three header locations must be disjoint, and
+    // RFC 7515 section 4.1.11: none of them may carry a "crit" list
+    if (!_cjose_header_validate_disjoint(headers, headers_len, err) || !_cjose_header_validate_crit(headers, headers_len, err))
     {
         return false;
     }
@@ -467,24 +460,7 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
         return false;
     }
 
-    const char *const *crit_headers = supported_crit_headers;
-    size_t crit_headers_len = sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]);
     const bool is_aes_gcm_kw = _cjose_jwe_alg_is_aes_gcm_kw(alg);
-    if (is_aes_gcm_kw)
-    {
-        crit_headers = supported_crit_headers_aes_gcm_kw;
-        crit_headers_len = sizeof(supported_crit_headers_aes_gcm_kw) / sizeof(supported_crit_headers_aes_gcm_kw[0]);
-    }
-    else if (_cjose_jwe_alg_is_ecdh_es(alg))
-    {
-        crit_headers = supported_crit_headers_ecdh_es;
-        crit_headers_len = sizeof(supported_crit_headers_ecdh_es) / sizeof(supported_crit_headers_ecdh_es[0]);
-    }
-
-    if (!_cjose_header_validate_crit(headers, headers_len, crit_headers, crit_headers_len, err))
-    {
-        return false;
-    }
 
     // set JWE build functions based on header contents
     if (strcmp(alg, CJOSE_HDR_ALG_RSA_OAEP) == 0)
@@ -2263,9 +2239,7 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
         return false;
     }
 
-    if (((0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A128KW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A192KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ECDH_ES_A256KW)))
-        && jwk->kty != CJOSE_JWK_KTY_EC)
+    if (_cjose_jwe_alg_is_ecdh_es(alg) && jwk->kty != CJOSE_JWK_KTY_EC)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -2376,18 +2350,14 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
     }
 
     // the algorithms have written the parameters they produce by now, so the
-    // assembled headers are validated once more: what leaves here has to be a
-    // JWE that can be imported again, with the names of its header locations
-    // disjoint (RFC 7516 section 7.2.1) and every critical parameter present
-    // in its JOSE header (RFC 7515 section 4.1.11)
+    // names of the assembled headers are checked once more: what leaves here
+    // has to be a JWE that can be imported again (RFC 7516 section 7.2.1)
     for (size_t i = 0; i < recipient_count; i++)
     {
         cjose_header_t *headers[]
             = { (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, (cjose_header_t *)jwe->to[i].unprotected };
-        const size_t headers_len = sizeof(headers) / sizeof(headers[0]);
 
-        if (!_cjose_header_validate_disjoint(headers, headers_len, err)
-            || !_cjose_header_validate_crit_present(headers, headers_len, err))
+        if (!_cjose_header_validate_disjoint(headers, sizeof(headers) / sizeof(headers[0]), err))
         {
             cjose_jwe_release(jwe);
             return NULL;
@@ -2731,10 +2701,7 @@ cjose_jwe_t *cjose_jwe_import(const char *cser, size_t cser_len, cjose_err *err)
     }
 
     // validate the JSON header. No unprotected headers can exist.
-    cjose_header_t *imported_headers[] = { (cjose_header_t *)jwe->hdr };
-
     if (!_cjose_jwe_validate_alg((cjose_header_t *)jwe->hdr, NULL, false, jwe->to, err)
-        || !_cjose_header_validate_crit_present(imported_headers, sizeof(imported_headers) / sizeof(imported_headers[0]), err)
         || !_cjose_jwe_validate_enc(jwe, (cjose_header_t *)jwe->hdr, err))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -2773,15 +2740,7 @@ static inline bool _cjose_read_json_recipient(cjose_jwe_t *jwe,
         return false;
     }
 
-    if (!_cjose_jwe_validate_alg(protected_header, jwe->shared_hdr, is_multiple, recipient, err))
-    {
-        return false;
-    }
-
-    // the JOSE header of an imported JWE is complete, so the names the "crit"
-    // list carries have to occur in it (RFC 7515 section 4.1.11)
-    cjose_header_t *headers[] = { protected_header, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected };
-    return _cjose_header_validate_crit_present(headers, sizeof(headers) / sizeof(headers[0]), err);
+    return _cjose_jwe_validate_alg(protected_header, jwe->shared_hdr, is_multiple, recipient, err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

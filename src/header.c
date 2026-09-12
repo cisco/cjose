@@ -14,122 +14,22 @@
 static const char *CJOSE_HDR_CRIT = "crit";
 
 ////////////////////////////////////////////////////////////////////////////////
-bool _cjose_header_validate_crit(
-    cjose_header_t *const *headers, size_t headers_len, const char *const *supported, size_t supported_len, cjose_err *err)
+bool _cjose_header_validate_crit(cjose_header_t *const *headers, size_t headers_len, cjose_err *err)
 {
-    if (NULL == headers || 0 == headers_len)
+    if (NULL == headers)
     {
         return true;
     }
 
-    // the list has to be integrity protected, so it may only appear in the
-    // protected header (RFC 7515 section 4.1.11)
-    for (size_t i = 1; i < headers_len; i++)
+    // RFC 7515 section 4.1.11: the "crit" list names extensions to the JOSE
+    // specifications that a recipient has to understand and process, and a
+    // producer must not list a name the specifications or JWA define. cjose
+    // implements no extension, so every name a list can carry is either one
+    // it must reject as unsupported or one the producer was not allowed to
+    // put there: a header that carries the list at all is refused.
+    for (size_t i = 0; i < headers_len; i++)
     {
         if (NULL != headers[i] && NULL != json_object_get((json_t *)headers[i], CJOSE_HDR_CRIT))
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            return false;
-        }
-    }
-
-    if (NULL == headers[0])
-    {
-        return true;
-    }
-
-    json_t *crit = json_object_get((json_t *)headers[0], CJOSE_HDR_CRIT);
-    if (NULL == crit)
-    {
-        return true;
-    }
-
-    if (!json_is_array(crit))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
-
-    // RFC 7515 section 4.1.11: if present, the "crit" list MUST NOT be empty
-    if (0 == json_array_size(crit))
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        return false;
-    }
-
-    size_t index = 0;
-    json_t *entry = NULL;
-    json_array_foreach(crit, index, entry)
-    {
-        if (!json_is_string(entry))
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            return false;
-        }
-
-        const char *name = json_string_value(entry);
-        bool found = false;
-        for (size_t i = 0; i < supported_len; i++)
-        {
-            if (0 == strcmp(name, supported[i]))
-            {
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            return false;
-        }
-
-        // RFC 7515 section 4.1.11: the list must not carry duplicate names
-        for (size_t i = 0; i < index; i++)
-        {
-            if (0 == strcmp(name, json_string_value(json_array_get(crit, i))))
-            {
-                CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool _cjose_header_validate_crit_present(cjose_header_t *const *headers, size_t headers_len, cjose_err *err)
-{
-    if (NULL == headers || 0 == headers_len || NULL == headers[0])
-    {
-        return true;
-    }
-
-    json_t *crit = json_object_get((json_t *)headers[0], CJOSE_HDR_CRIT);
-    if (!json_is_array(crit))
-    {
-        return true;
-    }
-
-    size_t index = 0;
-    json_t *entry = NULL;
-    json_array_foreach(crit, index, entry)
-    {
-        if (!json_is_string(entry))
-        {
-            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-            return false;
-        }
-
-        const char *name = json_string_value(entry);
-        bool found = false;
-        for (size_t i = 0; i < headers_len && !found; i++)
-        {
-            found = (NULL != headers[i]) && (NULL != json_object_get((json_t *)headers[i], name));
-        }
-
-        if (!found)
         {
             CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
             return false;
