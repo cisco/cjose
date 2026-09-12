@@ -44,6 +44,10 @@ _cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *j
 static bool
 _cjose_jwe_decrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
+static bool _cjose_jwe_encrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool _cjose_jwe_decrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
+
 static bool
 _cjose_jwe_encrypt_ek_rsa_oaep(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err);
 
@@ -561,6 +565,12 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
     {
         recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_aes_gcm_kw;
         recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_aes_gcm_kw;
+    }
+    if ((strcmp(alg, CJOSE_HDR_ALG_PBES2_HS256_A128KW) == 0) || (strcmp(alg, CJOSE_HDR_ALG_PBES2_HS384_A192KW) == 0)
+        || (strcmp(alg, CJOSE_HDR_ALG_PBES2_HS512_A256KW) == 0))
+    {
+        recipient->fns.encrypt_ek = _cjose_jwe_encrypt_ek_pbes2;
+        recipient->fns.decrypt_ek = _cjose_jwe_decrypt_ek_pbes2;
     }
 
     // ensure required builders have been assigned
@@ -1082,6 +1092,295 @@ cjose_decrypt_ek_aes_gcm_kw_finish:
     EVP_CIPHER_CTX_free(ctx);
     cjose_get_dealloc()(iv);
     cjose_get_dealloc()(tag);
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PBES2 (RFC 7518 section 4.8): a key encryption key of the size the "alg"
+// names is derived from the password, the octets of the oct key, with PBKDF2
+// over HMAC SHA-256, SHA-384 or SHA-512; the salt is the alg name, a zero
+// octet and the "p2s" header parameter, the iteration count the "p2c" header
+// parameter. The CEK is then wrapped with AES Key Wrap. The bounds on both
+// parameters live in jwe_int.h, so that the tests can assert against them.
+
+// the digest and key encryption key size of a PBES2 alg
+static const EVP_MD *_cjose_jwe_pbes2_digest(const char *alg, size_t *kek_len)
+{
+    if (NULL == alg)
+    {
+        return NULL;
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS256_A128KW))
+    {
+        *kek_len = 16;
+        return EVP_sha256();
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS384_A192KW))
+    {
+        *kek_len = 24;
+        return EVP_sha384();
+    }
+    if (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS512_A256KW))
+    {
+        *kek_len = 32;
+        return EVP_sha512();
+    }
+    return NULL;
+}
+
+// the PBES2 alg of the recipient and the password: an oct key
+static const EVP_MD *_cjose_jwe_pbes2_params(
+    _jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, const char **alg, size_t *kek_len, cjose_err *err)
+{
+    *alg = _cjose_jwe_get_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_ALG);
+    const EVP_MD *md = _cjose_jwe_pbes2_digest(*alg, kek_len);
+    if (NULL == md || CJOSE_JWK_KTY_OCT != jwk->kty || NULL == jwk->keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+    return md;
+}
+
+// derives the key encryption key into kek, which holds kek_len octets
+static bool _cjose_jwe_pbes2_derive_kek(const char *alg,
+                                        const EVP_MD *md,
+                                        const cjose_jwk_t *jwk,
+                                        const uint8_t *p2s,
+                                        size_t p2s_len,
+                                        json_int_t p2c,
+                                        uint8_t *kek,
+                                        size_t kek_len,
+                                        cjose_err *err)
+{
+    const size_t alg_len = strlen(alg);
+    const size_t salt_len = alg_len + 1 + p2s_len;
+    uint8_t *salt = NULL;
+
+    // the PBKDF2 call below takes the salt, the password, the iteration count
+    // and the key length as int: the first two are checked here, the iteration
+    // count is bounded by the callers and again here so the claim holds however
+    // CJOSE_JWE_PBES2_MAX_ITERATIONS is built, and the key length comes from
+    // the algorithm table and is 16, 24 or 32
+    if (p2s_len < CJOSE_JWE_PBES2_MIN_SALT_LEN || p2s_len > CJOSE_JWE_PBES2_MAX_SALT_LEN || salt_len > INT_MAX
+        || jwk->keysize / 8 > INT_MAX || p2c > INT_MAX)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    if (!_cjose_jwe_malloc(salt_len, false, &salt, err))
+    {
+        return false;
+    }
+    memcpy(salt, alg, alg_len);
+    salt[alg_len] = 0;
+    memcpy(salt + alg_len + 1, p2s, p2s_len);
+
+    int rc = PKCS5_PBKDF2_HMAC((const char *)jwk->keydata, (int)(jwk->keysize / 8), salt, (int)salt_len, (int)p2c, md, (int)kek_len,
+                               kek);
+    cjose_get_dealloc()(salt);
+    if (1 != rc)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return false;
+    }
+    return true;
+}
+
+static bool _cjose_jwe_encrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    const char *alg = NULL;
+    size_t kek_len = 0;
+    uint8_t kek[32];
+    uint8_t *p2s = NULL;
+    size_t p2s_len = 0;
+    char *p2s_b64u = NULL;
+    size_t p2s_b64u_len = 0;
+    json_int_t p2c = CJOSE_JWE_PBES2_DEFAULT_ITERATIONS;
+    bool result = false;
+
+    if (NULL == jwe || NULL == jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const EVP_MD *md = _cjose_jwe_pbes2_params(recipient, jwe, jwk, &alg, &kek_len, err);
+    if (NULL == md)
+    {
+        return false;
+    }
+
+    // the header the parameters are published in; taken first, so that the
+    // lookups below see the recipient header the JWE will keep
+    json_t *target = _cjose_jwe_recipient_param_target(jwe, recipient, err);
+    if (NULL == target)
+    {
+        return false;
+    }
+
+    // a caller-supplied "p2s" and "p2c" are used as they are, otherwise a
+    // random salt and the default iteration count are generated and published
+    json_t *p2s_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2S);
+    json_t *p2c_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2C);
+    if ((NULL != p2s_obj && !json_is_string(p2s_obj)) || (NULL != p2c_obj && !json_is_integer(p2c_obj)))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    if (NULL != p2s_obj)
+    {
+        if (!cjose_base64url_decode(json_string_value(p2s_obj), strlen(json_string_value(p2s_obj)), &p2s, &p2s_len, err))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        if (!_cjose_jwe_malloc(CJOSE_JWE_PBES2_SALT_LEN, true, &p2s, err))
+        {
+            return false;
+        }
+        p2s_len = CJOSE_JWE_PBES2_SALT_LEN;
+    }
+    if (NULL != p2c_obj)
+    {
+        p2c = json_integer_value(p2c_obj);
+    }
+    if (p2s_len < CJOSE_JWE_PBES2_MIN_SALT_LEN || p2s_len > CJOSE_JWE_PBES2_MAX_SALT_LEN || p2c < CJOSE_JWE_PBES2_MIN_ITERATIONS
+        || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+    if (NULL == p2s_obj
+        && (!cjose_base64url_encode(p2s, p2s_len, &p2s_b64u, &p2s_b64u_len, err)
+            || !cjose_header_set((cjose_header_t *)target, CJOSE_HDR_P2S, p2s_b64u, err)))
+    {
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+    if (NULL == p2c_obj && 0 != json_object_set_new(target, CJOSE_HDR_P2C, json_integer(p2c)))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+
+    if (!_cjose_jwe_pbes2_derive_kek(alg, md, jwk, p2s, p2s_len, p2c, kek, kek_len, err))
+    {
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+
+    // generate random CEK and wrap it with the derived key
+    if (!jwe->fns.set_cek(jwe, NULL, true, err))
+    {
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+    cjose_get_dealloc()(recipient->enc_key.raw);
+    recipient->enc_key.raw = NULL;
+    recipient->enc_key.raw_len = 0;
+    if (!_cjose_jwe_malloc(jwe->cek_len + 8, false, &recipient->enc_key.raw, err))
+    {
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+    if (!_cjose_jwe_aes_kw_wrap(kek, kek_len, jwe->cek, jwe->cek_len, recipient->enc_key.raw, &recipient->enc_key.raw_len))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto cjose_encrypt_ek_pbes2_finish;
+    }
+
+    result = true;
+
+cjose_encrypt_ek_pbes2_finish:
+
+    _cjose_cleanse(kek, sizeof(kek));
+    cjose_get_dealloc()(p2s);
+    cjose_get_dealloc()(p2s_b64u);
+
+    return result;
+}
+
+static bool _cjose_jwe_decrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    const char *alg = NULL;
+    size_t kek_len = 0;
+    uint8_t kek[32];
+    uint8_t *p2s = NULL;
+    size_t p2s_len = 0;
+    bool result = false;
+
+    if (NULL == jwe || NULL == jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    const EVP_MD *md = _cjose_jwe_pbes2_params(recipient, jwe, jwk, &alg, &kek_len, err);
+    if (NULL == md)
+    {
+        return false;
+    }
+
+    // "p2s" and "p2c" must be present with the recipient and within bounds;
+    // that, and the encrypted key length, is checked before any PBKDF2 work
+    json_t *p2s_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2S);
+    json_t *p2c_obj
+        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2C);
+    if (!json_is_string(p2s_obj) || !json_is_integer(p2c_obj))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const json_int_t p2c = json_integer_value(p2c_obj);
+    if (p2c < CJOSE_JWE_PBES2_MIN_ITERATIONS || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    if (!cjose_base64url_decode(json_string_value(p2s_obj), strlen(json_string_value(p2s_obj)), &p2s, &p2s_len, err))
+    {
+        return false;
+    }
+    if (p2s_len < CJOSE_JWE_PBES2_MIN_SALT_LEN || p2s_len > CJOSE_JWE_PBES2_MAX_SALT_LEN)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_pbes2_finish;
+    }
+
+    // the wrapped key (RFC 3394) is always the plaintext CEK length plus 8
+    // bytes; enforce this before unwrapping so the attacker-controlled
+    // encrypted key cannot be copied into the fixed-size jwe->cek buffer
+    if (!jwe->fns.set_cek(jwe, NULL, false, err))
+    {
+        goto cjose_decrypt_ek_pbes2_finish;
+    }
+    if (recipient->enc_key.raw_len != jwe->cek_len + 8)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto cjose_decrypt_ek_pbes2_finish;
+    }
+
+    if (!_cjose_jwe_pbes2_derive_kek(alg, md, jwk, p2s, p2s_len, p2c, kek, kek_len, err))
+    {
+        goto cjose_decrypt_ek_pbes2_finish;
+    }
+    if (!_cjose_jwe_aes_kw_unwrap(kek, kek_len, recipient->enc_key.raw, recipient->enc_key.raw_len, jwe->cek, &jwe->cek_len))
+    {
+        _cjose_release_cek(&jwe->cek, jwe->cek_len);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto cjose_decrypt_ek_pbes2_finish;
+    }
+
+    result = true;
+
+cjose_decrypt_ek_pbes2_finish:
+
+    _cjose_cleanse(kek, sizeof(kek));
+    cjose_get_dealloc()(p2s);
 
     return result;
 }
@@ -2270,7 +2569,9 @@ static bool _cjose_jwe_validate_decrypt_key(_jwe_int_recipient_t *recipient,
     }
 
     if (((0 == strcmp(alg, CJOSE_HDR_ALG_A128KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_A192KW))
-         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || _cjose_jwe_alg_is_aes_gcm_kw(alg) || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_A256KW)) || _cjose_jwe_alg_is_aes_gcm_kw(alg)
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS256_A128KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS384_A192KW))
+         || (0 == strcmp(alg, CJOSE_HDR_ALG_PBES2_HS512_A256KW)) || (0 == strcmp(alg, CJOSE_HDR_ALG_DIR)))
         && jwk->kty != CJOSE_JWK_KTY_OCT)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);

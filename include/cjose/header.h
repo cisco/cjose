@@ -46,6 +46,16 @@ extern "C" {
 #define CJOSE_HDR_IV "iv"
 #define CJOSE_HDR_TAG "tag"
 
+/**
+ * For the PBES2 algorithms, the PBKDF2 salt input and iteration count (RFC 7518 section 4.8.1).
+ * Both are generated when they are absent. Supplying them is supported, but give each recipient
+ * its own, as RFC 7520 section 5.3 expects: two recipients of one JWE that share a salt input and
+ * an algorithm derive their keys from the same PBKDF2 salt, where RFC 7518 section 4.8.1.1
+ * requires a new salt input for every encryption operation.
+ */
+#define CJOSE_HDR_P2S "p2s"
+#define CJOSE_HDR_P2C "p2c"
+
 /** The JWA algorithm attribute value for none. */
 #define CJOSE_HDR_ALG_NONE "none"
 
@@ -70,6 +80,11 @@ extern "C" {
 #define CJOSE_HDR_ALG_A128GCMKW "A128GCMKW"
 #define CJOSE_HDR_ALG_A192GCMKW "A192GCMKW"
 #define CJOSE_HDR_ALG_A256GCMKW "A256GCMKW"
+
+/** The JWE algorithm attribute values for PBES2-HS256+A128KW, PBES2-HS384+A192KW and PBES2-HS512+A256KW (RFC 7518 section 4.8). */
+#define CJOSE_HDR_ALG_PBES2_HS256_A128KW "PBES2-HS256+A128KW"
+#define CJOSE_HDR_ALG_PBES2_HS384_A192KW "PBES2-HS384+A192KW"
+#define CJOSE_HDR_ALG_PBES2_HS512_A256KW "PBES2-HS512+A256KW"
 
 /** The JWE algorithm attribute value for ECDH-ES with A128KW, A192KW or A256KW key wrapping. */
 #define CJOSE_HDR_ALG_ECDH_ES_A128KW "ECDH-ES+A128KW"
