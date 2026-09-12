@@ -110,6 +110,10 @@ set_target_properties(cjose_objects PROPERTIES
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS OFF)
 
+# cjose uses the OpenSSL 3 APIs only. Hiding every API that OpenSSL has
+# deprecated turns a reintroduced legacy call into a compile error on every
+# platform, instead of a warning that only -Werror builds reject.
+target_compile_definitions(cjose_objects PRIVATE OPENSSL_NO_DEPRECATED)
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
 endif()
@@ -380,6 +384,7 @@ if(CJOSE_BUILD_TESTS)
             C_STANDARD 17
             C_STANDARD_REQUIRED ON
             C_EXTENSIONS OFF)
+        target_compile_definitions(check_cjose PRIVATE OPENSSL_NO_DEPRECATED)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
         endif()
