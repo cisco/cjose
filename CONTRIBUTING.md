@@ -2,7 +2,8 @@
 
 ## Before Submitting PR ##
 
-* Run `make clang-format`
-* Run `make test`
+* Run `cmake --build build --target clang-format`
+* Run `ctest --test-dir build --output-on-failure -V`
 
-*NOTE* You must use clang-format 3.9.0. You can download binaries from [here](https://bintray.com/apache/trafficserver/clang-format-tools).
+The project requires CMake 3.22 or newer. Configure a build directory with
+`cmake -S . -B build` before running the commands above.

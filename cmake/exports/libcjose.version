@@ -2,7 +2,7 @@
 # Only the public API symbols are made global; every other symbol
 # (internal helpers, third-party statics, etc.) is kept local/hidden.
 # An anonymous version node is used so the exported symbols remain
-# unversioned (matching the historical autotools build).
+# unversioned.
 {
     global:
         CJOSE_HDR_ALG;

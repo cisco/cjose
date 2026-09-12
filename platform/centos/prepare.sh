@@ -6,6 +6,6 @@ mkdir -p /opt/{build,dist,src}
 
 # Install dev tools
 yum install -y \
-    autoconf automake libtool make gcc doxygen \
+    cmake make gcc doxygen \
     rpm-build tar \
     check-devel openssl-devel jansson-devel
