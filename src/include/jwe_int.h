@@ -78,4 +78,28 @@ struct _cjose_jwe_int
     _jwe_int_recipient_t *to;
 };
 
+// PBES2 (RFC 7518 section 4.8) parameter bounds. RFC 7518 requires a salt
+// input of at least 8 octets and recommends at least 1000 iterations, and sets
+// no maximum for either. On decrypt both are attacker-controlled, so both carry
+// one: the iteration cap bounds the PBKDF2 work an unauthenticated JWE can
+// demand of a recipient, and the salt cap keeps the salt the length of an
+// identifier rather than of a payload and keeps the length the OpenSSL call
+// takes as an int well inside its range. The same caps apply when encrypting,
+// so that what cjose produces it can also read back, which is why the iteration
+// cap is not tightened to the decrypt side alone: a caller following current
+// password hashing guidance uses counts well above any producer's default.
+// Both can be raised at build time. The iteration cap must stay at or above
+// 100000, the highest default a mainstream producer ships, and the checks are
+// "> MAX", so that value itself is accepted.
+#define CJOSE_JWE_PBES2_SALT_LEN 16
+#define CJOSE_JWE_PBES2_MIN_SALT_LEN 8
+#define CJOSE_JWE_PBES2_MIN_ITERATIONS 1000
+#define CJOSE_JWE_PBES2_DEFAULT_ITERATIONS 8192
+#ifndef CJOSE_JWE_PBES2_MAX_SALT_LEN
+#define CJOSE_JWE_PBES2_MAX_SALT_LEN 1024
+#endif
+#ifndef CJOSE_JWE_PBES2_MAX_ITERATIONS
+#define CJOSE_JWE_PBES2_MAX_ITERATIONS 1000000
+#endif
+
 #endif // SRC_JWE_INT_H
