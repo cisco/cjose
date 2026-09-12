@@ -49,6 +49,7 @@ static const char CJOSE_JWK_Q_STR[] = "q";
 static const char CJOSE_JWK_DP_STR[] = "dp";
 static const char CJOSE_JWK_DQ_STR[] = "dq";
 static const char CJOSE_JWK_QI_STR[] = "qi";
+static const char CJOSE_JWK_OTH_STR[] = "oth";
 static const char CJOSE_JWK_K_STR[] = "k";
 
 static const char *JWK_KTY_NAMES[] = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR, CJOSE_JWK_KTY_OKP_STR };
@@ -1934,8 +1935,8 @@ static bool _cjose_jwk_decode_json_object_base64url_attribute(
     return true;
 }
 
-// RFC 7517: a private member that is present but carries no value is a
-// malformed key, not a public one, so it must not be read as an absent member
+// RFC 7518 section 6.3.2: a private member that is present but carries no
+// value is a malformed key, not a public one, so it must not be read as absent
 static bool _cjose_jwk_decode_private_attribute(json_t *jwk_json, const char *key, uint8_t **buffer, size_t *buflen, cjose_err *err)
 {
     if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, key, buffer, buflen, err))
@@ -2054,6 +2055,15 @@ static cjose_jwk_t *_cjose_jwk_import_RSA(json_t *jwk_json, cjose_err *err)
     size_t dp_buflen = 0;
     size_t dq_buflen = 0;
     size_t qi_buflen = 0;
+
+    // cjose supports only two-prime RSA keys; RFC 7518 section 6.3.2.7
+    // requires consumers that do not support multi-prime keys not to use a
+    // key carrying the "oth" parameter
+    if (NULL != json_object_get(jwk_json, CJOSE_JWK_OTH_STR))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_RSA_cleanup;
+    }
 
     // get the decoded value of n (buflen = 0 means no particular expected len)
     if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_N_STR, &n_buffer, &n_buflen, err))
