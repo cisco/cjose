@@ -2291,36 +2291,46 @@ END_TEST
 // crashing when the public JWE API was invoked with a NULL err argument.
 START_TEST(test_cjose_jwe_ecdh_es_null_err)
 {
+    // the trailing cjose_err is optional throughout the public API, so every
+    // ECDH-ES variant has to survive a NULL one: the key agreement inspects
+    // err->code to tell an absent "epk" header from a real failure
+    static const char *const algs[]
+        = { CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ALG_ECDH_ES_A256KW };
+
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_EC, strlen(JWK_EC), NULL);
     ck_assert_msg(NULL != jwk, "cjose_jwk_import failed for EC key");
 
-    cjose_header_t *hdr = cjose_header_new(NULL);
-    ck_assert_msg(NULL != hdr, "cjose_header_new failed");
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, NULL));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
+    for (size_t i = 0; i < sizeof(algs) / sizeof(algs[0]); i++)
+    {
+        cjose_header_t *hdr = cjose_header_new(NULL);
+        ck_assert_msg(NULL != hdr, "cjose_header_new failed");
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, algs[i], NULL));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
 
-    // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
-    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (ECDH-ES) failed with NULL err");
+        // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (%s) failed with NULL err", algs[i]);
 
-    char *compact = cjose_jwe_export(jwe, NULL);
-    ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
+        char *compact = cjose_jwe_export(jwe, NULL);
+        ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
 
-    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
-    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
+        cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
+        ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
 
-    // decrypt with a NULL err: again exercises the ConcatKDF path
-    size_t plain_len = 0;
-    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
-    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (ECDH-ES) failed with NULL err");
-    ck_assert(plain_len == strlen(PLAINTEXT));
-    ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
+        // decrypt with a NULL err: again exercises the ConcatKDF path
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
+        ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (%s) failed with NULL err", algs[i]);
+        ck_assert(plain_len == strlen(PLAINTEXT));
+        ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
 
-    cjose_get_dealloc()(plain);
-    cjose_get_dealloc()(compact);
-    cjose_jwe_release(jwe);
-    cjose_jwe_release(jwe2);
-    cjose_header_release(hdr);
+        cjose_get_dealloc()(plain);
+        cjose_get_dealloc()(compact);
+        cjose_jwe_release(jwe);
+        cjose_jwe_release(jwe2);
+        cjose_header_release(hdr);
+    }
+
     cjose_jwk_release(jwk);
 }
 END_TEST

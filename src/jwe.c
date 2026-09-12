@@ -1515,6 +1515,14 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
     uint8_t *kek = NULL;
     bool result = false;
 
+    // err is optional in the public API, but the logic below inspects
+    // err->code to distinguish an absent EPK header from a real failure;
+    // fall back to a local error object when the caller did not supply one
+    cjose_err local_err;
+    if (NULL == err)
+    {
+        err = &local_err;
+    }
     memset(err, 0, sizeof(cjose_err));
     epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
