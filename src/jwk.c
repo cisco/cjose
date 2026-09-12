@@ -1976,9 +1976,12 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
         goto import_EC_cleanup;
     }
 
-    // get the decoded value of the private key d
+    // get the decoded value of the private key d; a "d" that is present but
+    // carries no value is a malformed key, not a public one (the OKP import
+    // makes the same distinction)
     d_buflen = (size_t)_cjose_jwk_ec_size_for_curve(crv, err);
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
+    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err)
+        || (NULL != json_object_get(jwk_json, CJOSE_JWK_D_STR) && NULL == d_buffer))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
@@ -2326,33 +2329,85 @@ cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err)
 //////////////// ECDH ////////////////
 // internal data & functions -- ECDH derivation
 
-static bool _cjose_jwk_evp_key_from_ec_key(const cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
+// ECDH-ES key agreement runs on EC keys and on the OKP X25519 and X448 keys
+// (RFC 8037 section 3.2); the Ed25519 and Ed448 signature keys do not qualify
+bool _cjose_jwk_is_ecdh_key(const cjose_jwk_t *jwk)
 {
-    // validate that the jwk is of type EC and we have a valid out-param
-    if (NULL == jwk || CJOSE_JWK_KTY_EC != jwk->kty || NULL == jwk->keydata || NULL == key || NULL != *key)
+    if (NULL == jwk || NULL == jwk->keydata)
+    {
+        return false;
+    }
+    if (CJOSE_JWK_KTY_EC == jwk->kty)
+    {
+        return true;
+    }
+    if (CJOSE_JWK_KTY_OKP == jwk->kty)
+    {
+        const cjose_jwk_okp_curve crv = ((okp_keydata *)jwk->keydata)->crv;
+        return CJOSE_JWK_OKP_X25519 == crv || CJOSE_JWK_OKP_X448 == crv;
+    }
+    return false;
+}
+
+// whether two keys can perform ECDH-ES with each other: the same key type on
+// the same curve
+bool _cjose_jwk_ecdh_curve_match(const cjose_jwk_t *a, const cjose_jwk_t *b)
+{
+    if (!_cjose_jwk_is_ecdh_key(a) || !_cjose_jwk_is_ecdh_key(b) || a->kty != b->kty)
+    {
+        return false;
+    }
+    if (CJOSE_JWK_KTY_EC == a->kty)
+    {
+        return ((ec_keydata *)a->keydata)->crv == ((ec_keydata *)b->keydata)->crv;
+    }
+    return ((okp_keydata *)a->keydata)->crv == ((okp_keydata *)b->keydata)->crv;
+}
+
+bool _cjose_jwk_ecdh_has_private(const cjose_jwk_t *jwk)
+{
+    if (!_cjose_jwk_is_ecdh_key(jwk))
+    {
+        return false;
+    }
+    if (CJOSE_JWK_KTY_EC == jwk->kty)
+    {
+        return ((ec_keydata *)jwk->keydata)->has_private;
+    }
+    return ((okp_keydata *)jwk->keydata)->has_private;
+}
+
+// a fresh ephemeral key of the type and curve of the given key
+cjose_jwk_t *_cjose_jwk_ecdh_ephemeral_key(const cjose_jwk_t *jwk, cjose_err *err)
+{
+    if (!_cjose_jwk_is_ecdh_key(jwk))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto _cjose_jwk_evp_key_from_ec_key_fail;
+        return NULL;
     }
+    if (CJOSE_JWK_KTY_EC == jwk->kty)
+    {
+        return cjose_jwk_create_EC_random(((ec_keydata *)jwk->keydata)->crv, err);
+    }
+    return cjose_jwk_create_OKP_random(((okp_keydata *)jwk->keydata)->crv, err);
+}
 
-    EVP_PKEY *jwk_key = ((ec_keydata *)(jwk->keydata))->key;
+// the EVP_PKEY of an ECDH-ES key, with a reference the caller releases
+static bool _cjose_jwk_evp_key_for_ecdh(const cjose_jwk_t *jwk, EVP_PKEY **key, cjose_err *err)
+{
+    if (!_cjose_jwk_is_ecdh_key(jwk) || NULL == key || NULL != *key)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    EVP_PKEY *jwk_key = (CJOSE_JWK_KTY_EC == jwk->kty) ? ((ec_keydata *)jwk->keydata)->key : ((okp_keydata *)jwk->keydata)->key;
     if (NULL == jwk_key || 1 != EVP_PKEY_up_ref(jwk_key))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
-        goto _cjose_jwk_evp_key_from_ec_key_fail;
+        return false;
     }
     *key = jwk_key;
-
-    // happy path
     return true;
-
-// fail path
-_cjose_jwk_evp_key_from_ec_key_fail:
-
-    EVP_PKEY_free(*key);
-    *key = NULL;
-
-    return false;
 }
 
 cjose_jwk_t *cjose_jwk_derive_ecdh_secret(
@@ -2422,14 +2477,21 @@ bool cjose_jwk_derive_ecdh_bits(
     uint8_t *secret = NULL;
     size_t secret_len = 0;
 
+    // both keys must be of the same type on the same curve
+    if (!_cjose_jwk_ecdh_curve_match(jwk_self, jwk_peer))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
     // get EVP_KEY from jwk_self
-    if (!_cjose_jwk_evp_key_from_ec_key(jwk_self, &pkey_self, err))
+    if (!_cjose_jwk_evp_key_for_ecdh(jwk_self, &pkey_self, err))
     {
         goto _cjose_jwk_derive_bits_fail;
     }
 
     // get EVP_KEY from jwk_peer
-    if (!_cjose_jwk_evp_key_from_ec_key(jwk_peer, &pkey_peer, err))
+    if (!_cjose_jwk_evp_key_for_ecdh(jwk_peer, &pkey_peer, err))
     {
         goto _cjose_jwk_derive_bits_fail;
     }

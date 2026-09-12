@@ -2012,6 +2012,119 @@ START_TEST(test_cjose_jwk_create_RSA_spec_weak_modulus)
 }
 END_TEST
 
+// RFC 8037 Appendix A.6 and A.7: Bob's and the ephemeral X25519 and X448 key
+// pairs and the shared secret Z; Bob's private keys are those of RFC 7748
+// section 6, whose public keys the RFC 8037 examples use
+static const char *RFC8037_X25519_BOB_D = "XasIfmJKikt54X-Lg4AO5m87sSkmGLb9HC-LJ_-I4Os";
+static const char *RFC8037_X25519_BOB_X = "3p7bfXt9wbTTW2HC7OQ1Nz-DQ8hbeGdNrfx-FG-IK08";
+static const char *RFC8037_X25519_EPH_D = "dwdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LCo";
+static const char *RFC8037_X25519_EPH_X = "hSDwCYkwp1R0i33ctD73Wg2_Og0mOBr066SpjqqbTmo";
+static const char *RFC8037_X25519_Z = "Sl2dW6TOLeFyjjv0gDUPJeB-IclH0Z4zdvCbPB4WF0I";
+static const char *RFC8037_X448_BOB_D = "HDBqesKg4uCZCylEcMujOeZFN3KwdYEdj60NHWknwSC7XuiXKw0-ITdMnJIbCdGwNm8QtlFzmS0";
+static const char *RFC8037_X448_BOB_X = "PreoKbDNIPW8_AtZm2_sz22kYnEHvbDU80W0MCfYuXL8PjT7QjKhPKcG3LV67D2uB73BxnvzNgk";
+static const char *RFC8037_X448_EPH_D = "mo9JJdFRn1d1z0awS1gA1O6e6LrovFVl1JjCjdnJuvV0qUGXRIlzkQBjgqbxJ6sdmsLYwKWYcms";
+static const char *RFC8037_X448_EPH_X = "mwj3zDG34-Z9ItWuoSEHSic70rg94Jxj-qc9LCLF2bvINmRyQdlT1AxbEtqIEg1TF3-A5TLEH6A";
+static const char *RFC8037_X448_Z = "B__0GBrGzJXsHBapSg900S2iMs5Ap3VSKB0oK7YMC1b9JGTDNVQ5NlIcJEAwhdWaRJpQN1FKh50";
+
+static cjose_jwk_t *_okp_from_b64u(cjose_jwk_okp_curve crv, const char *d, const char *x)
+{
+    cjose_err err;
+    cjose_jwk_okp_keyspec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.crv = crv;
+    if (NULL != d)
+    {
+        ck_assert(cjose_base64url_decode(d, strlen(d), &spec.d, &spec.dlen, &err));
+    }
+    ck_assert(cjose_base64url_decode(x, strlen(x), &spec.x, &spec.xlen, &err));
+    cjose_jwk_t *jwk = cjose_jwk_create_OKP_spec(&spec, &err);
+    ck_assert_msg(NULL != jwk, "cjose_jwk_create_OKP_spec failed: %s", err.message);
+    _cjose_cleanse_dealloc(spec.d, spec.dlen);
+    cjose_get_dealloc()(spec.x);
+    return jwk;
+}
+
+// the ECDH of RFC 8037 Appendix A.6 and A.7, in both directions
+static void _ecdh_rfc8037(
+    cjose_jwk_okp_curve crv, const char *bob_d, const char *bob_x, const char *eph_d, const char *eph_x, const char *z_b64u)
+{
+    cjose_err err;
+    uint8_t *z = NULL;
+    size_t z_len = 0;
+    ck_assert(cjose_base64url_decode(z_b64u, strlen(z_b64u), &z, &z_len, &err));
+
+    // the private keys are given together with their public keys, which
+    // cjose checks belong together
+    cjose_jwk_t *eph = _okp_from_b64u(crv, eph_d, eph_x);
+    cjose_jwk_t *eph_pub = _okp_from_b64u(crv, NULL, eph_x);
+    cjose_jwk_t *bob = _okp_from_b64u(crv, bob_d, bob_x);
+    cjose_jwk_t *bob_pub = _okp_from_b64u(crv, NULL, bob_x);
+
+    // the sender computes Z from the ephemeral private key and Bob's public
+    // key, the receiver from Bob's private key and the ephemeral public key
+    const cjose_jwk_t *sides[][2] = { { eph, bob_pub }, { bob, eph_pub } };
+    for (size_t i = 0; i < 2; i++)
+    {
+        uint8_t *out = NULL;
+        size_t out_len = 0;
+        ck_assert_msg(cjose_jwk_derive_ecdh_bits(sides[i][0], sides[i][1], &out, &out_len, &err),
+                      "cjose_jwk_derive_ecdh_bits failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(z_len, out_len);
+        ck_assert(0 == memcmp(z, out, z_len));
+        _cjose_cleanse_dealloc(out, out_len);
+    }
+
+    // a public-only key cannot be the private side
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    ck_assert(!cjose_jwk_derive_ecdh_bits(bob_pub, eph_pub, &out, &out_len, &err));
+
+    cjose_jwk_release(eph);
+    cjose_jwk_release(eph_pub);
+    cjose_jwk_release(bob);
+    cjose_jwk_release(bob_pub);
+    cjose_get_dealloc()(z);
+}
+
+START_TEST(test_cjose_jwk_derive_ecdh_bits_okp)
+{
+    cjose_err err;
+
+    _ecdh_rfc8037(CJOSE_JWK_OKP_X25519, RFC8037_X25519_BOB_D, RFC8037_X25519_BOB_X, RFC8037_X25519_EPH_D, RFC8037_X25519_EPH_X,
+                  RFC8037_X25519_Z);
+    _ecdh_rfc8037(CJOSE_JWK_OKP_X448, RFC8037_X448_BOB_D, RFC8037_X448_BOB_X, RFC8037_X448_EPH_D, RFC8037_X448_EPH_X,
+                  RFC8037_X448_Z);
+
+    // keys of different types or curves, and the signature curves, do not agree
+    cjose_jwk_t *ec = cjose_jwk_create_EC_random(CJOSE_JWK_EC_P_256, &err);
+    cjose_jwk_t *x25519 = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_X25519, &err);
+    cjose_jwk_t *x25519_peer = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_X25519, &err);
+    cjose_jwk_t *x448 = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_X448, &err);
+    cjose_jwk_t *ed = cjose_jwk_create_OKP_random(CJOSE_JWK_OKP_ED25519, &err);
+    ck_assert(NULL != ec && NULL != x25519 && NULL != x25519_peer && NULL != x448 && NULL != ed);
+    const cjose_jwk_t *pairs[][2] = { { ec, x25519 }, { x25519, ec }, { x25519, x448 }, { ed, ed }, { x25519, ed } };
+    for (size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++)
+    {
+        uint8_t *out = NULL;
+        size_t out_len = 0;
+        ck_assert_msg(!cjose_jwk_derive_ecdh_bits(pairs[i][0], pairs[i][1], &out, &out_len, &err),
+                      "cjose_jwk_derive_ecdh_bits succeeded for mismatched keys (%zu)", i);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    }
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    ck_assert(cjose_jwk_derive_ecdh_bits(x25519, x25519_peer, &out, &out_len, &err));
+    ck_assert_int_eq(32, out_len);
+    _cjose_cleanse_dealloc(out, out_len);
+
+    cjose_jwk_release(ec);
+    cjose_jwk_release(x25519);
+    cjose_jwk_release(x25519_peer);
+    cjose_jwk_release(x448);
+    cjose_jwk_release(ed);
+}
+END_TEST
+
 Suite *cjose_jwk_suite(void)
 {
     Suite *suite = suite_create("jwk");
@@ -2024,6 +2137,7 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_random_weak_keysize);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_RSA_spec_weak_modulus);
+    tcase_add_test(tc_jwk, test_cjose_jwk_derive_ecdh_bits_okp);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_spec);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_rejects_out_of_range_private);
     tcase_add_test(tc_jwk, test_cjose_jwk_create_EC_P256_random);

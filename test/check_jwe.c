@@ -2518,6 +2518,297 @@ static const char *JWE_JSON_RSA_OAEP_256
       "kLDnnVrPaHUEUL79-KWMa-8tZ-SN0aHc2SuKQGNtNZsawMO05A\",\"header\":{\"alg\":\"RSA-OAEP\",\"kid\":\"oaep\"}}],\"tag\""
       ":\"Qc5-QsMtp9mUGBa7L0BXaA\"}";
 
+// OKP X25519, X448 and Ed25519 keys and ECDH-ES JWEs produced by python-jwcrypto
+// with the X25519 and X448 keys over PLAINTEXT_RSA_OAEP_256 (RFC 8037 section 3.2)
+static const char *JWK_OKP_X25519
+    = "{\"crv\":\"X25519\",\"d\":\"qHAB5F3M9hxL7ZDQ8TcyOUBNevDnJ5EVMEnWnF3xCFk\",\"kty\":\"OKP\",\"x\":\"gJ2aLU9SQ7QA9Uhaj"
+      "NXbHjoN4DXkpeJyqJpR9NlAmW0\"}";
+static const char *JWK_OKP_X448
+    = "{\"crv\":\"X448\",\"d\":\"pCvG4F8Bj5_mxnXq3nBfCgpKgHzlWPaVDTqwJM_XB4iJqL5zSCZp55wc0Q0idGh1cKWAzFr206w\",\"kty"
+      "\":\"OKP\",\"x\":\"VD1oTZcbrZf0ZoIyfWaYNLmCa1Ox2ATbs4vB9CTQP4gleQ0GDQWT1_3-MivY6lXH5sNGeyzcVYQ\"}";
+static const char *JWK_OKP_ED25519
+    = "{\"crv\":\"Ed25519\",\"d\":\"VMrqr6gioP37bFszQqnpMAAvKh3iAtMMJvNbamEitGw\",\"kty\":\"OKP\",\"x\":\"6vnVE2GuLNtXlOyR"
+      "RGWMp2Ayclcow67tt_d26x-ph14\"}";
+static const char *JWE_ECDH_ES_X25519_A128GCM
+    = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiV2xJ"
+      "YTlIdkJsajNjMDRXazdwR3pKcGtFUWFSRjlHU0w2QVd3M1l4REN6OCJ9fQ..rODMIvHQfm_nIXJK.nEuUN4Hpo-ydZNYfvuwRrS6"
+      "b8JK2Cq9lcCHdd1ZPFPUwts3LozFt3heaiLcPJTcodkEl_G7f03T5GJGzuhQ2.yGW2moIVMuWuS10vB42ldA";
+static const char *JWE_ECDH_ES_A256KW_X25519_A128CBC_HS256
+    = "eyJhbGciOiJFQ0RILUVTK0EyNTZLVyIsImVuYyI6IkExMjhDQkMtSFMyNTYiLCJlcGsiOnsiY3J2IjoiWDI1NTE5Iiwia3R5Ijoi"
+      "T0tQIiwieCI6InNWNlgwODB5TjZZVjNzSW8xdHcwbG54VEJ1ckZmUk9qTUFfY0RVbVBsVm8ifX0.TOF545p-jJum_sVmgLHyG70o"
+      "OrQAiIbh26FaaWl7BtBmcxRwFIMSOw.2YJ354jtFwx4ziCTPfbVKg.mJ9BzZZ7g8YSGy7Vp6MUmj__IGEVkVspwsdJ_jN-YcMYNu"
+      "BUutjKIoKEj2YscHbeWBCbbf3ASxoDnQ2l9rfoXA.SW6bSbJsr2-WBRyueHzPMw";
+static const char *JWE_ECDH_ES_X448_A256GCM
+    = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJYNDQ4Iiwia3R5IjoiT0tQIiwieCI6Ik0teXN2"
+      "TnNySm9wWVlGak42cEQzWlZMLU0ybXU3Q0N2YjQ3Qi11WUYxVzQwakl6ZzltbTU0XzVLdnhDQ2dkTVdpQzQ1dzA5MXBUayJ9fQ.."
+      "ZiRgVCuUeAlaMRJL.__hVCFR7Q3j6JcdLpXajSyD4CBDgTXMshTkttWX_GA5dVr7S02MXtmzoqFp5sniofG3adyoX4hhp0xqh_1c"
+      "3.FDfw04OugrpSTuTLX_QpYw";
+static const char *JWE_ECDH_ES_A128KW_X448_A256GCM
+    = "eyJhbGciOiJFQ0RILUVTK0ExMjhLVyIsImVuYyI6IkEyNTZHQ00iLCJlcGsiOnsiY3J2IjoiWDQ0OCIsImt0eSI6Ik9LUCIsIngi"
+      "OiJVd2ZQUWE1ay0ycGZRVEZmTFVIby1JRnlWMnJ1TDBFYzJtdUQ5WjcxT3VlTWlCeTV4akZWSDJRWDA4Z3duaDg5S3J1cElSdHJI"
+      "eHcifX0.WeWvw-ve2aynM6NmLqYO-e_Q8cyD1AFwoU187TX8gmLJOQcrb7aDNg.RC5hj4D7Av2dLGNx.1FXtCTZ9P6IrUkbchJ6O"
+      "4tC7f_ka8TmobSXnq2Bfvnhs_8dz1gXTItlGaBYqnJGmydpAI7tf8_i6Cp3YIg-Z.9cXIIfIGpq5RK3y5HuCy7g";
+
+START_TEST(test_cjose_jwe_ecdh_es_okp_self_encrypt_self_decrypt)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+    const char *keys[] = { JWK_OKP_X25519, JWK_OKP_X448 };
+    const char *curves[] = { "X25519", "X448" };
+
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+    {
+        _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A256GCM, keys[i], plain, sizeof(plain) - 1);
+        _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ENC_A128CBC_HS256, keys[i], plain, sizeof(plain) - 1);
+        _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ENC_A128GCM, keys[i], plain, sizeof(plain) - 1);
+        _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ENC_A192CBC_HS384, keys[i], plain,
+                                            sizeof(plain) - 1);
+        _self_encrypt_self_decrypt_with_key(CJOSE_HDR_ALG_ECDH_ES_A256KW, CJOSE_HDR_ENC_A256CBC_HS512, keys[i], plain,
+                                            sizeof(plain) - 1);
+
+        // the ephemeral key is a public OKP key on the recipient key's curve
+        cjose_jwk_t *jwk = cjose_jwk_import(keys[i], strlen(keys[i]), &err);
+        ck_assert(NULL != jwk);
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed for %s: %s", curves[i], err.message);
+        json_t *epk = json_object_get((json_t *)cjose_jwe_get_protected(jwe), CJOSE_HDR_EPK);
+        ck_assert(json_is_object(epk));
+        ck_assert_str_eq("OKP", json_string_value(json_object_get(epk, "kty")));
+        ck_assert_str_eq(curves[i], json_string_value(json_object_get(epk, "crv")));
+        ck_assert(NULL == json_object_get(epk, "d"));
+        cjose_jwe_release(jwe);
+        cjose_header_release(hdr);
+        cjose_jwk_release(jwk);
+    }
+}
+END_TEST
+
+START_TEST(test_cjose_jwe_ecdh_es_okp_interop)
+{
+    cjose_err err;
+    struct
+    {
+        const char *jwe;
+        const char *key;
+        const char *alg;
+        const char *crv;
+    } vectors[] = {
+        { JWE_ECDH_ES_X25519_A128GCM, JWK_OKP_X25519, CJOSE_HDR_ALG_ECDH_ES, "X25519" },
+        { JWE_ECDH_ES_A256KW_X25519_A128CBC_HS256, JWK_OKP_X25519, CJOSE_HDR_ALG_ECDH_ES_A256KW, "X25519" },
+        { JWE_ECDH_ES_X448_A256GCM, JWK_OKP_X448, CJOSE_HDR_ALG_ECDH_ES, "X448" },
+        { JWE_ECDH_ES_A128KW_X448_A256GCM, JWK_OKP_X448, CJOSE_HDR_ALG_ECDH_ES_A128KW, "X448" },
+    };
+    for (size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++)
+    {
+        cjose_jwk_t *jwk = cjose_jwk_import(vectors[i].key, strlen(vectors[i].key), &err);
+        ck_assert(NULL != jwk);
+        cjose_jwe_t *jwe = cjose_jwe_import(vectors[i].jwe, strlen(vectors[i].jwe), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_import failed (%zu): %s", i, err.message);
+        ck_assert_str_eq(vectors[i].alg, cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_ALG, &err));
+        json_t *epk = json_object_get((json_t *)cjose_jwe_get_protected(jwe), CJOSE_HDR_EPK);
+        ck_assert_str_eq(vectors[i].crv, json_string_value(json_object_get(epk, "crv")));
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(strlen(PLAINTEXT_RSA_OAEP_256), plain_len);
+        ck_assert(0 == memcmp(PLAINTEXT_RSA_OAEP_256, plain, plain_len));
+        cjose_get_dealloc()(plain);
+        cjose_jwe_release(jwe);
+        cjose_jwk_release(jwk);
+    }
+}
+END_TEST
+
+// re-encode the compact serialization with the given "epk" in the protected
+// header; the AAD changes with it, but the ephemeral key is checked before the
+// content is authenticated
+static char *_jwe_with_epk(const char *compact, const char *epk_json)
+{
+    cjose_err err;
+    const char *dot = strchr(compact, '.');
+    ck_assert(NULL != dot);
+    uint8_t *raw = NULL;
+    size_t raw_len = 0;
+    ck_assert(cjose_base64url_decode(compact, dot - compact, &raw, &raw_len, &err));
+    json_t *hdr = json_loadb((const char *)raw, raw_len, 0, NULL);
+    ck_assert(NULL != hdr);
+    json_t *epk = json_loads(epk_json, 0, NULL);
+    ck_assert(NULL != epk);
+    ck_assert(0 == json_object_set_new(hdr, CJOSE_HDR_EPK, epk));
+    char *hdr_str = json_dumps(hdr, JSON_COMPACT);
+    ck_assert(NULL != hdr_str);
+    char *hdr_b64u = NULL;
+    size_t hdr_b64u_len = 0;
+    ck_assert(cjose_base64url_encode((const uint8_t *)hdr_str, strlen(hdr_str), &hdr_b64u, &hdr_b64u_len, &err));
+    char *result = malloc(hdr_b64u_len + strlen(dot) + 1);
+    ck_assert(NULL != result);
+    memcpy(result, hdr_b64u, hdr_b64u_len);
+    strcpy(result + hdr_b64u_len, dot);
+    cjose_get_dealloc()(hdr_b64u);
+    cjose_get_dealloc()(hdr_str);
+    json_decref(hdr);
+    cjose_get_dealloc()(raw);
+    return result;
+}
+
+static void _ecdh_decrypt_ok(const char *compact, const char *key, const uint8_t *expected, size_t expected_len)
+{
+    cjose_err err;
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert(NULL != jwk);
+    cjose_jwe_t *jwe = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed: %s", err.message);
+    ck_assert_int_eq(expected_len, plain_len);
+    ck_assert(0 == memcmp(expected, plain, plain_len));
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe);
+    cjose_jwk_release(jwk);
+}
+
+static void _ecdh_decrypt_expect(const char *compact, const char *key, cjose_errcode expected)
+{
+    cjose_err err;
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
+    ck_assert(NULL != jwk);
+    cjose_jwe_t *jwe = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded unexpectedly");
+    ck_assert_int_eq(expected, err.code);
+    cjose_jwe_release(jwe);
+    cjose_jwk_release(jwk);
+}
+
+// RFC 7518 section 4.6.1.1: the "epk" header carries public key parameters
+// only, for EC keys as well as for the OKP curves
+START_TEST(test_cjose_jwe_ecdh_es_private_epk)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(NULL != hdr);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+
+    // the public ephemeral key the encryption published still decrypts
+    _ecdh_decrypt_ok(compact, JWK_EC, plain, sizeof(plain) - 1);
+
+    // the same key with its private part in "epk" is refused, and so is one
+    // that merely names "d", which the import would otherwise read as a public
+    // key (RFC 7518 section 4.6.1.1 allows public parameters only)
+    char *private_epk = cjose_jwk_to_json(ec, true, &err);
+    char *public_epk = cjose_jwk_to_json(ec, false, &err);
+    ck_assert(NULL != private_epk && NULL != public_epk);
+    ck_assert(NULL != strstr(private_epk, "\"d\"") && NULL == strstr(public_epk, "\"d\""));
+    char empty_d[512], null_d[512];
+    ck_assert(strlen(public_epk) < sizeof(empty_d) - 16);
+    snprintf(empty_d, sizeof(empty_d), "%.*s,\"d\":\"\"}", (int)strlen(public_epk) - 1, public_epk);
+    snprintf(null_d, sizeof(null_d), "%.*s,\"d\":null}", (int)strlen(public_epk) - 1, public_epk);
+    const char *bad_epks[] = { private_epk, empty_d, null_d };
+    for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
+    {
+        char *modified = _jwe_with_epk(compact, bad_epks[i]);
+        _ecdh_decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
+        free(modified);
+    }
+
+    cjose_get_dealloc()(public_epk);
+    cjose_get_dealloc()(private_epk);
+    cjose_get_dealloc()(compact);
+    cjose_jwk_release(ec);
+    cjose_header_release(hdr);
+}
+END_TEST
+
+START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(NULL != hdr);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    // the signature curves do not do key agreement
+    cjose_jwk_t *ed = cjose_jwk_import(JWK_OKP_ED25519, strlen(JWK_OKP_ED25519), &err);
+    ck_assert(NULL != ed);
+    ck_assert(NULL == cjose_jwe_encrypt(ed, hdr, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
+    ck_assert(NULL == cjose_jwe_encrypt(ed, hdr, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+
+    // a good X25519 JWE ...
+    cjose_jwk_t *x25519 = cjose_jwk_import(JWK_OKP_X25519, strlen(JWK_OKP_X25519), &err);
+    ck_assert(NULL != x25519);
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(x25519, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+
+    // ... is refused with a key of another type or curve
+    _ecdh_decrypt_expect(compact, JWK_OKP_ED25519, CJOSE_ERR_INVALID_ARG);
+    _ecdh_decrypt_expect(compact, JWK_OKP_X448, CJOSE_ERR_INVALID_ARG);
+    _ecdh_decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
+
+    // ... and with an ephemeral key of another type or curve, or of the wrong size
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    cjose_jwk_t *x448 = cjose_jwk_import(JWK_OKP_X448, strlen(JWK_OKP_X448), &err);
+    ck_assert(NULL != ec && NULL != x448);
+    char *ec_epk = cjose_jwk_to_json(ec, false, &err);
+    char *x448_epk = cjose_jwk_to_json(x448, false, &err);
+    ck_assert(NULL != ec_epk && NULL != x448_epk);
+    // ... or one that carries the private part, which RFC 7518 section 4.6.1.1
+    // does not allow in the "epk" header
+    char *x25519_private_epk = cjose_jwk_to_json(x25519, true, &err);
+    ck_assert(NULL != x25519_private_epk);
+    static const char *const X25519_PUB
+        = "\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"gJ2aLU9SQ7QA9UhajNXbHjoN4DXkpeJyqJpR9NlAmW0\"";
+    char okp_empty_d[256], okp_null_d[256];
+    snprintf(okp_empty_d, sizeof(okp_empty_d), "{%s,\"d\":\"\"}", X25519_PUB);
+    snprintf(okp_null_d, sizeof(okp_null_d), "{%s,\"d\":null}", X25519_PUB);
+    const char *epks[]
+        = { ec_epk, x448_epk, "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"x\":\"AAAA\"}", x25519_private_epk, okp_empty_d, okp_null_d };
+    for (size_t i = 0; i < sizeof(epks) / sizeof(epks[0]); i++)
+    {
+        char *modified = _jwe_with_epk(compact, epks[i]);
+        _ecdh_decrypt_expect(modified, JWK_OKP_X25519, CJOSE_ERR_INVALID_ARG);
+        free(modified);
+    }
+
+    cjose_get_dealloc()(x25519_private_epk);
+    cjose_get_dealloc()(ec_epk);
+    cjose_get_dealloc()(x448_epk);
+    cjose_get_dealloc()(compact);
+    cjose_jwk_release(ec);
+    cjose_jwk_release(x448);
+    cjose_jwk_release(x25519);
+    cjose_jwk_release(ed);
+    cjose_header_release(hdr);
+}
+END_TEST
+
 // AES GCM key wrapping JWEs produced by python-jwcrypto with the JWK_OCT_16,
 // JWK_OCT_24 and JWK_OCT_32 keys over PLAINTEXT_RSA_OAEP_256: three compact
 // serializations and a JSON serialization carrying "iv" and "tag" in the
@@ -2678,6 +2969,10 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_generated_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_json_header_rules);
     tcase_add_test(tc_jwe, test_cjose_jwe_aes_gcm_kw_interop);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_interop);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_bad_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_private_epk);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);

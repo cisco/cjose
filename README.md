@@ -32,8 +32,8 @@ JWE key management algorithms (`alg`):
 | `A128KW`, `A192KW`, `A256KW` | AES Key Wrap | |
 | `A128GCMKW`, `A192GCMKW`, `A256GCMKW` | AES GCM key wrapping | |
 | `dir` | direct use of a shared symmetric key | |
-| `ECDH-ES` | ECDH-ES direct key agreement | |
-| `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW` | ECDH-ES with AES Key Wrap | |
+| `ECDH-ES` | ECDH-ES direct key agreement, with an EC key or an OKP `X25519` or `X448` key | |
+| `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW` | ECDH-ES with AES Key Wrap, with an EC key or an OKP `X25519` or `X448` key | |
 
 JWE content encryption algorithms (`enc`):
 
