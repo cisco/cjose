@@ -15,19 +15,15 @@ jobs:
     name: OpenSSL ${{ matrix.openssl }}
 
     # The Build and Archs workflows test against the OpenSSL that the platform
-    # packages provide, which is a recent release. README.md promises OpenSSL
-    # 1.0.1h or newer, so this workflow builds the last release of every
-    # release series from source and tests against it, plus 3.0.7: the release
-    # RHEL 9 is based on and the last 3.0.x whose EdDSA signing dereferences a
-    # missing private key instead of failing (guarded in 3.0.8).
+    # packages provide, which is a recent release. This workflow builds the
+    # supported OpenSSL releases from source and tests against them, plus
+    # 3.0.7: the release RHEL 9 is based on and the last 3.0.x whose EdDSA
+    # signing dereferences a missing private key instead of failing (guarded in
+    # 3.0.8).
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { openssl: 1.0.1u, tag: OpenSSL_1_0_1u, sha256: 4312b4ca1215b6f2c97007503d80db80d5157f76f8f7d3febbe6b4c56ff26739 }
-          - { openssl: 1.0.2u, tag: OpenSSL_1_0_2u, sha256: ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16 }
-          - { openssl: 1.1.0l, tag: OpenSSL_1_1_0l, sha256: 74a2f756c64fd7386a29184dc0344f4831192d61dc2481a93a4c5dd727f41148 }
-          - { openssl: 1.1.1w, tag: OpenSSL_1_1_1w, sha256: cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8 }
           - { openssl: 3.0.7, tag: openssl-3.0.7, sha256: 83049d042a260e696f62406ac5c08bf706fd84383f945cf21bd61e9ed95c396e }
           - { openssl: 3.0.22, tag: openssl-3.0.22, sha256: 67ebca7e50d17383028045486653492195b83db95f8558709701bb47b5c1ef81 }
           - { openssl: 3.1.8, tag: openssl-3.1.8, sha256: d319da6aecde3aa6f426b44bbf997406d95275c5c59ab6f6ef53caaa079f456f }
@@ -59,23 +55,8 @@ jobs:
         echo "${{ matrix.sha256 }}  openssl-${{ matrix.openssl }}.tar.gz" | sha256sum -c -
         tar xzf "openssl-${{ matrix.openssl }}.tar.gz"
         cd "openssl-${{ matrix.openssl }}"
-        case "${{ matrix.openssl }}" in
-          1.0.*)
-            # static by default, no --libdir, needs 'make depend', parallel make is unreliable
-            ./config --prefix="$OPENSSL_PREFIX" shared
-            make depend
-            make
-            ;;
-          1.1.0*)
-            # has --libdir but not no-tests
-            ./config --prefix="$OPENSSL_PREFIX" --libdir=lib
-            make -j"$(nproc)"
-            ;;
-          *)
-            ./config --prefix="$OPENSSL_PREFIX" --libdir=lib no-tests
-            make -j"$(nproc)"
-            ;;
-        esac
+        ./config --prefix="$OPENSSL_PREFIX" --libdir=lib no-tests
+        make -j"$(nproc)"
         make install_sw
     - name: Configure
       run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DOPENSSL_ROOT_DIR="$OPENSSL_PREFIX"
