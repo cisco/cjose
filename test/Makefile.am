@@ -1,12 +1,14 @@
 if HAVE_CHECK
 
-AM_CPPFLAGS =-std=gnu99 --pedantic -Wall -Werror -g -O2 -DOPENSSL_API_COMPAT=0x10100000L -I$(top_builddir)/include
+AM_CPPFLAGS =-std=gnu99 --pedantic -Wall -Werror -g -O2 -DOPENSSL_API_COMPAT=0x10100000L -I$(top_builddir)/include \
+              -I$(top_srcdir)/include -I$(top_builddir)/include/cjose
 
 AM_CPPFLAGS += @CHECK_CFLAGS@
 TESTS = check_cjose
 
 check_PROGRAMS = $(TESTS)
-check_cjose_CFLAGS = @CHECK_CFLAGS@ -I$(top_builddir)/include \
+check_cjose_CFLAGS = @CHECK_CFLAGS@ -I$(top_builddir)/include -I$(top_srcdir)/include \
+                     -I$(top_builddir)/include/cjose \
                      -I$(top_builddir)/src -I$(top_srcdir)/src
 check_cjose_LDADD = $(top_builddir)/src/libcjose.la @CHECK_LIBS@
 check_cjose_SOURCES = check_cjose.c \

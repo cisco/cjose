@@ -1715,41 +1715,237 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
 }
 END_TEST
 
+// RFC 7516 section 7.2.1: the member names of the protected, shared
+// unprotected and per-recipient headers of a JSON serialization are disjoint.
+// Without that, the per-recipient lookup lets an unprotected copy shadow the
+// name the content encryption authenticates.
+START_TEST(test_cjose_jwe_json_header_disjoint)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_OCT_16, strlen(JWK_OCT_16), &err);
+    ck_assert(NULL != jwk);
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_jwe_recipient_t rec[] = { { jwk, NULL } };
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(rec, 1, protected_header, NULL, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert(NULL != json);
+    cjose_jwe_release(jwe);
+
+    // what cjose produces still imports
+    memset(&err, 0, sizeof(err));
+    cjose_jwe_t *ok = cjose_jwe_import_json(json, strlen(json), &err);
+    ck_assert_msg(NULL != ok, "cjose_jwe_import_json failed: %s", err.message);
+    cjose_jwe_release(ok);
+
+    // an unprotected "alg" beside the protected one is refused rather than
+    // resolved in favour of the copy nothing authenticates
+    json_t *form = json_loads(json, 0, NULL);
+    ck_assert(NULL != form);
+    json_t *header = json_object();
+    ck_assert(0 == json_object_set_new(header, CJOSE_HDR_ALG, json_string(CJOSE_HDR_ALG_DIR)));
+    ck_assert(0 == json_object_set_new(form, "header", header));
+    char *tampered = json_dumps(form, JSON_COMPACT);
+    ck_assert(NULL != tampered);
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jwe_import_json(tampered, strlen(tampered), &err),
+                  "a JWE repeating \"alg\" across two header locations was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    cjose_get_dealloc()(tampered);
+    json_decref(form);
+
+    // the same across the shared and a per-recipient header, on a JWE with two
+    // of them
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk32);
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set(shared, CJOSE_HDR_KID, "shared", &err));
+    cjose_header_t *rec_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(rec_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(rec_hdr, CJOSE_HDR_KID, "recipient", &err));
+    cjose_header_t *rec_hdr2 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(rec_hdr2, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A256KW, &err));
+    cjose_header_t *enc_only = cjose_header_new(&err);
+    ck_assert(cjose_header_set(enc_only, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_jwe_recipient_t two[] = { { jwk, rec_hdr }, { jwk32, rec_hdr2 } };
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(two, 2, enc_only, shared, plain, sizeof(plain) - 1, &err),
+                  "a name repeated across the shared and a recipient header was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // a parameter the key agreement produces itself may not come from the
+    // caller: it would leave "epk" in two locations, and the JWE that left the
+    // encryption could not be imported again
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    cjose_header_t *ecdh_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(ecdh_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    ck_assert(cjose_header_set(ecdh_hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_header_t *epk_shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set_raw(epk_shared, CJOSE_HDR_EPK,
+                                   "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"DxaAKzwruXJh4IkdieycIJER6w8M1TYMCV3qOa-l9CM\","
+                                   "\"y\":\"_kRI1aD7-PMFwhUpXmcRzw6hALF_xdKwADuKOM-xsak\"}",
+                                   &err));
+    cjose_jwe_recipient_t one_ec[] = { { ec, NULL } };
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(one_ec, 1, ecdh_hdr, epk_shared, plain, sizeof(plain) - 1, &err),
+                  "a caller-supplied epk was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    cjose_header_release(epk_shared);
+    cjose_header_release(ecdh_hdr);
+    cjose_jwk_release(ec);
+    cjose_header_release(enc_only);
+    cjose_header_release(rec_hdr2);
+    cjose_header_release(rec_hdr);
+    cjose_header_release(shared);
+    cjose_jwk_release(jwk32);
+
+    cjose_get_dealloc()(json);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+// RFC 7518 section 4.6.1.1: the "epk" header carries public key parameters
+// only, so an ephemeral key that names "d" is refused whatever it holds
+START_TEST(test_cjose_jwe_ecdh_es_private_epk)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    // both the direct key agreement and the key wrapping variant read "epk"
+    const char *algs[] = { CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ALG_ECDH_ES_A128KW };
+    for (size_t a = 0; a < sizeof(algs) / sizeof(algs[0]); a++)
+    {
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, algs[a], &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+        char *compact = cjose_jwe_export(jwe, &err);
+        ck_assert(NULL != compact);
+        cjose_jwe_release(jwe);
+
+        // rebuild the protected header with an "epk" that carries a private part
+        const char *dot = strchr(compact, '.');
+        ck_assert(NULL != dot);
+        uint8_t *raw = NULL;
+        size_t raw_len = 0;
+        ck_assert(cjose_base64url_decode(compact, dot - compact, &raw, &raw_len, &err));
+        json_t *header = json_loadb((const char *)raw, raw_len, 0, NULL);
+        ck_assert(NULL != header);
+        const char *bad_epks[] = { JWK_EC, "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":\"\"}",
+                                   "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":null}" };
+        for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
+        {
+            json_t *epk = json_loads(bad_epks[i], 0, NULL);
+            ck_assert(NULL != epk);
+            ck_assert(0 == json_object_set(header, CJOSE_HDR_EPK, epk));
+            json_decref(epk);
+            char *header_str = json_dumps(header, JSON_COMPACT);
+            char *header_b64u = NULL;
+            size_t header_b64u_len = 0;
+            ck_assert(
+                cjose_base64url_encode((const uint8_t *)header_str, strlen(header_str), &header_b64u, &header_b64u_len, &err));
+            char *modified = malloc(header_b64u_len + strlen(dot) + 1);
+            ck_assert(NULL != modified);
+            memcpy(modified, header_b64u, header_b64u_len);
+            strcpy(modified + header_b64u_len, dot);
+
+            // the "epk" is read when the key agreement runs, not when the JWE is
+            // parsed, so the refusal has to show on decrypt
+            memset(&err, 0, sizeof(err));
+            cjose_jwe_t *imported = cjose_jwe_import(modified, strlen(modified), &err);
+            ck_assert_msg(NULL != imported, "cjose_jwe_import failed: %s", err.message);
+            size_t plain_len = 0;
+            uint8_t *decrypted = cjose_jwe_decrypt(imported, ec, &plain_len, &err);
+            ck_assert_msg(NULL == decrypted, "an epk with a private member was accepted (%zu)", i);
+            ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+            cjose_get_dealloc()(decrypted);
+            cjose_jwe_release(imported);
+
+            free(modified);
+            cjose_get_dealloc()(header_b64u);
+            cjose_get_dealloc()(header_str);
+        }
+
+        json_decref(header);
+        cjose_get_dealloc()(raw);
+        cjose_get_dealloc()(compact);
+        cjose_header_release(hdr);
+    }
+
+    // and supplying an "epk" to an encryption is refused up front, wherever it
+    // sits: the key agreement produces that parameter itself
+    cjose_header_t *own_epk = cjose_header_new(&err);
+    ck_assert(cjose_header_set(own_epk, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
+    ck_assert(cjose_header_set(own_epk, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+    json_t *epk_value = json_loads(JWK_EC, 0, NULL);
+    ck_assert(NULL != epk_value);
+    ck_assert(0 == json_object_set_new((json_t *)own_epk, CJOSE_HDR_EPK, epk_value));
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt(ec, own_epk, plain, sizeof(plain) - 1, &err),
+                  "a caller-supplied epk in the protected header was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(own_epk);
+
+    cjose_jwk_release(ec);
+}
+END_TEST
+
 // regression: ECDH-ES key agreement must not dereference a NULL cjose_err.
 // cjose_concatkdf_create_otherinfo() used to memset(err, ...) unconditionally,
 // crashing when the public JWE API was invoked with a NULL err argument.
 START_TEST(test_cjose_jwe_ecdh_es_null_err)
 {
+    // the trailing cjose_err is optional throughout the public API, so every
+    // ECDH-ES variant has to survive a NULL one: the key agreement inspects
+    // err->code to tell an absent "epk" header from a real failure
+    static const char *const algs[]
+        = { CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ALG_ECDH_ES_A128KW, CJOSE_HDR_ALG_ECDH_ES_A192KW, CJOSE_HDR_ALG_ECDH_ES_A256KW };
+
     cjose_jwk_t *jwk = cjose_jwk_import(JWK_EC, strlen(JWK_EC), NULL);
     ck_assert_msg(NULL != jwk, "cjose_jwk_import failed for EC key");
 
-    cjose_header_t *hdr = cjose_header_new(NULL);
-    ck_assert_msg(NULL != hdr, "cjose_header_new failed");
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, NULL));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
+    for (size_t i = 0; i < sizeof(algs) / sizeof(algs[0]); i++)
+    {
+        cjose_header_t *hdr = cjose_header_new(NULL);
+        ck_assert_msg(NULL != hdr, "cjose_header_new failed");
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, algs[i], NULL));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, NULL));
 
-    // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
-    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (ECDH-ES) failed with NULL err");
+        // encrypt with a NULL err: must not crash in the ConcatKDF otherinfo path
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, (const uint8_t *)PLAINTEXT, strlen(PLAINTEXT), NULL);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt (%s) failed with NULL err", algs[i]);
 
-    char *compact = cjose_jwe_export(jwe, NULL);
-    ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
+        char *compact = cjose_jwe_export(jwe, NULL);
+        ck_assert_msg(NULL != compact, "cjose_jwe_export failed");
 
-    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
-    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
+        cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), NULL);
+        ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed");
 
-    // decrypt with a NULL err: again exercises the ConcatKDF path
-    size_t plain_len = 0;
-    uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
-    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (ECDH-ES) failed with NULL err");
-    ck_assert(plain_len == strlen(PLAINTEXT));
-    ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
+        // decrypt with a NULL err: again exercises the ConcatKDF path
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe2, jwk, &plain_len, NULL);
+        ck_assert_msg(NULL != plain, "cjose_jwe_decrypt (%s) failed with NULL err", algs[i]);
+        ck_assert(plain_len == strlen(PLAINTEXT));
+        ck_assert(strncmp(PLAINTEXT, (const char *)plain, plain_len) == 0);
 
-    cjose_get_dealloc()(plain);
-    cjose_get_dealloc()(compact);
-    cjose_jwe_release(jwe);
-    cjose_jwe_release(jwe2);
-    cjose_header_release(hdr);
+        cjose_get_dealloc()(plain);
+        cjose_get_dealloc()(compact);
+        cjose_jwe_release(jwe);
+        cjose_jwe_release(jwe2);
+        cjose_header_release(hdr);
+    }
+
     cjose_jwk_release(jwk);
 }
 END_TEST
@@ -2084,6 +2280,8 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_rsa_wrong_cek_length);
     tcase_add_test(tc_jwe, test_cjose_jwe_import_json_shared_unprotected);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_null_err);
+    tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_private_epk);
+    tcase_add_test(tc_jwe, test_cjose_jwe_json_header_disjoint);
     tcase_add_test(tc_jwe, test_cjose_jwe_direct_rejects_encrypted_key);
     suite_add_tcase(suite, tc_jwe);
 

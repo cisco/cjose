@@ -290,6 +290,29 @@ static bool _cjose_jwe_build_hdr(cjose_jwe_t *jwe, cjose_err *err)
     return true;
 }
 
+// like _cjose_jwe_get_from_headers, but returns the JSON value, so that a
+// parameter whose value is not a string can be found at all
+static json_t *_cjose_jwe_get_json_from_headers(cjose_header_t *protected_header,
+                                                cjose_header_t *unprotected_header,
+                                                cjose_header_t *personal_header,
+                                                const char *key)
+{
+    cjose_header_t *headers[] = { personal_header, unprotected_header, protected_header };
+    for (int i = 0; i < 3; i++)
+    {
+        if (NULL == headers[i])
+        {
+            continue;
+        }
+        json_t *obj = json_object_get((json_t *)headers[i], key);
+        if (NULL != obj)
+        {
+            return obj;
+        }
+    }
+    return NULL;
+}
+
 static const char *_cjose_jwe_get_from_headers(cjose_header_t *protected_header,
                                                cjose_header_t *unprotected_header,
                                                cjose_header_t *personal_header,
@@ -365,6 +388,16 @@ static bool _cjose_jwe_validate_alg(cjose_header_t *protected_header,
                                     cjose_err *err)
 {
     static const char *const supported_crit_headers[] = { "alg", "enc", "cty", "epk", "apu", "apv" };
+
+    // RFC 7516 section 7.2.1: the three header locations must be disjoint. The
+    // lookups below resolve a name per-recipient first, then shared, then
+    // protected, so without this an unprotected copy would shadow the one the
+    // content encryption authenticates.
+    cjose_header_t *headers[] = { protected_header, unprotected_header, (cjose_header_t *)recipient->unprotected };
+    if (!_cjose_header_validate_disjoint(headers, sizeof(headers) / sizeof(headers[0]), err))
+    {
+        return false;
+    }
 
     if (!_cjose_header_validate_crit(protected_header, supported_crit_headers,
                                      sizeof(supported_crit_headers) / sizeof(supported_crit_headers[0]), err)
@@ -968,6 +1001,44 @@ static bool _cjose_jwe_decrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_
 #endif // HAVE_RSA_PKCS1_PADDING
 
 ////////////////////////////////////////////////////////////////////////////////
+// a header parameter that the key agreement produces itself must not be
+// supplied by the caller: it would end up in two of the three header locations,
+// which RFC 7516 section 7.2.1 does not allow, or silently replace what the
+// caller set
+static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, const char *name, cjose_err *err)
+{
+    // the value is looked up as JSON: "epk" is an object, and a string-valued
+    // lookup would not see it at all
+    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RFC 7518 section 4.6.1.1: the "epk" header holds the public key parameters of
+// the ephemeral key and nothing else, so a private member is refused on sight,
+// whatever the import would make of its value
+static bool _cjose_jwe_epk_is_public(const char *epk_json, cjose_err *err)
+{
+    json_t *epk = json_loads(epk_json, 0, NULL);
+    if (NULL == epk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    const bool result = (NULL == json_object_get(epk, "d"));
+    json_decref(epk);
+    if (!result)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose_jwe_t *jwe, const cjose_jwk_t *jwk, cjose_err *err)
 {
     cjose_jwk_t *epk_jwk = NULL;
@@ -978,6 +1049,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -1078,7 +1155,10 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     char *epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
-        epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        if (_cjose_jwe_epk_is_public(epk_json, err))
+        {
+            epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        }
     }
     else if (CJOSE_ERR_NONE == err->code)
     {
@@ -1160,6 +1240,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
     size_t otherinfo_len = 0;
     uint8_t *kek = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -1250,11 +1336,22 @@ static bool _cjose_jwe_decrypt_ek_ecdh_es_kw(
     uint8_t *kek = NULL;
     bool result = false;
 
+    // err is optional in the public API, but the logic below inspects
+    // err->code to distinguish an absent EPK header from a real failure;
+    // fall back to a local error object when the caller did not supply one
+    cjose_err local_err;
+    if (NULL == err)
+    {
+        err = &local_err;
+    }
     memset(err, 0, sizeof(cjose_err));
     epk_json = cjose_header_get_raw(jwe->hdr, CJOSE_HDR_EPK, err);
     if (NULL != epk_json)
     {
-        epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        if (_cjose_jwe_epk_is_public(epk_json, err))
+        {
+            epk_jwk = cjose_jwk_import(epk_json, strlen(epk_json), err);
+        }
     }
     else if (CJOSE_ERR_NONE == err->code)
     {
@@ -2077,7 +2174,7 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
         jwe->to[i].unprotected = json_incref(recipients[i].unprotected_header);
 
         // make sure we have an alg header
-        if (!_cjose_jwe_validate_alg(protected_header, jwe->to[i].unprotected, recipient_count > 1, jwe->to + i, err))
+        if (!_cjose_jwe_validate_alg(protected_header, shared_unprotected_header, recipient_count > 1, jwe->to + i, err))
         {
             cjose_jwe_release(jwe);
             return NULL;
@@ -2098,6 +2195,21 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
 
         // build JWE content-encryption key and encrypted key
         if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, recipients[i].jwk, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+    }
+
+    // the algorithms have written the parameters they produce by now, so the
+    // names of the assembled headers are checked once more: what leaves here
+    // has to be a JWE that can be imported again (RFC 7516 section 7.2.1)
+    for (size_t i = 0; i < recipient_count; i++)
+    {
+        cjose_header_t *assembled[]
+            = { (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, (cjose_header_t *)jwe->to[i].unprotected };
+
+        if (!_cjose_header_validate_disjoint(assembled, sizeof(assembled) / sizeof(assembled[0]), err))
         {
             cjose_jwe_release(jwe);
             return NULL;
