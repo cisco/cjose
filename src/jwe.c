@@ -1195,7 +1195,6 @@ static bool _cjose_jwe_encrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_j
     size_t kek_len = 0;
     uint8_t kek[32];
     uint8_t *p2s = NULL;
-    size_t p2s_len = 0;
     char *p2s_b64u = NULL;
     size_t p2s_b64u_len = 0;
     json_int_t p2c = CJOSE_JWE_PBES2_DEFAULT_ITERATIONS;
@@ -1213,53 +1212,48 @@ static bool _cjose_jwe_encrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_j
         return false;
     }
 
+    // RFC 7518 section 4.8.1.1: a new salt input MUST be generated randomly for
+    // every encryption operation, so the salt is always generated below. What
+    // this refusal adds is that a caller-supplied "p2s" is not quietly dropped,
+    // and that it is refused before any key derivation runs. The iteration
+    // count is a policy choice rather than a value that has to be fresh, so a
+    // caller-supplied "p2c" is used as it is.
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_P2S, err))
+    {
+        return false;
+    }
+
     // the header the parameters are published in; taken first, so that the
-    // lookups below see the recipient header the JWE will keep
+    // lookup below sees the recipient header the JWE will keep
     json_t *target = _cjose_jwe_recipient_param_target(jwe, recipient, err);
     if (NULL == target)
     {
         return false;
     }
 
-    // a caller-supplied "p2s" and "p2c" are used as they are, otherwise a
-    // random salt and the default iteration count are generated and published
-    json_t *p2s_obj
-        = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2S);
     json_t *p2c_obj
         = _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, CJOSE_HDR_P2C);
-    if ((NULL != p2s_obj && !json_is_string(p2s_obj)) || (NULL != p2c_obj && !json_is_integer(p2c_obj)))
+    if (NULL != p2c_obj)
+    {
+        if (!json_is_integer(p2c_obj))
+        {
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            return false;
+        }
+        p2c = json_integer_value(p2c_obj);
+    }
+    if (p2c < CJOSE_JWE_PBES2_MIN_ITERATIONS || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
-    if (NULL != p2s_obj)
+
+    if (!_cjose_jwe_malloc(CJOSE_JWE_PBES2_SALT_LEN, true, &p2s, err))
     {
-        if (!cjose_base64url_decode(json_string_value(p2s_obj), strlen(json_string_value(p2s_obj)), &p2s, &p2s_len, err))
-        {
-            return false;
-        }
+        return false;
     }
-    else
-    {
-        if (!_cjose_jwe_malloc(CJOSE_JWE_PBES2_SALT_LEN, true, &p2s, err))
-        {
-            return false;
-        }
-        p2s_len = CJOSE_JWE_PBES2_SALT_LEN;
-    }
-    if (NULL != p2c_obj)
-    {
-        p2c = json_integer_value(p2c_obj);
-    }
-    if (p2s_len < CJOSE_JWE_PBES2_MIN_SALT_LEN || p2s_len > CJOSE_JWE_PBES2_MAX_SALT_LEN || p2c < CJOSE_JWE_PBES2_MIN_ITERATIONS
-        || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
-    {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
-        goto cjose_encrypt_ek_pbes2_finish;
-    }
-    if (NULL == p2s_obj
-        && (!cjose_base64url_encode(p2s, p2s_len, &p2s_b64u, &p2s_b64u_len, err)
-            || !cjose_header_set((cjose_header_t *)target, CJOSE_HDR_P2S, p2s_b64u, err)))
+    if (!cjose_base64url_encode(p2s, CJOSE_JWE_PBES2_SALT_LEN, &p2s_b64u, &p2s_b64u_len, err)
+        || !cjose_header_set((cjose_header_t *)target, CJOSE_HDR_P2S, p2s_b64u, err))
     {
         goto cjose_encrypt_ek_pbes2_finish;
     }
@@ -1269,7 +1263,7 @@ static bool _cjose_jwe_encrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_j
         goto cjose_encrypt_ek_pbes2_finish;
     }
 
-    if (!_cjose_jwe_pbes2_derive_kek(alg, md, jwk, p2s, p2s_len, p2c, kek, kek_len, err))
+    if (!_cjose_jwe_pbes2_derive_kek(alg, md, jwk, p2s, CJOSE_JWE_PBES2_SALT_LEN, p2c, kek, kek_len, err))
     {
         goto cjose_encrypt_ek_pbes2_finish;
     }
@@ -1341,7 +1335,21 @@ static bool _cjose_jwe_decrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_j
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
-    if (!cjose_base64url_decode(json_string_value(p2s_obj), strlen(json_string_value(p2s_obj)), &p2s, &p2s_len, err))
+
+    // the encoded length is checked before decoding, so that an attacker
+    // cannot have an oversized "p2s" allocated only to be refused after the
+    // fact. n octets take 4 * ceil(n / 3) base64url characters at most, which
+    // is the padded length: the decoder tolerates padding, and refusing it
+    // here rather than there would single the parameter out among all the
+    // base64url cjose reads. The decoded length is what is checked below.
+    const char *p2s_b64u = json_string_value(p2s_obj);
+    const size_t p2s_b64u_len = strlen(p2s_b64u);
+    if (p2s_b64u_len > ((size_t)CJOSE_JWE_PBES2_MAX_SALT_LEN + 2) / 3 * 4)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    if (!cjose_base64url_decode(p2s_b64u, p2s_b64u_len, &p2s, &p2s_len, err))
     {
         return false;
     }

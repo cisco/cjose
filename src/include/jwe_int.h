@@ -8,6 +8,8 @@
 #ifndef SRC_JWE_INT_H
 #define SRC_JWE_INT_H
 
+#include <limits.h>
+
 #include <jansson.h>
 #include "cjose/jwe.h"
 
@@ -78,28 +80,56 @@ struct _cjose_jwe_int
     _jwe_int_recipient_t *to;
 };
 
-// PBES2 (RFC 7518 section 4.8) parameter bounds. RFC 7518 requires a salt
-// input of at least 8 octets and recommends at least 1000 iterations, and sets
-// no maximum for either. On decrypt both are attacker-controlled, so both carry
-// one: the iteration cap bounds the PBKDF2 work an unauthenticated JWE can
-// demand of a recipient, and the salt cap keeps the salt the length of an
-// identifier rather than of a payload and keeps the length the OpenSSL call
-// takes as an int well inside its range. The same caps apply when encrypting,
-// so that what cjose produces it can also read back, which is why the iteration
-// cap is not tightened to the decrypt side alone: a caller following current
-// password hashing guidance uses counts well above any producer's default.
-// Both can be raised at build time. The iteration cap must stay at or above
-// 100000, the highest default a mainstream producer ships, and the checks are
-// "> MAX", so that value itself is accepted.
+// PBES2 (RFC 7518 section 4.8) parameter bounds. Of these only the minimum
+// salt input length is an RFC requirement: section 4.8.1.1 makes 8 octets a
+// MUST. The rest is cjose policy, not validation the RFC asks for, and the
+// four #ifndef'd values below can be overridden at build time, for the whole
+// build, since the test suite asserts against the same constants:
+//
+//   - the iteration floor. RFC 7518 section 4.8.1.2 requires a positive count
+//     and RECOMMENDS at least 1000; cjose refuses anything below the
+//     recommendation on both sides, so that a weak count is not silently
+//     accepted from a producer. Lower it to read such JWEs.
+//   - the iteration ceiling. The RFC sets none, but on decrypt the count is
+//     attacker-controlled, and with several recipients it sits in an
+//     unprotected header, so nothing but this bounds the PBKDF2 work an
+//     unauthenticated JWE can demand. It applies when encrypting too, so that
+//     what cjose produces it can also read back. Note that the bound is per
+//     recipient: cjose_jwe_decrypt_multi derives a key for every recipient the
+//     locator matches. Keep it at or above 100000, the highest default a
+//     mainstream producer ships, or cjose will refuse that producer's output.
+//   - the salt ceiling. Again none in the RFC; this keeps the salt input the
+//     length of an identifier rather than of a payload.
+//   - the iteration count used when the caller sets no "p2c". Several widely
+//     used implementations refuse tokens above roughly 10000 to 16384
+//     iterations by default, so a higher value would produce JWEs they cannot
+//     read.
+//
+// The salt input itself is not a knob: it is always generated here, 16 octets
+// from the RNG, because RFC 7518 section 4.8.1.1 requires a new random one for
+// every encryption operation. A caller-supplied "p2s" is refused rather than
+// quietly dropped.
 #define CJOSE_JWE_PBES2_SALT_LEN 16
 #define CJOSE_JWE_PBES2_MIN_SALT_LEN 8
-#define CJOSE_JWE_PBES2_MIN_ITERATIONS 1000
-#define CJOSE_JWE_PBES2_DEFAULT_ITERATIONS 8192
 #ifndef CJOSE_JWE_PBES2_MAX_SALT_LEN
 #define CJOSE_JWE_PBES2_MAX_SALT_LEN 1024
+#endif
+#ifndef CJOSE_JWE_PBES2_MIN_ITERATIONS
+#define CJOSE_JWE_PBES2_MIN_ITERATIONS 1000
 #endif
 #ifndef CJOSE_JWE_PBES2_MAX_ITERATIONS
 #define CJOSE_JWE_PBES2_MAX_ITERATIONS 1000000
 #endif
+#ifndef CJOSE_JWE_PBES2_DEFAULT_ITERATIONS
+#define CJOSE_JWE_PBES2_DEFAULT_ITERATIONS 8192
+#endif
+
+_Static_assert(CJOSE_JWE_PBES2_MIN_SALT_LEN <= CJOSE_JWE_PBES2_SALT_LEN && CJOSE_JWE_PBES2_SALT_LEN <= CJOSE_JWE_PBES2_MAX_SALT_LEN
+                   && CJOSE_JWE_PBES2_MAX_SALT_LEN <= INT_MAX,
+               "the generated PBES2 salt input must be within the accepted bounds, which PKCS5_PBKDF2_HMAC takes as an int");
+_Static_assert(CJOSE_JWE_PBES2_MIN_ITERATIONS >= 1 && CJOSE_JWE_PBES2_MIN_ITERATIONS <= CJOSE_JWE_PBES2_DEFAULT_ITERATIONS
+                   && CJOSE_JWE_PBES2_DEFAULT_ITERATIONS <= CJOSE_JWE_PBES2_MAX_ITERATIONS
+                   && CJOSE_JWE_PBES2_MAX_ITERATIONS <= INT_MAX,
+               "the default PBES2 iteration count must be within the accepted bounds, which must be positive and fit an int");
 
 #endif // SRC_JWE_INT_H

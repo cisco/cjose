@@ -36,6 +36,18 @@ JWE key management algorithms (`alg`):
 | `ECDH-ES` | ECDH-ES direct key agreement, with an EC key or an OKP `X25519` or `X448` key | |
 | `ECDH-ES+A128KW`, `ECDH-ES+A192KW`, `ECDH-ES+A256KW` | ECDH-ES with AES Key Wrap, with an EC key or an OKP `X25519` or `X448` key | |
 
+The PBES2 salt input (`p2s`) is generated for every encryption, as RFC 7518
+section 4.8.1.1 requires, and a caller-supplied one is refused. The iteration
+count (`p2c`) can be set in the header, per recipient where a JWE has several,
+and defaults to 8192. Beyond the 8 octet salt input the RFC requires, cjose
+applies limits of its own, to what it produces as much as to what it accepts:
+at least 1000 iterations, at most 1000000, and a salt input of at most 1024
+octets. They are policy rather than RFC validation, and they bound the key
+derivation an unauthenticated JWE can demand of a recipient. Each can be
+changed at build time, for the whole build, by defining
+`CJOSE_JWE_PBES2_MIN_ITERATIONS`, `CJOSE_JWE_PBES2_MAX_ITERATIONS`,
+`CJOSE_JWE_PBES2_DEFAULT_ITERATIONS` or `CJOSE_JWE_PBES2_MAX_SALT_LEN`.
+
 JWE content encryption algorithms (`enc`):
 
 | Identifier | Algorithm |

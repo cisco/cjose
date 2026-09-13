@@ -3022,7 +3022,8 @@ static void _pbes2_round_trip(const char *alg, const char *enc, json_int_t p2c)
     json_t *protected_header = (json_t *)cjose_jwe_get_protected(jwe1);
     ck_assert(json_is_string(json_object_get(protected_header, CJOSE_HDR_P2S)));
     ck_assert(json_is_integer(json_object_get(protected_header, CJOSE_HDR_P2C)));
-    ck_assert_int_eq(0 != p2c ? p2c : 8192, json_integer_value(json_object_get(protected_header, CJOSE_HDR_P2C)));
+    ck_assert_int_eq(0 != p2c ? p2c : CJOSE_JWE_PBES2_DEFAULT_ITERATIONS,
+                     json_integer_value(json_object_get(protected_header, CJOSE_HDR_P2C)));
     char *compact = cjose_jwe_export(jwe1, &err);
     ck_assert(NULL != compact);
     cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
@@ -3149,6 +3150,9 @@ static void _jwe_hdr_p2s_of_size(json_t *hdr, size_t octets)
 // 5 octets, below the 8 that RFC 7518 section 4.8.1.1 requires
 static void _jwe_hdr_short_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, 5); }
 
+// a salt input that is well formed and of the size cjose itself generates
+static void _jwe_hdr_good_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, CJOSE_JWE_PBES2_SALT_LEN); }
+
 // the two sides of CJOSE_JWE_PBES2_MAX_SALT_LEN, which no producer's output
 // depends on, so these follow the constant wherever it is built
 static void _jwe_hdr_max_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, CJOSE_JWE_PBES2_MAX_SALT_LEN); }
@@ -3171,9 +3175,10 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
     ck_assert(NULL == cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err));
     ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
 
-    // a caller-supplied iteration count or salt must be within bounds
-    void (*encrypt_cases[])(json_t *)
-        = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_too_small, _jwe_hdr_p2c_string, _jwe_hdr_short_p2s, _jwe_hdr_long_p2s };
+    // a caller-supplied iteration count must be within bounds, and a
+    // caller-supplied salt input is refused however well formed it is
+    void (*encrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_too_small, _jwe_hdr_p2c_string,
+                                          _jwe_hdr_short_p2s,     _jwe_hdr_long_p2s,      _jwe_hdr_good_p2s };
     for (size_t i = 0; i < sizeof(encrypt_cases) / sizeof(encrypt_cases[0]); i++)
     {
         cjose_header_t *bad = (cjose_header_t *)json_deep_copy((json_t *)hdr);
@@ -3185,23 +3190,63 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
         cjose_header_release(bad);
     }
 
-    // the bound itself: the largest salt input is accepted where the next one
-    // is not, and a caller-supplied salt is published as it was given and
-    // still decrypts
-    cjose_header_t *at_max = (cjose_header_t *)json_deep_copy((json_t *)hdr);
-    ck_assert(NULL != at_max);
-    _jwe_hdr_max_p2s((json_t *)at_max);
-    cjose_jwe_t *max_jwe = cjose_jwe_encrypt(jwk, at_max, plain, sizeof(plain) - 1, &err);
-    ck_assert_msg(NULL != max_jwe, "a salt input of CJOSE_JWE_PBES2_MAX_SALT_LEN was refused: %s", err.message);
-    char *max_compact = cjose_jwe_export(max_jwe, &err);
-    ck_assert(NULL != max_compact);
-    const char *given = json_string_value(json_object_get((json_t *)at_max, CJOSE_HDR_P2S));
-    const char *kept = cjose_header_get(cjose_jwe_get_protected(max_jwe), CJOSE_HDR_P2S, &err);
-    ck_assert_msg(NULL != kept && 0 == strcmp(given, kept), "the caller's p2s was not published as given");
-    cjose_jwe_release(max_jwe);
-    _decrypt_plain_ok(max_compact, JWK_PBES2_PASSWORD, plain, sizeof(plain) - 1);
-    cjose_get_dealloc()(max_compact);
-    cjose_header_release(at_max);
+    // RFC 7518 section 4.8.1.1: a new salt input for every encryption
+    // operation. Encrypting twice with the same header object, which is what a
+    // caller reusing a header does, must publish two different salt inputs, and
+    // must leave the caller's own header untouched.
+    char salts[2][64];
+    for (size_t i = 0; i < 2; i++)
+    {
+        cjose_jwe_t *fresh = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != fresh, "cjose_jwe_encrypt failed: %s", err.message);
+        const char *p2s = cjose_header_get(cjose_jwe_get_protected(fresh), CJOSE_HDR_P2S, &err);
+        ck_assert(NULL != p2s && strlen(p2s) < sizeof(salts[i]));
+        strcpy(salts[i], p2s);
+        cjose_jwe_release(fresh);
+    }
+    ck_assert_msg(0 != strcmp(salts[0], salts[1]), "two encryptions with one header reused the salt input");
+    ck_assert(NULL == cjose_header_get(hdr, CJOSE_HDR_P2S, &err));
+
+    // and the shape that requirement is really about: a caller that feeds the
+    // header of a JWE it produced back into the next encryption is refused
+    // rather than handed the salt input a second time
+    cjose_jwe_t *first = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != first, "cjose_jwe_encrypt failed: %s", err.message);
+    cjose_header_t *reused = (cjose_header_t *)json_deep_copy((json_t *)cjose_jwe_get_protected(first));
+    ck_assert(NULL != reused);
+    cjose_jwe_release(first);
+    ck_assert(NULL == cjose_jwe_encrypt(jwk, reused, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(reused);
+
+    // the salt input is refused in any of the three header locations, not only
+    // in the protected one. The shared one would also be caught by the
+    // disjointness rule, but only once every recipient's key derivation has
+    // run; the point of refusing it here is that nothing is derived at all.
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(NULL != shared);
+    _jwe_hdr_good_p2s((json_t *)shared);
+    cjose_jwe_recipient_t one[] = { { jwk, NULL } };
+    ck_assert(NULL == cjose_jwe_encrypt_multi(one, 1, hdr, shared, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(shared);
+
+    cjose_header_t *per_recipient = cjose_header_new(&err);
+    ck_assert(NULL != per_recipient);
+    ck_assert(cjose_header_set(per_recipient, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    _jwe_hdr_good_p2s((json_t *)per_recipient);
+    cjose_header_t *plain_recipient = cjose_header_new(&err);
+    ck_assert(NULL != plain_recipient);
+    ck_assert(cjose_header_set(plain_recipient, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    cjose_header_t *enc_only = cjose_header_new(&err);
+    ck_assert(NULL != enc_only);
+    ck_assert(cjose_header_set(enc_only, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_jwe_recipient_t two[] = { { jwk, plain_recipient }, { jwk, per_recipient } };
+    ck_assert(NULL == cjose_jwe_encrypt_multi(two, 2, enc_only, NULL, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(enc_only);
+    cjose_header_release(plain_recipient);
+    cjose_header_release(per_recipient);
 
     // the same for the iteration count, where the value matters rather than the
     // constant: go-jose writes exactly 100000 by default, so a JWE with that
@@ -3240,6 +3285,13 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
         _decrypt_expect(modified, JWK_PBES2_PASSWORD, CJOSE_ERR_INVALID_ARG);
         free(modified);
     }
+
+    // the bound itself: a salt input of CJOSE_JWE_PBES2_MAX_SALT_LEN is within
+    // the accepted range, so where one octet more is refused as an invalid
+    // argument this one gets as far as the cryptography and fails there
+    char *at_max = _jwe_with_modified_header(compact, _jwe_hdr_max_p2s);
+    _decrypt_expect(at_max, JWK_PBES2_PASSWORD, CJOSE_ERR_CRYPTO);
+    free(at_max);
 
     // an encrypted key of any other length than the CEK plus 8 is refused up front
     size_t len = strlen(compact);
@@ -3298,12 +3350,15 @@ START_TEST(test_cjose_jwe_pbes2_multiple_recipients)
     json_t *recs = json_object_get(form, "recipients");
     ck_assert(json_is_array(recs) && 2 == json_array_size(recs));
     const json_int_t expected_p2c[] = { 1000, 2000 };
+    const char *salts[2] = { NULL, NULL };
     for (size_t i = 0; i < 2; i++)
     {
         json_t *header = json_object_get(json_array_get(recs, i), "header");
         ck_assert(json_is_string(json_object_get(header, CJOSE_HDR_P2S)));
+        salts[i] = json_string_value(json_object_get(header, CJOSE_HDR_P2S));
         ck_assert_int_eq(expected_p2c[i], json_integer_value(json_object_get(header, CJOSE_HDR_P2C)));
     }
+    ck_assert_msg(0 != strcmp(salts[0], salts[1]), "the two recipients share a salt input");
     json_decref(form);
 
     cjose_jwe_recipient_t rec1[] = { { pw1, NULL }, { NULL, NULL } };

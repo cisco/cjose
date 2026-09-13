@@ -48,10 +48,10 @@ extern "C" {
 
 /**
  * For the PBES2 algorithms, the PBKDF2 salt input and iteration count (RFC 7518 section 4.8.1).
- * Both are generated when they are absent. Supplying them is supported, but give each recipient
- * its own, as RFC 7520 section 5.3 expects: two recipients of one JWE that share a salt input and
- * an algorithm derive their keys from the same PBKDF2 salt, where RFC 7518 section 4.8.1.1
- * requires a new salt input for every encryption operation.
+ * The salt input is always generated when encrypting and a caller-supplied "p2s" is refused,
+ * because RFC 7518 section 4.8.1.1 requires a new one to be generated randomly for every
+ * encryption operation. The iteration count may be supplied, per recipient where a JWE has
+ * several, and is defaulted when absent.
  */
 #define CJOSE_HDR_P2S "p2s"
 #define CJOSE_HDR_P2C "p2c"
