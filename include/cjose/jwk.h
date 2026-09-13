@@ -34,7 +34,9 @@ typedef enum
     /** Octet String (Symmetric) Key */
     CJOSE_JWK_KTY_OCT,
     /** Octet Key Pair (RFC 8037) Public (or Private) Key */
-    CJOSE_JWK_KTY_OKP
+    CJOSE_JWK_KTY_OKP,
+    /** Algorithm Key Pair (RFC 9964) Public (or Private) Key */
+    CJOSE_JWK_KTY_AKP
 } cjose_jwk_kty_t;
 
 /**
@@ -405,6 +407,97 @@ cjose_jwk_t *cjose_jwk_create_OKP_spec(const cjose_jwk_okp_keyspec *spec, cjose_
  *        OKP key
  */
 cjose_jwk_okp_curve cjose_jwk_OKP_get_curve(const cjose_jwk_t *jwk, cjose_err *err);
+
+/** Enumeration of supported algorithms for Algorithm Key Pair (AKP) JWK
+ * objects (RFC 9964).
+ *
+ * An AKP key names its algorithm rather than a curve: RFC 9964 section 3 makes
+ * the "alg" JWK parameter REQUIRED for every AKP key, because the same key
+ * type serves algorithms whose keys are not interchangeable.
+ */
+typedef enum
+{
+    /** ML-DSA-44 (US NIST FIPS 204). */
+    CJOSE_JWK_AKP_ML_DSA_44 = 1,
+    /** ML-DSA-65 (US NIST FIPS 204). */
+    CJOSE_JWK_AKP_ML_DSA_65,
+    /** ML-DSA-87 (US NIST FIPS 204). */
+    CJOSE_JWK_AKP_ML_DSA_87,
+    /** Invalid Algorithm */
+    CJOSE_JWK_AKP_INVALID = -1
+} cjose_jwk_akp_alg;
+
+/** Key specification for Algorithm Key Pair (AKP) JWK objects (RFC 9964).
+ *
+ * Note that cjose_jwk_get_keysize() reports the size of the public key in bits
+ * for an AKP key, as it does for OKP and RSA, which for the ML-DSA algorithms
+ * is 10496, 15616 or 20736. That is the size of the key material, not a
+ * measure of the strength of the algorithm.
+ */
+typedef struct
+{
+    /** The algorithm the key belongs to */
+    cjose_jwk_akp_alg alg;
+    /** The private key (RFC 9964 "priv"), or NULL for a public key. For the
+        ML-DSA algorithms this is the 32 octet seed, never the expanded
+        private key (RFC 9964 section 4) */
+    uint8_t *priv;
+    /** Length of <tt>priv</tt>: 32 for the ML-DSA algorithms, or 0 */
+    size_t privlen;
+    /** The public key (RFC 9964 "pub") */
+    uint8_t *pub;
+    /** Length of <tt>pub</tt>: the fixed size of the algorithm, or 0 */
+    size_t publen;
+} cjose_jwk_akp_keyspec;
+
+/**
+ * Creates a new Algorithm Key Pair (AKP) JWK, using a secure random number
+ * generator.
+ *
+ * \b NOTE: The caller MUST call cjose_jwk_release() to release the JWK's
+ * resources.
+ *
+ * \b NOTE: Fails with CJOSE_ERR_INVALID_ARG unless the library was built with
+ * the CJOSE_ENABLE_ML_DSA option, which needs OpenSSL 3.5 or newer.
+ *
+ * \param alg The algorithm to generate the key pair for
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns The generated Algorithm Key Pair JWK object
+ */
+cjose_jwk_t *cjose_jwk_create_AKP_random(cjose_jwk_akp_alg alg, cjose_err *err);
+
+/**
+ * Creates a new Algorithm Key Pair (AKP) JWK, using the given raw values for
+ * the private and/or public key. When only the private key is given the public
+ * key is derived from it; when both are given they must belong together.
+ *
+ * \b NOTE: The caller MUST call cjose_jwk_release() to release the JWK's
+ * resources.
+ *
+ * \b NOTE: This function makes a copy of all provided data; the caller
+ * MUST free the memory for <tt>spec</tt> after calling this function.
+ *
+ * \b NOTE: Fails with CJOSE_ERR_INVALID_ARG unless the library was built with
+ * the CJOSE_ENABLE_ML_DSA option, which needs OpenSSL 3.5 or newer.
+ *
+ * \param spec The specified Algorithm Key Pair properties
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns The generated Algorithm Key Pair JWK object
+ */
+cjose_jwk_t *cjose_jwk_create_AKP_spec(const cjose_jwk_akp_keyspec *spec, cjose_err *err);
+
+/**
+ * Obtains the algorithm for the given (AKP) JWK.
+ *
+ * \param jwk [in] The AKP JWK to inspect
+ * \param err [out] An optional error object which can be used to get additional
+ *        information in the event of an error.
+ * \returns The algorithm, or CJOSE_JWK_AKP_INVALID if <tt>jwk</tt> is not an
+ *        AKP key
+ */
+cjose_jwk_akp_alg cjose_jwk_AKP_get_alg(const cjose_jwk_t *jwk, cjose_err *err);
 
 /**
  * Instantiates a new JWK given a JSON document representation conforming

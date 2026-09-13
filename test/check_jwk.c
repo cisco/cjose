@@ -2262,6 +2262,490 @@ START_TEST(test_cjose_jwk_derive_ecdh_bits_okp)
 }
 END_TEST
 
+#ifdef HAVE_ML_DSA
+
+// The ML-DSA JWKs of RFC 9964 Appendix A.1, whose "priv" is the all-zeros seed
+// and whose "pub" is therefore reproducible: importing one and exporting it
+// again has to give back exactly the public key the RFC prints.
+
+static const char *JWK_AKP_ML_DSA_44
+    = "{\"kid\":\"T4xl70S7MT6Zeq6r9V9fPJGVn76wfnXJ21-gyo0Gu6o\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-44\",\"pub\":\"unH59k"
+      "4RuutY-pxvu24U5h8YZD2rSVtHU5qRZsoBmBMcRPgmu9VuNOVdteXi1zNIXjnqJg_GAAxepLqA00Vc3lO0bzRIKu39VFD8Lh"
+      "uk8l0V-cFEJC-zm7UihxiQMMUEmOFxe3x1ixkKZ0jqmqP3rKryx8tSbtcXyfea64QhT6XNje2SoMP6FViBDxLHBQo2dwjRls"
+      "0k5a-XSQSu2OTOiHLoaWsLe8pQ5FLNfTDqmkrawDEdZyxr3oSWJAsHQxRjcIiVzZuvwxYy1zl2STiP2vy_fTBaPemkleynQz"
+      "qPg7oPCyXEE8bjnJbrfWkbNNN8438e6tHPIX4l7zTuzz98YPhLjt_d6EBdT4MldsYe-Y4KLyjaGHcAlTkk9oa5RhRwW89T0z"
+      "_t1DSO3dvfKLUGXh8gd1BD6Fz5MfgpF5NjoafnQEqDjsAAhrCXY4b-Y3yYJEdX4_dp3dRGdHG_rWcPmgX4JG7lCnser4f8QG"
+      "nDriqiAzJYEXeS8LzUngg_0bx0lqv_KcyU5IaLISFO0xZSU5mmEPvdSoDnyAcV8pV44qhLtAvd29n0ehG259oRihtljTWeiu"
+      "9V60a1N2tbZVl5mEqSK-6_xZvNYA1TCdzNctvweH24unV7U3wer9XA9Q6kvJWDVJ4oKaQsKMrCSMlteBJMRxWbGK7ddUq6F7"
+      "GdQw-3j2M-qdJvVKm9UPjY9rc1lPgol25-oJxTu7nxGlbJUH-4m5pevAN6NyZ6lfhbjWTKlxkrEKZvQXs_Yf6cpXEwpI_ZJe"
+      "riq1UC1XHIpRkDwdOY9MH3an4RdDl2r9vGl_IwlKPNdh_5aF3jLgn7PCit1FNJAwC8fIncAXgAlgcXIpRXdfJk4bBiO89GGc"
+      "cSyDh2EgXYdpG3XvNgGWy7npuSoNTE7WIyblAk13UQuO4sdCbMIuriCdyfE73mvwj15xgb07RZRQtFGlFTmnFcIdZ90zDrWX"
+      "DbANntv7KCKwNvoTuv64bY3HiGbj-NQ-U9eMylWVpvr4hrXcES8c9K3PqHWADZC0iIOvlzFv4VBoc_wVflcOrL_SIoaNFCNB"
+      "AZZq-2v5lAgpJTqVOtqJ_HVraoSfcKy5g45p-qULunXj6Jwq21fobQiKubBKKOZwcJFyJD7F4ACKXOrz-HIvSHMCWW_9dVrR"
+      "uCpJw0s0aVFbRqopDNhu446nqb4_EDYQM1tTHMozPd_jKxRRD0sH75X8ZoToxFSpLBDbtdWcenxj-zBf6IGWfZnmaetjKEBY"
+      "JWC7QDQx1A91pJVJCEgieCkoIfTqkeQuePpIyu48g2FG3P1zjRF-kumhUTfSjo5qS0YiZQy0E1BMs6M11EvuxXRsHClLHoy5"
+      "nLYI2Sj4zjVjYyxSHyPRPGGo9hwB34yWxzYNtPPGiqXS_dNCpi_zRZwRY4lCGrQ-hYTEWIK1Dm5OlttvC4_eiQ1dv63NiGkL"
+      "RJ5kJA3bICN0fzCDY-MBqnd1cWn8YVBijVkgtaoascjL9EywDgJdeHnXK0eeOvUxHHhXJVkNqcibn8O4RQdpVU60TSA-uiu6"
+      "75ytIjcBHC6kTv8A8pmkj_4oypPd-F92YIJC741swkYQoeIHj8rE-ThcMUkF7KqC5VORbZTRp8HsZSqgiJcIPaouuxd1-8Rx"
+      "rid3fXkE6p8bkrysPYoxWEJgh7ZFsRCPDWX-yTeJwFN0PKFP1j0F6YtlLfK5wv-c4F8ZQHA_-yc_gODicy7KmWDZgbTP07e7"
+      "gEWzw4MFRrndjbDQ\",\"priv\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}";
+
+static const char *JWK_AKP_ML_DSA_44_PUBLIC
+    = "{\"kid\":\"T4xl70S7MT6Zeq6r9V9fPJGVn76wfnXJ21-gyo0Gu6o\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-44\",\"pub\":\"unH59k"
+      "4RuutY-pxvu24U5h8YZD2rSVtHU5qRZsoBmBMcRPgmu9VuNOVdteXi1zNIXjnqJg_GAAxepLqA00Vc3lO0bzRIKu39VFD8Lh"
+      "uk8l0V-cFEJC-zm7UihxiQMMUEmOFxe3x1ixkKZ0jqmqP3rKryx8tSbtcXyfea64QhT6XNje2SoMP6FViBDxLHBQo2dwjRls"
+      "0k5a-XSQSu2OTOiHLoaWsLe8pQ5FLNfTDqmkrawDEdZyxr3oSWJAsHQxRjcIiVzZuvwxYy1zl2STiP2vy_fTBaPemkleynQz"
+      "qPg7oPCyXEE8bjnJbrfWkbNNN8438e6tHPIX4l7zTuzz98YPhLjt_d6EBdT4MldsYe-Y4KLyjaGHcAlTkk9oa5RhRwW89T0z"
+      "_t1DSO3dvfKLUGXh8gd1BD6Fz5MfgpF5NjoafnQEqDjsAAhrCXY4b-Y3yYJEdX4_dp3dRGdHG_rWcPmgX4JG7lCnser4f8QG"
+      "nDriqiAzJYEXeS8LzUngg_0bx0lqv_KcyU5IaLISFO0xZSU5mmEPvdSoDnyAcV8pV44qhLtAvd29n0ehG259oRihtljTWeiu"
+      "9V60a1N2tbZVl5mEqSK-6_xZvNYA1TCdzNctvweH24unV7U3wer9XA9Q6kvJWDVJ4oKaQsKMrCSMlteBJMRxWbGK7ddUq6F7"
+      "GdQw-3j2M-qdJvVKm9UPjY9rc1lPgol25-oJxTu7nxGlbJUH-4m5pevAN6NyZ6lfhbjWTKlxkrEKZvQXs_Yf6cpXEwpI_ZJe"
+      "riq1UC1XHIpRkDwdOY9MH3an4RdDl2r9vGl_IwlKPNdh_5aF3jLgn7PCit1FNJAwC8fIncAXgAlgcXIpRXdfJk4bBiO89GGc"
+      "cSyDh2EgXYdpG3XvNgGWy7npuSoNTE7WIyblAk13UQuO4sdCbMIuriCdyfE73mvwj15xgb07RZRQtFGlFTmnFcIdZ90zDrWX"
+      "DbANntv7KCKwNvoTuv64bY3HiGbj-NQ-U9eMylWVpvr4hrXcES8c9K3PqHWADZC0iIOvlzFv4VBoc_wVflcOrL_SIoaNFCNB"
+      "AZZq-2v5lAgpJTqVOtqJ_HVraoSfcKy5g45p-qULunXj6Jwq21fobQiKubBKKOZwcJFyJD7F4ACKXOrz-HIvSHMCWW_9dVrR"
+      "uCpJw0s0aVFbRqopDNhu446nqb4_EDYQM1tTHMozPd_jKxRRD0sH75X8ZoToxFSpLBDbtdWcenxj-zBf6IGWfZnmaetjKEBY"
+      "JWC7QDQx1A91pJVJCEgieCkoIfTqkeQuePpIyu48g2FG3P1zjRF-kumhUTfSjo5qS0YiZQy0E1BMs6M11EvuxXRsHClLHoy5"
+      "nLYI2Sj4zjVjYyxSHyPRPGGo9hwB34yWxzYNtPPGiqXS_dNCpi_zRZwRY4lCGrQ-hYTEWIK1Dm5OlttvC4_eiQ1dv63NiGkL"
+      "RJ5kJA3bICN0fzCDY-MBqnd1cWn8YVBijVkgtaoascjL9EywDgJdeHnXK0eeOvUxHHhXJVkNqcibn8O4RQdpVU60TSA-uiu6"
+      "75ytIjcBHC6kTv8A8pmkj_4oypPd-F92YIJC741swkYQoeIHj8rE-ThcMUkF7KqC5VORbZTRp8HsZSqgiJcIPaouuxd1-8Rx"
+      "rid3fXkE6p8bkrysPYoxWEJgh7ZFsRCPDWX-yTeJwFN0PKFP1j0F6YtlLfK5wv-c4F8ZQHA_-yc_gODicy7KmWDZgbTP07e7"
+      "gEWzw4MFRrndjbDQ\"}";
+
+static const char *JWK_AKP_ML_DSA_65
+    = "{\"kid\":\"Suiu29qbfuaBaR4Ats-c6XQBePB_OpAxAwcTR_0KXVM\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-65\",\"pub\":\"QksvJn"
+      "5Y1bO0TXGs_Gpla7JpUNV8YdsciAvPof6rRD8JQquL2619cIq7w1YHj22ZolInH-YsdAkeuUr7m5JkxQqIjg3-2AzV-yy9Nm"
+      "fmDVOevkSTAhnNT67RXbs0VaJkgCufSbzkLudVD-_91GQqVa3mk4aKRgy-wD9PyZpOMLzP-opHXlOVOWZ067galJN1h4gPbb"
+      "0nvxxPWp7kPN2LDlOzt_tJxzrfvC1PjFQwNSDCm_l-Ju5X2zQtlXyJOTZSLQlCtB2C7jdyoAVwrftUXBFDkisElvgmoKlwBk"
+      "s23fU0tfjhwc0LVWXqhGtFQx8GGBQ-zol3e7P2EXmtIClf4KbgYq5u7Lwu848qwaItyTt7EmM2IjxVth64wHlVQruy3GXnIu"
+      "rcaGb_qWg764qZmteoPl5uAWwuTDX292Sa071S7GfsHFxue5lydxIYvpVUu6dyfwuExEubCovYMfz_LJd5zNTKMMatdbBJg-"
+      "Qd6JPuXznqc1UYC3CccEXCLTOgg_auB6EUdG0b_cy-5bkEOHm7Wi4SDipGNig_ShzUkkot5qSqPZnd2I9IqqToi_0ep2nYLB"
+      "B3ny3teW21Qpccoom3aGPt5Zl7fpzhg7Q8zsJ4sQ2SuHRCzgQ1uxYlFx21VUtHAjnFDSoMOkGyo4gH2wcLR7-z59EPPNl51p"
+      "ljyNefgCnMSkjrBPyz1wiET-uqi23f8Bq2TVk1jmUFxOwdfLsU7SIS30WOzvwD_gMDexUFpMlEQyL1-Y36kaTLjEWGCi2tx1"
+      "FTULttQx5JpryPW6lW5oKw5RMyGpfRliYCiRyQePYqipZGoxOHpvCWhCZIN4meDY7H0RxWWQEpiyCzRQgWkOtMViwao6Jb7w"
+      "ZWbLNMebwLJeQJXWunk-gTEeQaMykVJobwDUiX-E_E7fSybVRTZXherY1jrvZKh8C5Gi5VADg5Vs319uN8-dVILRyOOlvjjx"
+      "clmsRcn6HEvTvxd9MS7lKm2gI8BXIqhzgnTdqNGwTpmDHPV8hygqJWxWXCltBSSgY6OkGkioMAmXjZjYq_Ya9o6AE7WU_hUd"
+      "m-wZmQLExwtJWEIBdDxrUxA9L9JL3weNyQtaGItPjXcheZiNBBbJTUxXwIYLnXtT1M0mHzMqGFFWXVKsN_AIdHyv4yDzY9m-"
+      "tuQRfbQ_2K7r5eDOL1Tj8DZ-s8yXG74MMBqOUvlglJNgNcbuPKLRPbSDoN0E3BYkfeDgiUrXy34a5-vU-PkAWCsgAh539wJU"
+      "UBxqw90V1Du7eTHFKDJEMSFYwusbPhEX4ZTwoeTHg--8Ysn4HCFWLQ00pfBCteqvMvMflcWwVfTnogcPsJb1bEFVSc3nTzhk"
+      "6Ln8J-MplyS0Y5mGBEtVko_WlyeFsoDCWj4hqrgU7L-ww8vsCRSQfskH8lodiLzj0xmugiKjWUXbYq98x1zSnB9dmPy5P3UN"
+      "wwMQdpebtR38N9I-jup4Bzok0-JsaOe7EORZ8ld7kAgDWa4K7BAxjc2eD540Apwxs-VLGFVkXbQgYYeDNG2tW1Xt20-XezJq"
+      "ZVUl6-IZXsqc7DijwNInO3fT5o8ZAcLKUUlzSlEXe8sIlHaxjLoJ-oubRtlKKUbzWOHeyxmYZSxYqQhSQj4sheedGXJEYWJ-"
+      "Y5DRqB-xpy-cftxL10fdXIUhe1hWFBAoQU3b5xRY8KCytYnfLhsFF4O49xhnax3vuumLpJbCqTXpLureoKg5PvWfnpFPB0P-"
+      "ZWQN35mBzqbb3ZV6U0rU55DvyXTuiZOK2Z1TxbaAd1OZMmg0cpuzewgueV-Nh_UubIqNto5RXCd7vqgqdXDUKAiWyYegYIkD"
+      "4wbGMqIjxV8Oo2ggOcSj9UQPS1rD5u0rLckAzsxyty9Q5JsmKa0w8Eh7Jwe4Yob4xPVWWbJfm916avRgzDxXo5gmY7txdGFY"
+      "HhlolJKdhBU9h6f0gtKEtbiUzhp4IWsqAR8riHQs7lLVEz6P537a4kL1r5FjfDf_yjJDBQmy_kdWMDqaNln-MlKK8eENjUO-"
+      "qZGy0Ql4bMZtNbHXjfJUuSzapA-RqYfkqSLKgQUOW8NTDKhUk73yqCU3TQqDEKaGAoTsPscyMm7u_8QrvUK8kbc-XnxrWZ0B"
+      "ZJBjdinzh2w-QvjbWQ5mqFp4OMgY94__tIU8vvCUNJiYA1RdyodlfPfH5-avpxOCvBD6C7ZIDyQ-6huGEQEAb6DP8ydWIZQ8"
+      "xY603DoEKKXkJWcP6CJo3nHFEdj_vcEbDQ-WESDpcQFa1fRIiGuALj-sEWcjGdSHyE8QATOcuWl4TLVzRPKAf4tCXx1zyvhJ"
+      "bXQu0jf0yfzVpOhPun4n-xqK4SxPBCeuJOkQ2VG9jDXWH4pnjbAcrqjveJqVti7huMXTLGuqU2uoihBw6mGqu_WSlOP2-XTE"
+      "yRyvxbv2t-z9V6GPt1V9ceBukA0oGwtJqgD-q7NXFK8zhw7desI5PZMXf3nuVgbJ3xdvAlzkmm5f9RoqQS6_hqwPQEcclq1M"
+      "EZ3yML5hc99TDtZWy9gGkhR0Hs3QJxxgP7bEqGFP-HjTPnJsrGaT6TjKP7qCxJlcFKLUr5AU_kxMULeUysWWtSGJ9mpxBvsy"
+      "W1Juo\",\"priv\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}";
+
+static const char *JWK_AKP_ML_DSA_65_PUBLIC
+    = "{\"kid\":\"Suiu29qbfuaBaR4Ats-c6XQBePB_OpAxAwcTR_0KXVM\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-65\",\"pub\":\"QksvJn"
+      "5Y1bO0TXGs_Gpla7JpUNV8YdsciAvPof6rRD8JQquL2619cIq7w1YHj22ZolInH-YsdAkeuUr7m5JkxQqIjg3-2AzV-yy9Nm"
+      "fmDVOevkSTAhnNT67RXbs0VaJkgCufSbzkLudVD-_91GQqVa3mk4aKRgy-wD9PyZpOMLzP-opHXlOVOWZ067galJN1h4gPbb"
+      "0nvxxPWp7kPN2LDlOzt_tJxzrfvC1PjFQwNSDCm_l-Ju5X2zQtlXyJOTZSLQlCtB2C7jdyoAVwrftUXBFDkisElvgmoKlwBk"
+      "s23fU0tfjhwc0LVWXqhGtFQx8GGBQ-zol3e7P2EXmtIClf4KbgYq5u7Lwu848qwaItyTt7EmM2IjxVth64wHlVQruy3GXnIu"
+      "rcaGb_qWg764qZmteoPl5uAWwuTDX292Sa071S7GfsHFxue5lydxIYvpVUu6dyfwuExEubCovYMfz_LJd5zNTKMMatdbBJg-"
+      "Qd6JPuXznqc1UYC3CccEXCLTOgg_auB6EUdG0b_cy-5bkEOHm7Wi4SDipGNig_ShzUkkot5qSqPZnd2I9IqqToi_0ep2nYLB"
+      "B3ny3teW21Qpccoom3aGPt5Zl7fpzhg7Q8zsJ4sQ2SuHRCzgQ1uxYlFx21VUtHAjnFDSoMOkGyo4gH2wcLR7-z59EPPNl51p"
+      "ljyNefgCnMSkjrBPyz1wiET-uqi23f8Bq2TVk1jmUFxOwdfLsU7SIS30WOzvwD_gMDexUFpMlEQyL1-Y36kaTLjEWGCi2tx1"
+      "FTULttQx5JpryPW6lW5oKw5RMyGpfRliYCiRyQePYqipZGoxOHpvCWhCZIN4meDY7H0RxWWQEpiyCzRQgWkOtMViwao6Jb7w"
+      "ZWbLNMebwLJeQJXWunk-gTEeQaMykVJobwDUiX-E_E7fSybVRTZXherY1jrvZKh8C5Gi5VADg5Vs319uN8-dVILRyOOlvjjx"
+      "clmsRcn6HEvTvxd9MS7lKm2gI8BXIqhzgnTdqNGwTpmDHPV8hygqJWxWXCltBSSgY6OkGkioMAmXjZjYq_Ya9o6AE7WU_hUd"
+      "m-wZmQLExwtJWEIBdDxrUxA9L9JL3weNyQtaGItPjXcheZiNBBbJTUxXwIYLnXtT1M0mHzMqGFFWXVKsN_AIdHyv4yDzY9m-"
+      "tuQRfbQ_2K7r5eDOL1Tj8DZ-s8yXG74MMBqOUvlglJNgNcbuPKLRPbSDoN0E3BYkfeDgiUrXy34a5-vU-PkAWCsgAh539wJU"
+      "UBxqw90V1Du7eTHFKDJEMSFYwusbPhEX4ZTwoeTHg--8Ysn4HCFWLQ00pfBCteqvMvMflcWwVfTnogcPsJb1bEFVSc3nTzhk"
+      "6Ln8J-MplyS0Y5mGBEtVko_WlyeFsoDCWj4hqrgU7L-ww8vsCRSQfskH8lodiLzj0xmugiKjWUXbYq98x1zSnB9dmPy5P3UN"
+      "wwMQdpebtR38N9I-jup4Bzok0-JsaOe7EORZ8ld7kAgDWa4K7BAxjc2eD540Apwxs-VLGFVkXbQgYYeDNG2tW1Xt20-XezJq"
+      "ZVUl6-IZXsqc7DijwNInO3fT5o8ZAcLKUUlzSlEXe8sIlHaxjLoJ-oubRtlKKUbzWOHeyxmYZSxYqQhSQj4sheedGXJEYWJ-"
+      "Y5DRqB-xpy-cftxL10fdXIUhe1hWFBAoQU3b5xRY8KCytYnfLhsFF4O49xhnax3vuumLpJbCqTXpLureoKg5PvWfnpFPB0P-"
+      "ZWQN35mBzqbb3ZV6U0rU55DvyXTuiZOK2Z1TxbaAd1OZMmg0cpuzewgueV-Nh_UubIqNto5RXCd7vqgqdXDUKAiWyYegYIkD"
+      "4wbGMqIjxV8Oo2ggOcSj9UQPS1rD5u0rLckAzsxyty9Q5JsmKa0w8Eh7Jwe4Yob4xPVWWbJfm916avRgzDxXo5gmY7txdGFY"
+      "HhlolJKdhBU9h6f0gtKEtbiUzhp4IWsqAR8riHQs7lLVEz6P537a4kL1r5FjfDf_yjJDBQmy_kdWMDqaNln-MlKK8eENjUO-"
+      "qZGy0Ql4bMZtNbHXjfJUuSzapA-RqYfkqSLKgQUOW8NTDKhUk73yqCU3TQqDEKaGAoTsPscyMm7u_8QrvUK8kbc-XnxrWZ0B"
+      "ZJBjdinzh2w-QvjbWQ5mqFp4OMgY94__tIU8vvCUNJiYA1RdyodlfPfH5-avpxOCvBD6C7ZIDyQ-6huGEQEAb6DP8ydWIZQ8"
+      "xY603DoEKKXkJWcP6CJo3nHFEdj_vcEbDQ-WESDpcQFa1fRIiGuALj-sEWcjGdSHyE8QATOcuWl4TLVzRPKAf4tCXx1zyvhJ"
+      "bXQu0jf0yfzVpOhPun4n-xqK4SxPBCeuJOkQ2VG9jDXWH4pnjbAcrqjveJqVti7huMXTLGuqU2uoihBw6mGqu_WSlOP2-XTE"
+      "yRyvxbv2t-z9V6GPt1V9ceBukA0oGwtJqgD-q7NXFK8zhw7desI5PZMXf3nuVgbJ3xdvAlzkmm5f9RoqQS6_hqwPQEcclq1M"
+      "EZ3yML5hc99TDtZWy9gGkhR0Hs3QJxxgP7bEqGFP-HjTPnJsrGaT6TjKP7qCxJlcFKLUr5AU_kxMULeUysWWtSGJ9mpxBvsy"
+      "W1Juo\"}";
+
+static const char *JWK_AKP_ML_DSA_87
+    = "{\"kid\":\"tRn1JNIkgMsABVQBlXeDHxAIcclh-2IX0UdDEzPt5XU\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-87\",\"pub\":\"5F_8jM"
+      "c9uIXcZi5ioYzY44AylxF_pWWIFKmFtf8dt7Roz8gruSnx2Gt37RT1rhamU2h3LOUZEkEBBeBFaXWukf22Q7US8STV5gvWi4"
+      "x-Mf4Bx7DcZa5HBQHMVlpuHfz8_RJWVDPEr-3VEYIeLpYQxFJ14oNt7jXO1p1--mcv0eQxi-9etuiX6LRRqiAt7QQrKq73en"
+      "vj9pkUbaIpqL2z_6SWRFln51IXv7yQSPmVZEPYcx-DPrMN4Q2slv_-fPZeoERcPjHoYB4TO-ahAHZP4xluJncmRB8xdR-_mm"
+      "9YgGRPTnJ15X3isPEF5NsFXVDdHJyTT931NbjeKLDHTARJ8iLNLtC7j7x3XM7oyUBmW0D3EvT34AdQ6eHkzZz_JdGUXD6byl"
+      "PM1PEu7nWBhW69aPJoRZVuPnvrdh8P51vdMb_i-gGBEzl7OHvVnWKmi4r3-iRauTLmn3eOLO79ITBPu4CZ6hPY6lfBgTGXov"
+      "da4lEHW1Ha04-FNmnp1fmKNlUJiUGZOhWUhg-6cf5TDuXCn1jyl4r2iMy3Wlg4o1nBEumOJahYOsjawfhh_Vjir7pd5aUuAg"
+      "kE9bQrwIdONb788-YRloR2jzbgCPBHEhd86-YnYHOB5W6q7hYcFym43lHb3kdNSMxoJJ6icWK4eZPmDITtbMZCPLNnbZ61Cy"
+      "yrWjoEnvExOB1iP6b7y8nbHnzAJeoEGLna0sxszU6V-izsJP7spwMYp1Fxa3IT9j7b9lpjM4NX-Dj5TsBxgiwkhRJIiFEHs9"
+      "HE6SRnjHYU6hrwOBBGGfKuNylAvs-mninLtf9sPiCke-Sk90usNMEzwApqcGrMxv_T2OT71pqZcE4Sg8hQ2MWNHldTzZWHuD"
+      "xMNGy5pYE3IT7BCDTGat_iu1xQGo7y7K3Rtnej3xpt64br8HIsT1Aw4g-QGN1bb8U-6iT9kre1tAJf6umW0-SP1MZQ2C261-"
+      "r5NmOWmFEvJiU9LvaEfIUY6FZcyaVJXG__V83nMjiCxUp9tHCrLa-P_Sv3lPp8aS2ef71TLuzB14gOLKCzIWEovii0qfHRUf"
+      "rJeAiwvZi3tDphKprIZYEr_qxvR0YCd4QLUqOwh_kWynztwPdo6ivRnqIRVfhLSgTEAArSrgWHFU1WC8Ckd6T5MpqJhN0x6x"
+      "8qBePZGHAdYwz8qa9h7wiNLFWBrLRj5DmQLl1CVxnpVrjW33MFso4P8n060N4ghdKSSZsZozkNQ5b7O6yajYy-rSp6QpD8ms"
+      "b8oEX5imFKRaOcviQ2D4TRT45HJxKs63Tb9FtT1JoORzfkdv_E1bL3zSR6oYbTt2Stnpz-7kVqc8KR2N45EkFKxDkRw3IXOt"
+      "e0cq81xoU87S_ntf4KiVZaszuqb2XN2SgxnXBl4EDnpehPmqkD92SAlLrQcTaxaSe47G28K-8MwoVt4eeVkj4UEsSfJN7rbC"
+      "H2yKl2XJx5huDaS0xn2ODQyNRmgk-5I9hXMUiZDNLvEzx4zuyrcu2d0oXFo3ZoUtVFNCB__TQCf2x27ej9GjLXLDAEi7qnl9"
+      "Xfb94n0IfeVyGte3-j6NP3DWv8OrLiUjNTaLv6Fay1yzfUaU6LI86-Jd6ckloiGhg7kE0_hd-ZKakZxU1vh0Vzc6DW7MFAPk"
+      "y75iCZlDXoBpZjTNGo5HR-mCW_ozblu60U9zZA8bn-voANuu_hYwxh-uY1sHTFZOqp2xicnnMChz_GTm1Je8XCkICYegeiHU"
+      "ryEHA6T6B_L9gW8S_R4ptMD0Sv6b1KHqqKeubwKltCWPUsr2En9iYypnz06DEL5Wp8KMhrLid2AMPpLI0j1CWGJExXHpBWjf"
+      "IC8vbYH4YKVl-euRo8eDcuKosb5hxUGM9Jvy1siVXUpIKpkZt2YLP5pEBP_EVOoHPh5LJomrLMpORr1wBKbEkfom7npX1g81"
+      "7bK4IeYmZELI8zXUUtUkx3LgNTckwjx90Vt6oVXpFEICIUDF_LAVMUftzz6JUvbwOZo8iAZqcnVslAmRXeY_ZPp5eEHFfHls"
+      "b8VQ73Rd_p8XlFf5R1WuWiUGp2TzJ-VQvj3BTdQfOwSxR9RUk4xjqNabLqTFcQ7As246bHJXH6XVnd4DbEIDPfNa8FaWb_DN"
+      "EgQAiXGqa6n7l7aFq5_6Kp0XeBBM0sOzJt4fy8JC6U0DEcMnWxKFDtMM7q06LubQYFCEEdQ5b1Qh2LbQZ898tegmeF--EZ4F"
+      "4hvYebZPV8sM0ZcsKBXyCr585qs00PRxr0S6rReekGRBIvXzMojmid3dxc6DPpdV3x5zxlxaIBxO3i_6axknSSdxnS04_bem"
+      "WqQ3CLf6mpSqfTIQJT1407GB4QINAAC9Ch3AXUR_n1jr64TGWzbIr8uDcnoVCJlOgmlXpmOwubigAzJattbWRi7k4QYBnA3_"
+      "4QMjt73n2Co4-F_Qh4boYLpmwWG2SwcIw2PeXGr2LY2zwkPR4bcSyx1Z6UK5trQpWlpQCxgsvV_RvGzpN22RtHoihPH74K0c"
+      "BIzCz7tK-jqeuWl1A7af7KmQ66fpRBr5ykTLOsa17WblkcIB_jDvqKfEcdxhPWJUwmOo4TIQS-xH8arLOy_NQFG2m14_yxwU"
+      "emXC-QxLUYi6_FIcqwPBKjCdpQtadRdyftQSKO0SP-GxUvamMZzWI780rXuOBkq5kyYLy9QF9bf_-bL6QLpe1WMCQlOeXZaC"
+      "PoncgYoT0WZ17jB52Xb2lPWsyXYK54npszkbKJ4OIqfvF8xqRXcVe22VwJuqT9Uy4-4KKQgQ7TXla7Gdm2H7mKl8YXQlsGCT"
+      "2Ypc8O4t0Sfw7qYAuaDGf752Hbm3fl1bupcB2huIPlIaDP6IRR9XvTYIW2flbwYfhKLmoVKnG85uUi2qtqCjPOIuU3-peT0o"
+      "thfmwKQXaoOqO-V4r6wPL1VHxVFtIYmEdVt0RccUOvpOVR_OAHG9uHOzTmueK5557Qxp0ojtZCHyN-hgoMZJLrvdKkTCxPNo"
+      "2-mZQbHoVh2FnThZ9JbO49dB8lKXP4_MU5xAnjXMgKXtbfI8w6ZWATE_XWgf2VQMUpGp4wpy44yWQTxHxh_4T9540BGwG0FU"
+      "0bkgrwA_erseGZnepqdmz5_ScCs84O5Xr5MbYhJLCGGxY6O5GqS-ooB2w0Mt87KbbE4bpYje9CAHH8FX3pDrJyLsyasA3zxm"
+      "k4OmGpG7Z70ofONJtHRe56R5287vFmuazEEutXn81kNzB-3aJT1ga3vnWZw4CSvFKoWYSA7auLgrHSHFZdITfOrgtmQmGbFh"
+      "M9kSBdY1UCnpzf65oos3PZWRa2twfUxxLAnPNtrxpRGyvtsapw7ljUagZmuyh3hLCjhAxYmnoE1dbyIWvpCqSlEtVjL1yb_n"
+      "uLEzgvmZuV02fHxGuWgHTOMVGXpf81Rce3eoBK3lapW1wkzezlk3tcA2bZOtA9qbxdsbVR37kemzQ9K1e3Y0OWhtSj\",\"pri"
+      "v\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}";
+
+static const char *JWK_AKP_ML_DSA_87_PUBLIC
+    = "{\"kid\":\"tRn1JNIkgMsABVQBlXeDHxAIcclh-2IX0UdDEzPt5XU\",\"kty\":\"AKP\",\"alg\":\"ML-DSA-87\",\"pub\":\"5F_8jM"
+      "c9uIXcZi5ioYzY44AylxF_pWWIFKmFtf8dt7Roz8gruSnx2Gt37RT1rhamU2h3LOUZEkEBBeBFaXWukf22Q7US8STV5gvWi4"
+      "x-Mf4Bx7DcZa5HBQHMVlpuHfz8_RJWVDPEr-3VEYIeLpYQxFJ14oNt7jXO1p1--mcv0eQxi-9etuiX6LRRqiAt7QQrKq73en"
+      "vj9pkUbaIpqL2z_6SWRFln51IXv7yQSPmVZEPYcx-DPrMN4Q2slv_-fPZeoERcPjHoYB4TO-ahAHZP4xluJncmRB8xdR-_mm"
+      "9YgGRPTnJ15X3isPEF5NsFXVDdHJyTT931NbjeKLDHTARJ8iLNLtC7j7x3XM7oyUBmW0D3EvT34AdQ6eHkzZz_JdGUXD6byl"
+      "PM1PEu7nWBhW69aPJoRZVuPnvrdh8P51vdMb_i-gGBEzl7OHvVnWKmi4r3-iRauTLmn3eOLO79ITBPu4CZ6hPY6lfBgTGXov"
+      "da4lEHW1Ha04-FNmnp1fmKNlUJiUGZOhWUhg-6cf5TDuXCn1jyl4r2iMy3Wlg4o1nBEumOJahYOsjawfhh_Vjir7pd5aUuAg"
+      "kE9bQrwIdONb788-YRloR2jzbgCPBHEhd86-YnYHOB5W6q7hYcFym43lHb3kdNSMxoJJ6icWK4eZPmDITtbMZCPLNnbZ61Cy"
+      "yrWjoEnvExOB1iP6b7y8nbHnzAJeoEGLna0sxszU6V-izsJP7spwMYp1Fxa3IT9j7b9lpjM4NX-Dj5TsBxgiwkhRJIiFEHs9"
+      "HE6SRnjHYU6hrwOBBGGfKuNylAvs-mninLtf9sPiCke-Sk90usNMEzwApqcGrMxv_T2OT71pqZcE4Sg8hQ2MWNHldTzZWHuD"
+      "xMNGy5pYE3IT7BCDTGat_iu1xQGo7y7K3Rtnej3xpt64br8HIsT1Aw4g-QGN1bb8U-6iT9kre1tAJf6umW0-SP1MZQ2C261-"
+      "r5NmOWmFEvJiU9LvaEfIUY6FZcyaVJXG__V83nMjiCxUp9tHCrLa-P_Sv3lPp8aS2ef71TLuzB14gOLKCzIWEovii0qfHRUf"
+      "rJeAiwvZi3tDphKprIZYEr_qxvR0YCd4QLUqOwh_kWynztwPdo6ivRnqIRVfhLSgTEAArSrgWHFU1WC8Ckd6T5MpqJhN0x6x"
+      "8qBePZGHAdYwz8qa9h7wiNLFWBrLRj5DmQLl1CVxnpVrjW33MFso4P8n060N4ghdKSSZsZozkNQ5b7O6yajYy-rSp6QpD8ms"
+      "b8oEX5imFKRaOcviQ2D4TRT45HJxKs63Tb9FtT1JoORzfkdv_E1bL3zSR6oYbTt2Stnpz-7kVqc8KR2N45EkFKxDkRw3IXOt"
+      "e0cq81xoU87S_ntf4KiVZaszuqb2XN2SgxnXBl4EDnpehPmqkD92SAlLrQcTaxaSe47G28K-8MwoVt4eeVkj4UEsSfJN7rbC"
+      "H2yKl2XJx5huDaS0xn2ODQyNRmgk-5I9hXMUiZDNLvEzx4zuyrcu2d0oXFo3ZoUtVFNCB__TQCf2x27ej9GjLXLDAEi7qnl9"
+      "Xfb94n0IfeVyGte3-j6NP3DWv8OrLiUjNTaLv6Fay1yzfUaU6LI86-Jd6ckloiGhg7kE0_hd-ZKakZxU1vh0Vzc6DW7MFAPk"
+      "y75iCZlDXoBpZjTNGo5HR-mCW_ozblu60U9zZA8bn-voANuu_hYwxh-uY1sHTFZOqp2xicnnMChz_GTm1Je8XCkICYegeiHU"
+      "ryEHA6T6B_L9gW8S_R4ptMD0Sv6b1KHqqKeubwKltCWPUsr2En9iYypnz06DEL5Wp8KMhrLid2AMPpLI0j1CWGJExXHpBWjf"
+      "IC8vbYH4YKVl-euRo8eDcuKosb5hxUGM9Jvy1siVXUpIKpkZt2YLP5pEBP_EVOoHPh5LJomrLMpORr1wBKbEkfom7npX1g81"
+      "7bK4IeYmZELI8zXUUtUkx3LgNTckwjx90Vt6oVXpFEICIUDF_LAVMUftzz6JUvbwOZo8iAZqcnVslAmRXeY_ZPp5eEHFfHls"
+      "b8VQ73Rd_p8XlFf5R1WuWiUGp2TzJ-VQvj3BTdQfOwSxR9RUk4xjqNabLqTFcQ7As246bHJXH6XVnd4DbEIDPfNa8FaWb_DN"
+      "EgQAiXGqa6n7l7aFq5_6Kp0XeBBM0sOzJt4fy8JC6U0DEcMnWxKFDtMM7q06LubQYFCEEdQ5b1Qh2LbQZ898tegmeF--EZ4F"
+      "4hvYebZPV8sM0ZcsKBXyCr585qs00PRxr0S6rReekGRBIvXzMojmid3dxc6DPpdV3x5zxlxaIBxO3i_6axknSSdxnS04_bem"
+      "WqQ3CLf6mpSqfTIQJT1407GB4QINAAC9Ch3AXUR_n1jr64TGWzbIr8uDcnoVCJlOgmlXpmOwubigAzJattbWRi7k4QYBnA3_"
+      "4QMjt73n2Co4-F_Qh4boYLpmwWG2SwcIw2PeXGr2LY2zwkPR4bcSyx1Z6UK5trQpWlpQCxgsvV_RvGzpN22RtHoihPH74K0c"
+      "BIzCz7tK-jqeuWl1A7af7KmQ66fpRBr5ykTLOsa17WblkcIB_jDvqKfEcdxhPWJUwmOo4TIQS-xH8arLOy_NQFG2m14_yxwU"
+      "emXC-QxLUYi6_FIcqwPBKjCdpQtadRdyftQSKO0SP-GxUvamMZzWI780rXuOBkq5kyYLy9QF9bf_-bL6QLpe1WMCQlOeXZaC"
+      "PoncgYoT0WZ17jB52Xb2lPWsyXYK54npszkbKJ4OIqfvF8xqRXcVe22VwJuqT9Uy4-4KKQgQ7TXla7Gdm2H7mKl8YXQlsGCT"
+      "2Ypc8O4t0Sfw7qYAuaDGf752Hbm3fl1bupcB2huIPlIaDP6IRR9XvTYIW2flbwYfhKLmoVKnG85uUi2qtqCjPOIuU3-peT0o"
+      "thfmwKQXaoOqO-V4r6wPL1VHxVFtIYmEdVt0RccUOvpOVR_OAHG9uHOzTmueK5557Qxp0ojtZCHyN-hgoMZJLrvdKkTCxPNo"
+      "2-mZQbHoVh2FnThZ9JbO49dB8lKXP4_MU5xAnjXMgKXtbfI8w6ZWATE_XWgf2VQMUpGp4wpy44yWQTxHxh_4T9540BGwG0FU"
+      "0bkgrwA_erseGZnepqdmz5_ScCs84O5Xr5MbYhJLCGGxY6O5GqS-ooB2w0Mt87KbbE4bpYje9CAHH8FX3pDrJyLsyasA3zxm"
+      "k4OmGpG7Z70ofONJtHRe56R5287vFmuazEEutXn81kNzB-3aJT1ga3vnWZw4CSvFKoWYSA7auLgrHSHFZdITfOrgtmQmGbFh"
+      "M9kSBdY1UCnpzf65oos3PZWRa2twfUxxLAnPNtrxpRGyvtsapw7ljUagZmuyh3hLCjhAxYmnoE1dbyIWvpCqSlEtVjL1yb_n"
+      "uLEzgvmZuV02fHxGuWgHTOMVGXpf81Rce3eoBK3lapW1wkzezlk3tcA2bZOtA9qbxdsbVR37kemzQ9K1e3Y0OWhtSj\"}";
+
+// the 32 zero octets of the RFC's seed, base64url encoded
+static const char *AKP_ZERO_SEED_B64U = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+#endif // HAVE_ML_DSA
+
+#ifdef HAVE_ML_DSA
+
+// the three RFC 9964 JWKs, their algorithm and the public key length FIPS 204
+// fixes for it
+static const struct
+{
+    const char **jwk;
+    const char **jwk_public;
+    cjose_jwk_akp_alg alg;
+    size_t publen;
+} AKP_VECTORS[] = {
+    { &JWK_AKP_ML_DSA_44, &JWK_AKP_ML_DSA_44_PUBLIC, CJOSE_JWK_AKP_ML_DSA_44, 1312 },
+    { &JWK_AKP_ML_DSA_65, &JWK_AKP_ML_DSA_65_PUBLIC, CJOSE_JWK_AKP_ML_DSA_65, 1952 },
+    { &JWK_AKP_ML_DSA_87, &JWK_AKP_ML_DSA_87_PUBLIC, CJOSE_JWK_AKP_ML_DSA_87, 2592 },
+};
+
+// the value of a string member of a JWK's JSON, or NULL
+static char *_akp_member(const char *jwk_json, const char *name)
+{
+    json_t *j = json_loads(jwk_json, 0, NULL);
+    ck_assert(NULL != j);
+    json_t *m = json_object_get(j, name);
+    char *out = NULL;
+    if (NULL != m)
+    {
+        // strdup is POSIX rather than C17, and the tests build with -pedantic
+        const char *v = json_string_value(m);
+        ck_assert(NULL != v);
+        out = malloc(strlen(v) + 1);
+        ck_assert(NULL != out);
+        strcpy(out, v);
+    }
+    json_decref(j);
+    return out;
+}
+
+START_TEST(test_cjose_jwk_akp_rfc9964_vectors)
+{
+    cjose_err err;
+
+    for (size_t i = 0; i < sizeof(AKP_VECTORS) / sizeof(AKP_VECTORS[0]); i++)
+    {
+        const char *json = *AKP_VECTORS[i].jwk;
+
+        cjose_jwk_t *jwk = cjose_jwk_import(json, strlen(json), &err);
+        ck_assert_msg(NULL != jwk, "cjose_jwk_import failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(CJOSE_JWK_KTY_AKP, cjose_jwk_get_kty(jwk, &err));
+        ck_assert_int_eq(AKP_VECTORS[i].alg, cjose_jwk_AKP_get_alg(jwk, &err));
+        ck_assert_int_eq(AKP_VECTORS[i].publen * 8, cjose_jwk_get_keysize(jwk, &err));
+
+        // the private export gives back the RFC's own "pub" and "priv"
+        char *all = cjose_jwk_to_json(jwk, true, &err);
+        ck_assert_msg(NULL != all, "cjose_jwk_to_json failed: %s", err.message);
+        char *want_pub = _akp_member(json, "pub");
+        char *got_pub = _akp_member(all, "pub");
+        char *got_priv = _akp_member(all, "priv");
+        char *got_alg = _akp_member(all, "alg");
+        ck_assert(NULL != want_pub && NULL != got_pub && NULL != got_priv && NULL != got_alg);
+        ck_assert_msg(0 == strcmp(want_pub, got_pub), "the exported pub is not the RFC's (%zu)", i);
+        ck_assert_str_eq(AKP_ZERO_SEED_B64U, got_priv);
+        // RFC 9964 section 3: "alg" is REQUIRED and names the algorithm
+        char *want_alg = _akp_member(json, "alg");
+        ck_assert(NULL != want_alg);
+        ck_assert_str_eq(want_alg, got_alg);
+        free(want_alg);
+
+        // the public export carries no private material
+        char *pub_only = cjose_jwk_to_json(jwk, false, &err);
+        ck_assert(NULL != pub_only);
+        char *no_priv = _akp_member(pub_only, "priv");
+        ck_assert_msg(NULL == no_priv, "the public export leaked priv (%zu)", i);
+
+        free(want_pub);
+        free(got_pub);
+        free(got_priv);
+        free(got_alg);
+        cjose_get_dealloc()(all);
+        cjose_get_dealloc()(pub_only);
+        cjose_jwk_release(jwk);
+
+        // the public-only JWK of the same vector imports and stays public
+        const char *pjson = *AKP_VECTORS[i].jwk_public;
+        cjose_jwk_t *pjwk = cjose_jwk_import(pjson, strlen(pjson), &err);
+        ck_assert_msg(NULL != pjwk, "the public-only JWK was refused (%zu): %s", i, err.message);
+        char *pexport = cjose_jwk_to_json(pjwk, true, &err);
+        ck_assert(NULL != pexport);
+        char *leaked = _akp_member(pexport, "priv");
+        ck_assert_msg(NULL == leaked, "a public-only key exported priv (%zu)", i);
+        cjose_get_dealloc()(pexport);
+        cjose_jwk_release(pjwk);
+    }
+}
+END_TEST
+
+START_TEST(test_cjose_jwk_akp_random_round_trip)
+{
+    cjose_err err;
+
+    for (size_t i = 0; i < sizeof(AKP_VECTORS) / sizeof(AKP_VECTORS[0]); i++)
+    {
+        cjose_jwk_t *jwk = cjose_jwk_create_AKP_random(AKP_VECTORS[i].alg, &err);
+        ck_assert_msg(NULL != jwk, "cjose_jwk_create_AKP_random failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(AKP_VECTORS[i].alg, cjose_jwk_AKP_get_alg(jwk, &err));
+
+        char *exported = cjose_jwk_to_json(jwk, true, &err);
+        ck_assert(NULL != exported);
+        char *seed = _akp_member(exported, "priv");
+        ck_assert(NULL != seed);
+        // the seed is 32 octets, which is 43 base64url characters
+        ck_assert_int_eq(43, (int)strlen(seed));
+
+        cjose_jwk_t *again = cjose_jwk_import(exported, strlen(exported), &err);
+        ck_assert_msg(NULL != again, "re-importing an exported AKP key failed: %s", err.message);
+        char *exported2 = cjose_jwk_to_json(again, true, &err);
+        ck_assert(NULL != exported2);
+        ck_assert_msg(0 == strcmp(exported, exported2), "the AKP key did not survive its own export (%zu)", i);
+
+        free(seed);
+        cjose_get_dealloc()(exported);
+        cjose_get_dealloc()(exported2);
+        cjose_jwk_release(again);
+        cjose_jwk_release(jwk);
+    }
+}
+END_TEST
+
+// rebuilds the ML-DSA-44 vector with one member replaced, or removed when the
+// value is NULL
+static char *_akp_44_with(const char *name, const char *value)
+{
+    json_t *j = json_loads(JWK_AKP_ML_DSA_44, 0, NULL);
+    ck_assert(NULL != j);
+    if (NULL == value)
+    {
+        json_object_del(j, name);
+    }
+    else
+    {
+        ck_assert(0 == json_object_set_new(j, name, json_string(value)));
+    }
+    char *out = json_dumps(j, JSON_COMPACT);
+    json_decref(j);
+    ck_assert(NULL != out);
+    return out;
+}
+
+static void _akp_import_refused(char *json, const char *what)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = cjose_jwk_import(json, strlen(json), &err);
+    ck_assert_msg(NULL == jwk, "cjose_jwk_import accepted %s", what);
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_get_dealloc()(json);
+}
+
+START_TEST(test_cjose_jwk_akp_bad_params)
+{
+    cjose_err err;
+
+    // RFC 9964 section 3: "alg" is REQUIRED, and it has to name an algorithm
+    // this library implements
+    _akp_import_refused(_akp_44_with("alg", NULL), "an AKP key with no alg");
+    _akp_import_refused(_akp_44_with("alg", "ML-DSA-99"), "an unknown alg");
+    _akp_import_refused(_akp_44_with("alg", "Ed25519"), "an alg of another key type");
+
+    // "pub" is REQUIRED and of the size FIPS 204 fixes for the algorithm
+    _akp_import_refused(_akp_44_with("pub", NULL), "an AKP key with no pub");
+    _akp_import_refused(_akp_44_with("pub", ""), "an empty pub");
+    _akp_import_refused(_akp_44_with("pub", AKP_ZERO_SEED_B64U), "a pub of the wrong length");
+    // the ML-DSA-65 public key under the ML-DSA-44 alg: well formed, wrong size
+    {
+        char *other = _akp_member(JWK_AKP_ML_DSA_65, "pub");
+        ck_assert(NULL != other);
+        _akp_import_refused(_akp_44_with("pub", other), "a pub of another algorithm");
+        free(other);
+    }
+
+    // RFC 9964 section 7.3: where "priv" is present it is the 32 octet seed
+    _akp_import_refused(_akp_44_with("priv", ""), "an empty priv");
+    _akp_import_refused(_akp_44_with("priv", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), "a 31 octet seed");
+    _akp_import_refused(_akp_44_with("priv", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), "a 33 octet seed");
+
+    // RFC 9964 section 7.4: a "pub" that does not belong to the seed is a
+    // mismatched key, not a usable one
+    _akp_import_refused(_akp_44_with("priv", "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), "a seed that does not match pub");
+
+    // the spec constructor refuses the same shapes, on its own rather than by
+    // way of the import layer: a caller reaches it directly
+    uint8_t pub[1312];
+    uint8_t seed[32];
+    size_t publen = sizeof(pub), seedlen = sizeof(seed);
+    {
+        uint8_t *decoded = NULL;
+        size_t len = 0;
+        char *pub_b64u = _akp_member(JWK_AKP_ML_DSA_44, "pub");
+        ck_assert(NULL != pub_b64u);
+        ck_assert(cjose_base64url_decode(pub_b64u, strlen(pub_b64u), &decoded, &len, &err));
+        ck_assert_int_eq(sizeof(pub), len);
+        memcpy(pub, decoded, len);
+        cjose_get_dealloc()(decoded);
+        free(pub_b64u);
+        memset(seed, 0, sizeof(seed));
+    }
+
+    cjose_jwk_akp_keyspec spec;
+#define _AKP_SPEC_REFUSED(setup, what)                                                                                \
+    do                                                                                                                \
+    {                                                                                                                 \
+        memset(&spec, 0, sizeof(spec));                                                                               \
+        spec.alg = CJOSE_JWK_AKP_ML_DSA_44;                                                                           \
+        spec.pub = pub;                                                                                               \
+        spec.publen = publen;                                                                                         \
+        spec.priv = seed;                                                                                             \
+        spec.privlen = seedlen;                                                                                       \
+        setup;                                                                                                        \
+        ck_assert_msg(NULL == cjose_jwk_create_AKP_spec(&spec, &err), "cjose_jwk_create_AKP_spec accepted %s", what); \
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);                                                            \
+    } while (0)
+
+    _AKP_SPEC_REFUSED(spec.privlen = 31, "a 31 octet seed");
+    _AKP_SPEC_REFUSED(spec.privlen = 33, "a 33 octet seed");
+    // a wrong publen would have cjose read past the caller's buffer, so this
+    // is refused here rather than left to OpenSSL to notice afterwards
+    _AKP_SPEC_REFUSED(spec.publen = 1952, "a pub of another algorithm's length");
+    _AKP_SPEC_REFUSED(spec.publen = 0, "a zero length pub");
+    _AKP_SPEC_REFUSED(spec.alg = CJOSE_JWK_AKP_INVALID, "an invalid algorithm");
+    // RFC 9964 section 7.4, at the constructor rather than through a JWK
+    _AKP_SPEC_REFUSED(seed[0] ^= 1, "a seed that does not match pub");
+    seed[0] ^= 1;
+#undef _AKP_SPEC_REFUSED
+
+    // the two checks that only bite on a spec carrying one half of the pair:
+    // without "priv" there is no derived public key to compare against, so the
+    // length is all that stops cjose reading past the caller's buffer, and
+    // without "pub" an unknown algorithm would reach OpenSSL as a NULL name
+    memset(&spec, 0, sizeof(spec));
+    spec.alg = CJOSE_JWK_AKP_ML_DSA_44;
+    spec.pub = pub;
+    spec.publen = 1952;
+    ck_assert_msg(NULL == cjose_jwk_create_AKP_spec(&spec, &err),
+                  "a public-only spec with another algorithm's length was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.alg = CJOSE_JWK_AKP_INVALID;
+    spec.priv = seed;
+    spec.privlen = seedlen;
+    ck_assert_msg(NULL == cjose_jwk_create_AKP_spec(&spec, &err), "a seed-only spec with an invalid algorithm was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // with only the seed the public key is derived, as the OKP constructor
+    // derives "x" from "d"
+    memset(&spec, 0, sizeof(spec));
+    spec.alg = CJOSE_JWK_AKP_ML_DSA_44;
+    spec.priv = seed;
+    spec.privlen = seedlen;
+    cjose_jwk_t *derived = cjose_jwk_create_AKP_spec(&spec, &err);
+    ck_assert_msg(NULL != derived, "a seed-only AKP spec was refused: %s", err.message);
+    char *derived_json = cjose_jwk_to_json(derived, true, &err);
+    ck_assert(NULL != derived_json);
+    char *derived_pub = _akp_member(derived_json, "pub");
+    char *want_pub44 = _akp_member(JWK_AKP_ML_DSA_44, "pub");
+    ck_assert(NULL != derived_pub && NULL != want_pub44);
+    ck_assert_msg(0 == strcmp(derived_pub, want_pub44), "the derived public key is not the RFC's");
+    free(derived_pub);
+    free(want_pub44);
+    cjose_get_dealloc()(derived_json);
+    cjose_jwk_release(derived);
+
+    memset(&spec, 0, sizeof(spec));
+    ck_assert(NULL == cjose_jwk_create_AKP_spec(&spec, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    ck_assert(NULL == cjose_jwk_create_AKP_spec(NULL, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    ck_assert(NULL == cjose_jwk_create_AKP_random(CJOSE_JWK_AKP_INVALID, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // and a non-AKP key has no AKP algorithm
+    static const char *OCT_JWK = "{\"kty\":\"oct\",\"k\":\"pKE-eSbyFqPdtA5WzazKFg\"}";
+    cjose_jwk_t *oct = cjose_jwk_import(OCT_JWK, strlen(OCT_JWK), &err);
+    ck_assert(NULL != oct);
+    ck_assert_int_eq(CJOSE_JWK_AKP_INVALID, cjose_jwk_AKP_get_alg(oct, &err));
+    cjose_jwk_release(oct);
+}
+END_TEST
+
+#endif // HAVE_ML_DSA
+
 Suite *cjose_jwk_suite(void)
 {
     Suite *suite = suite_create("jwk");
@@ -2314,6 +2798,11 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_EC_import_with_priv_export_with_pub);
     tcase_add_test(tc_jwk, test_cjose_jwk_hkdf);
     tcase_add_test(tc_jwk, test_cjose_jwk_get_and_set_kid);
+#ifdef HAVE_ML_DSA
+    tcase_add_test(tc_jwk, test_cjose_jwk_akp_rfc9964_vectors);
+    tcase_add_test(tc_jwk, test_cjose_jwk_akp_random_round_trip);
+    tcase_add_test(tc_jwk, test_cjose_jwk_akp_bad_params);
+#endif
     suite_add_tcase(suite, tc_jwk);
 
     return suite;

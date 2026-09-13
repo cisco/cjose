@@ -64,6 +64,7 @@ JWK key types (`kty`):
 | `EC` | `P-256`, `P-384`, `P-521`, `secp256k1` | `secp256k1`: OpenSSL built with it |
 | `oct` | symmetric | |
 | `OKP` | `Ed25519`, `Ed448`, `X25519`, `X448` | |
+| `AKP` | `ML-DSA-44`, `ML-DSA-65`, `ML-DSA-87` (RFC 9964) | build option `CJOSE_ENABLE_ML_DSA`, OpenSSL >= 3.5 |
 
 JWEs can be produced and consumed in both the compact and the JSON
 serialization, with one or more recipients.
@@ -107,6 +108,7 @@ Pass options with `-D<OPTION>=<VALUE>` at configure time:
 | `CJOSE_BUILD_STATIC` | `ON` | Build the static library |
 | `CJOSE_BUILD_TESTS` | `ON` when top-level | Build the unit tests (requires Check) |
 | `CJOSE_ENABLE_RSA1_5` | `OFF` | Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm |
+| `CJOSE_ENABLE_ML_DSA` | `OFF` | Enable the ML-DSA signature algorithms and the `AKP` key type (RFC 9964); requires OpenSSL >= 3.5 |
 | `CJOSE_MSVC_STATIC_RUNTIME` | `OFF` | (MSVC) Link against the static C runtime (`/MT`) |
 | `CJOSE_MACOS_DYLIB` | `OFF` | (macOS) Build a plain `.dylib` instead of a framework |
 | `CJOSE_JWE_PBES2_MIN_ITERATIONS` | `1000` | Lowest PBES2 iteration count cjose will produce |

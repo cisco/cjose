@@ -37,6 +37,7 @@ static const char CJOSE_JWK_KTY_EC_STR[] = "EC";
 static const char CJOSE_JWK_KTY_RSA_STR[] = "RSA";
 static const char CJOSE_JWK_KTY_OCT_STR[] = "oct";
 static const char CJOSE_JWK_KTY_OKP_STR[] = "OKP";
+static const char CJOSE_JWK_KTY_AKP_STR[] = "AKP";
 static const char CJOSE_JWK_CRV_STR[] = "crv";
 static const char CJOSE_JWK_X_STR[] = "x";
 static const char CJOSE_JWK_Y_STR[] = "y";
@@ -51,7 +52,8 @@ static const char CJOSE_JWK_QI_STR[] = "qi";
 static const char CJOSE_JWK_OTH_STR[] = "oth";
 static const char CJOSE_JWK_K_STR[] = "k";
 
-static const char *JWK_KTY_NAMES[] = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR, CJOSE_JWK_KTY_OKP_STR };
+static const char *JWK_KTY_NAMES[]
+    = { CJOSE_JWK_KTY_RSA_STR, CJOSE_JWK_KTY_EC_STR, CJOSE_JWK_KTY_OCT_STR, CJOSE_JWK_KTY_OKP_STR, CJOSE_JWK_KTY_AKP_STR };
 
 bool _cjose_jwk_rsa_has_private(const cjose_jwk_t *jwk)
 {
@@ -64,10 +66,10 @@ bool _cjose_jwk_rsa_has_private(const cjose_jwk_t *jwk)
 
 const char *cjose_jwk_name_for_kty(cjose_jwk_kty_t kty, cjose_err *err)
 {
-    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_OKP]; a value
+    // reject anything outside [CJOSE_JWK_KTY_RSA, CJOSE_JWK_KTY_AKP]; a value
     // below RSA (e.g. a negative sentinel, if the enum is signed) would index
     // JWK_KTY_NAMES out of bounds
-    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_OKP < kty)
+    if (kty < CJOSE_JWK_KTY_RSA || CJOSE_JWK_KTY_AKP < kty)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return NULL;
@@ -530,6 +532,10 @@ static inline bool _cjose_jwk_kty_from_name(const char *name, cjose_jwk_kty_t *k
     else if (strncmp(name, CJOSE_JWK_KTY_OKP_STR, sizeof(CJOSE_JWK_KTY_OKP_STR)) == 0)
     {
         *kty = CJOSE_JWK_KTY_OKP;
+    }
+    else if (strncmp(name, CJOSE_JWK_KTY_AKP_STR, sizeof(CJOSE_JWK_KTY_AKP_STR)) == 0)
+    {
+        *kty = CJOSE_JWK_KTY_AKP;
     }
     else
     {
@@ -1300,6 +1306,301 @@ _okp_to_string_cleanup:
 
     return result;
 }
+
+// ----------------------------------------------------------------------------
+// Algorithm Key Pair (AKP), RFC 9964
+//
+// An AKP key names its algorithm rather than a curve, and for the ML-DSA
+// algorithms of US NIST FIPS 204 the "priv" parameter is the 32 octet seed
+// rather than the expanded private key (RFC 9964 section 4). OpenSSL grows the
+// expanded key from the seed itself, so the JWK round trips through the seed
+// and the expanded form never leaves the EVP_PKEY.
+//
+// The whole family is behind HAVE_ML_DSA: ML-DSA arrived in OpenSSL 3.5, well
+// above the 3.0 the rest of cjose builds on. Without it the public functions
+// stay, like the RSA1_5 ones, and refuse with CJOSE_ERR_INVALID_ARG.
+
+#ifdef HAVE_ML_DSA
+
+static const char CJOSE_JWK_AKP_ML_DSA_44_STR[] = "ML-DSA-44";
+static const char CJOSE_JWK_AKP_ML_DSA_65_STR[] = "ML-DSA-65";
+static const char CJOSE_JWK_AKP_ML_DSA_87_STR[] = "ML-DSA-87";
+
+// the AKP member names of RFC 9964 section 3
+static const char CJOSE_JWK_ALG_STR[] = "alg";
+static const char CJOSE_JWK_PUB_STR[] = "pub";
+static const char CJOSE_JWK_PRIV_STR[] = "priv";
+
+const char *_cjose_jwk_akp_name_for_alg(cjose_jwk_akp_alg alg)
+{
+    switch (alg)
+    {
+    case CJOSE_JWK_AKP_ML_DSA_44:
+        return CJOSE_JWK_AKP_ML_DSA_44_STR;
+    case CJOSE_JWK_AKP_ML_DSA_65:
+        return CJOSE_JWK_AKP_ML_DSA_65_STR;
+    case CJOSE_JWK_AKP_ML_DSA_87:
+        return CJOSE_JWK_AKP_ML_DSA_87_STR;
+    case CJOSE_JWK_AKP_INVALID:
+        break;
+    }
+    return NULL;
+}
+
+bool _cjose_jwk_akp_alg_from_name(const char *name, cjose_jwk_akp_alg *alg)
+{
+    if (NULL == name)
+    {
+        return false;
+    }
+    if (strncmp(name, CJOSE_JWK_AKP_ML_DSA_44_STR, sizeof(CJOSE_JWK_AKP_ML_DSA_44_STR)) == 0)
+    {
+        *alg = CJOSE_JWK_AKP_ML_DSA_44;
+    }
+    else if (strncmp(name, CJOSE_JWK_AKP_ML_DSA_65_STR, sizeof(CJOSE_JWK_AKP_ML_DSA_65_STR)) == 0)
+    {
+        *alg = CJOSE_JWK_AKP_ML_DSA_65;
+    }
+    else if (strncmp(name, CJOSE_JWK_AKP_ML_DSA_87_STR, sizeof(CJOSE_JWK_AKP_ML_DSA_87_STR)) == 0)
+    {
+        *alg = CJOSE_JWK_AKP_ML_DSA_87;
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
+// the public key size of each algorithm, FIPS 204 Table 2, repeated as RFC
+// 9964 Table 1 (section 5.3 gives the encoding, not the size); the sizes are
+// fixed by the algorithm, so a JWK carrying any other length is refused before
+// OpenSSL sees it
+static size_t _cjose_jwk_akp_pub_len_for_alg(cjose_jwk_akp_alg alg)
+{
+    switch (alg)
+    {
+    case CJOSE_JWK_AKP_ML_DSA_44:
+        return 1312;
+    case CJOSE_JWK_AKP_ML_DSA_65:
+        return 1952;
+    case CJOSE_JWK_AKP_ML_DSA_87:
+        return 2592;
+    case CJOSE_JWK_AKP_INVALID:
+        break;
+    }
+    return 0;
+}
+
+static void _cjose_jwk_AKP_free(cjose_jwk_t *jwk);
+static bool _cjose_jwk_AKP_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+static bool _cjose_jwk_AKP_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err);
+
+static const key_fntable AKP_FNTABLE = { _cjose_jwk_AKP_free, _cjose_jwk_AKP_public_fields, _cjose_jwk_AKP_private_fields };
+
+// takes ownership of pkey on success; seed is the 32 octet private seed, or
+// NULL for a public key
+static cjose_jwk_t *_cjose_jwk_AKP_new(cjose_jwk_akp_alg alg, EVP_PKEY *pkey, const uint8_t *seed, cjose_err *err)
+{
+    akp_keydata *keydata = cjose_get_alloc()(sizeof(akp_keydata));
+    if (!keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return NULL;
+    }
+    memset(keydata, 0, sizeof(akp_keydata));
+    keydata->alg = alg;
+    keydata->key = pkey;
+    keydata->has_private = (NULL != seed);
+    if (NULL != seed)
+    {
+        memcpy(keydata->seed, seed, CJOSE_JWK_AKP_SEED_LEN);
+    }
+
+    cjose_jwk_t *jwk = cjose_get_alloc()(sizeof(cjose_jwk_t));
+    if (!jwk)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        _cjose_cleanse(keydata->seed, sizeof(keydata->seed));
+        cjose_get_dealloc()(keydata);
+        return NULL;
+    }
+    memset(jwk, 0, sizeof(cjose_jwk_t));
+    jwk->retained = 1;
+    jwk->kty = CJOSE_JWK_KTY_AKP;
+    jwk->keysize = _cjose_jwk_akp_pub_len_for_alg(alg) * 8;
+    jwk->keydata = keydata;
+    jwk->fns = &AKP_FNTABLE;
+
+    return jwk;
+}
+
+static void _cjose_jwk_AKP_free(cjose_jwk_t *jwk)
+{
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+    jwk->keydata = NULL;
+
+    if (keydata)
+    {
+        EVP_PKEY_free(keydata->key);
+        keydata->key = NULL;
+        _cjose_cleanse(keydata->seed, sizeof(keydata->seed));
+        cjose_get_dealloc()(keydata);
+    }
+    cjose_get_dealloc()(jwk);
+}
+
+// reads the public key out of an EVP_PKEY, whether it was built from the seed
+// or from the public key itself
+static bool _cjose_jwk_akp_get_pub(EVP_PKEY *key, cjose_jwk_akp_alg alg, uint8_t **pub, size_t *publen, cjose_err *err)
+{
+    const size_t expected = _cjose_jwk_akp_pub_len_for_alg(alg);
+    uint8_t *buffer = cjose_get_alloc()(expected);
+    if (NULL == buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        return false;
+    }
+    size_t len = 0;
+    if (1 != EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY, buffer, expected, &len) || len != expected)
+    {
+        cjose_get_dealloc()(buffer);
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return false;
+    }
+    *pub = buffer;
+    *publen = len;
+    return true;
+}
+
+// builds the EVP_PKEY: from the seed when there is one, so that the key can
+// sign, and from the public key otherwise
+static EVP_PKEY *
+_cjose_jwk_akp_pkey(cjose_jwk_akp_alg alg, const uint8_t *priv, size_t privlen, const uint8_t *pub, size_t publen, cjose_err *err)
+{
+    EVP_PKEY *key = NULL;
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, _cjose_jwk_akp_name_for_alg(alg), NULL);
+    if (NULL == ctx)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return NULL;
+    }
+
+    OSSL_PARAM_BLD *bld = OSSL_PARAM_BLD_new();
+    OSSL_PARAM *params = NULL;
+    const bool have_priv = (NULL != priv);
+
+    if (NULL == bld
+        || (have_priv ? OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_ML_DSA_SEED, priv, privlen)
+                      : OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_PUB_KEY, pub, publen))
+               != 1)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _akp_pkey_cleanup;
+    }
+
+    params = OSSL_PARAM_BLD_to_param(bld);
+    if (NULL == params || 1 != EVP_PKEY_fromdata_init(ctx)
+        || 1 != EVP_PKEY_fromdata(ctx, &key, have_priv ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY, params))
+    {
+        EVP_PKEY_free(key);
+        key = NULL;
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+    }
+
+_akp_pkey_cleanup:
+    OSSL_PARAM_free(params);
+    OSSL_PARAM_BLD_free(bld);
+    EVP_PKEY_CTX_free(ctx);
+    return key;
+}
+
+static bool _cjose_jwk_AKP_public_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+{
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+    uint8_t *pub = NULL;
+    size_t publen = 0;
+    char *b64u = NULL;
+    size_t b64u_len = 0;
+    json_t *field = NULL;
+    bool result = false;
+
+    // RFC 9964 section 3 makes "alg" REQUIRED for every AKP key
+    field = json_string(_cjose_jwk_akp_name_for_alg(keydata->alg));
+    if (!field)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _akp_to_string_cleanup;
+    }
+    json_object_set(json, CJOSE_JWK_ALG_STR, field);
+    json_decref(field);
+    field = NULL;
+
+    if (!_cjose_jwk_akp_get_pub(keydata->key, keydata->alg, &pub, &publen, err))
+    {
+        goto _akp_to_string_cleanup;
+    }
+    if (!cjose_base64url_encode(pub, publen, &b64u, &b64u_len, err))
+    {
+        goto _akp_to_string_cleanup;
+    }
+    field = _cjose_json_stringn(b64u, b64u_len, err);
+    if (!field)
+    {
+        goto _akp_to_string_cleanup;
+    }
+    json_object_set(json, CJOSE_JWK_PUB_STR, field);
+    json_decref(field);
+    field = NULL;
+
+    result = true;
+
+_akp_to_string_cleanup:
+    cjose_get_dealloc()(pub);
+    cjose_get_dealloc()(b64u);
+
+    return result;
+}
+
+static bool _cjose_jwk_AKP_private_fields(const cjose_jwk_t *jwk, json_t *json, cjose_err *err)
+{
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+    char *b64u = NULL;
+    size_t b64u_len = 0;
+    json_t *field = NULL;
+    bool result = false;
+
+    if (!keydata->has_private)
+    {
+        return true;
+    }
+
+    // the seed is what RFC 9964 section 4 puts in "priv"; the key carries its
+    // own copy, since the expanded private key never leaves the EVP_PKEY and
+    // the provider cannot be relied on to hand the seed back
+    if (!cjose_base64url_encode(keydata->seed, sizeof(keydata->seed), &b64u, &b64u_len, err))
+    {
+        goto _akp_to_string_cleanup;
+    }
+    field = _cjose_json_stringn(b64u, b64u_len, err);
+    if (!field)
+    {
+        goto _akp_to_string_cleanup;
+    }
+    json_object_set(json, CJOSE_JWK_PRIV_STR, field);
+    json_decref(field);
+    field = NULL;
+
+    result = true;
+
+_akp_to_string_cleanup:
+    // the encoded seed is private key material: wipe it before release
+    _cjose_cleanse_dealloc(b64u, b64u_len);
+
+    return result;
+}
+
+#endif // HAVE_ML_DSA
 
 // interface functions -- Octet Key Pair
 
@@ -2268,6 +2569,213 @@ import_OKP_cleanup:
     return jwk;
 }
 
+// interface functions -- Algorithm Key Pair
+
+cjose_jwk_t *cjose_jwk_create_AKP_random(cjose_jwk_akp_alg alg, cjose_err *err)
+{
+#ifdef HAVE_ML_DSA
+    const char *name = _cjose_jwk_akp_name_for_alg(alg);
+    if (NULL == name)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    // the seed is generated here rather than by EVP_PKEY_generate, so that the
+    // key owns it whatever the provider is configured to retain
+    uint8_t seed[CJOSE_JWK_AKP_SEED_LEN];
+    if (1 != RAND_bytes(seed, sizeof(seed)))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        return NULL;
+    }
+
+    cjose_jwk_t *jwk = NULL;
+    EVP_PKEY *key = _cjose_jwk_akp_pkey(alg, seed, sizeof(seed), NULL, 0, err);
+    if (NULL != key)
+    {
+        jwk = _cjose_jwk_AKP_new(alg, key, seed, err);
+        if (NULL == jwk)
+        {
+            EVP_PKEY_free(key);
+        }
+    }
+    _cjose_cleanse(seed, sizeof(seed));
+    return jwk;
+#else
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    (void)alg;
+    return NULL;
+#endif
+}
+
+cjose_jwk_t *cjose_jwk_create_AKP_spec(const cjose_jwk_akp_keyspec *spec, cjose_err *err)
+{
+#ifdef HAVE_ML_DSA
+    if (NULL == spec)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    const size_t publen = _cjose_jwk_akp_pub_len_for_alg(spec->alg);
+    if (0 == publen)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    // The public key has the fixed size of the algorithm (RFC 9964 section 5,
+    // Table 1), and where "priv" is present it is the seed, whose 32 octet
+    // length check RFC 9964 section 7.3 makes a MUST. One of the two has to be
+    // there; with only the seed the public key is derived from it, as the OKP
+    // constructor derives "x" from "d".
+    if (NULL == spec->priv && NULL == spec->pub)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+    if (NULL != spec->pub && spec->publen != publen)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+    if (NULL != spec->priv && spec->privlen != CJOSE_JWK_AKP_SEED_LEN)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return NULL;
+    }
+
+    EVP_PKEY *key = _cjose_jwk_akp_pkey(spec->alg, spec->priv, spec->privlen, spec->pub, spec->publen, err);
+    if (NULL == key)
+    {
+        return NULL;
+    }
+
+    // RFC 9964 section 7.4: a public key that does not belong to the private
+    // one is a tampered or mismatched key, so a pair that carries both is
+    // checked rather than silently signing under a key nobody can verify
+    // against
+    if (NULL != spec->priv && NULL != spec->pub)
+    {
+        uint8_t *derived = NULL;
+        size_t derivedlen = 0;
+        if (!_cjose_jwk_akp_get_pub(key, spec->alg, &derived, &derivedlen, err))
+        {
+            EVP_PKEY_free(key);
+            return NULL;
+        }
+        const bool match = (derivedlen == spec->publen) && (0 == cjose_const_memcmp(derived, spec->pub, derivedlen));
+        cjose_get_dealloc()(derived);
+        if (!match)
+        {
+            EVP_PKEY_free(key);
+            CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+            return NULL;
+        }
+    }
+
+    cjose_jwk_t *jwk = _cjose_jwk_AKP_new(spec->alg, key, spec->priv, err);
+    if (NULL == jwk)
+    {
+        EVP_PKEY_free(key);
+    }
+    return jwk;
+#else
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    (void)spec;
+    return NULL;
+#endif
+}
+
+cjose_jwk_akp_alg cjose_jwk_AKP_get_alg(const cjose_jwk_t *jwk, cjose_err *err)
+{
+#ifdef HAVE_ML_DSA
+    if (NULL == jwk || CJOSE_JWK_KTY_AKP != jwk->kty || NULL == jwk->keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return CJOSE_JWK_AKP_INVALID;
+    }
+    return ((akp_keydata *)jwk->keydata)->alg;
+#else
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    (void)jwk;
+    return CJOSE_JWK_AKP_INVALID;
+#endif
+}
+
+static cjose_jwk_t *_cjose_jwk_import_AKP(json_t *jwk_json, cjose_err *err)
+{
+#ifdef HAVE_ML_DSA
+    cjose_jwk_t *jwk = NULL;
+    uint8_t *pub_buffer = NULL;
+    uint8_t *priv_buffer = NULL;
+    size_t pub_buflen = 0;
+    size_t priv_buflen = 0;
+
+    // RFC 9964 section 3: "alg" is REQUIRED for every AKP key, because the key
+    // type alone does not say which algorithm the key belongs to
+    const char *alg_str = _cjose_jwk_get_json_object_string_attribute(jwk_json, CJOSE_JWK_ALG_STR, err);
+    cjose_jwk_akp_alg alg;
+    if (NULL == alg_str || !_cjose_jwk_akp_alg_from_name(alg_str, &alg))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_AKP_cleanup;
+    }
+
+    // "pub" is REQUIRED and of the fixed size of the algorithm; the decoder
+    // treats a missing, empty or non-string attribute alike, so a decoded
+    // value must have come out of it
+    pub_buflen = _cjose_jwk_akp_pub_len_for_alg(alg);
+    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_PUB_STR, &pub_buffer, &pub_buflen, err)
+        || NULL == pub_buffer)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_AKP_cleanup;
+    }
+
+    // "priv" MUST NOT be present in a public key, so when the attribute is
+    // there it must decode to a seed of the right size instead of quietly
+    // making a public key
+    // Deliberately not _cjose_jwk_decode_private_attribute: that helper refuses
+    // a private member whose octets are all zero, because for RSA and EC the
+    // member is an integer and zero is not a key. An ML-DSA "priv" is not an
+    // integer, it is 32 opaque octets of seed, and the all-zeros seed is a
+    // perfectly good one: it is what RFC 9964 Appendix A.1 uses for all three
+    // of its examples. The length check below is what makes a valueless
+    // attribute fail here, since an empty string and base64url padding on its
+    // own both decode to no octets at all.
+    priv_buflen = CJOSE_JWK_AKP_SEED_LEN;
+    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_PRIV_STR, &priv_buffer, &priv_buflen, err)
+        || (NULL != json_object_get(jwk_json, CJOSE_JWK_PRIV_STR) && NULL == priv_buffer))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        goto import_AKP_cleanup;
+    }
+
+    cjose_jwk_akp_keyspec akp_keyspec;
+    memset(&akp_keyspec, 0, sizeof(cjose_jwk_akp_keyspec));
+    akp_keyspec.alg = alg;
+    akp_keyspec.pub = pub_buffer;
+    akp_keyspec.publen = pub_buflen;
+    akp_keyspec.priv = priv_buffer;
+    akp_keyspec.privlen = priv_buflen;
+
+    jwk = cjose_jwk_create_AKP_spec(&akp_keyspec, err);
+
+import_AKP_cleanup:
+    cjose_get_dealloc()(pub_buffer);
+    // priv is the seed -> wipe the decoded copy before release
+    _cjose_cleanse_dealloc(priv_buffer, priv_buflen);
+
+    return jwk;
+#else
+    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+    (void)jwk_json;
+    return NULL;
+#endif
+}
+
 cjose_jwk_t *cjose_jwk_import(const char *jwk_str, size_t len, cjose_err *err)
 {
     cjose_jwk_t *jwk = NULL;
@@ -2344,6 +2852,10 @@ cjose_jwk_t *cjose_jwk_import_json(cjose_header_t *json, cjose_err *err)
 
     case CJOSE_JWK_KTY_OKP:
         jwk = _cjose_jwk_import_OKP(jwk_json, err);
+        break;
+
+    case CJOSE_JWK_KTY_AKP:
+        jwk = _cjose_jwk_import_AKP(jwk_json, err);
         break;
 
     default:
