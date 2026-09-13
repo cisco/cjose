@@ -17,7 +17,6 @@
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
-#include <openssl/hmac.h>
 
 #include "include/concatkdf_int.h"
 #include "include/header_int.h"
@@ -2141,7 +2140,7 @@ _cjose_jwe_encrypt_dat_fail:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t *md, unsigned int *md_len, cjose_err *err)
+static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t *md, size_t *md_len, cjose_err *err)
 {
     bool retval = false;
     const EVP_MD *hash = NULL;
@@ -2165,6 +2164,7 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
         return false;
     }
 
+    const char *digest_name = EVP_MD_get0_name(hash);
     uint8_t *msg = NULL;
 
     // calculate the Authentication Tag value over AAD + IV + ciphertext + AAD length
@@ -2215,7 +2215,8 @@ static bool _cjose_jwe_calc_auth_tag(const char *enc, cjose_jwe_t *jwe, uint8_t 
     memcpy(p, &al, sizeof(uint64_t));
 
     // HMAC the input
-    if (!HMAC(hash, jwe->cek, jwe->cek_len / 2, msg, msg_len, md, md_len))
+    if (NULL
+        == EVP_Q_mac(NULL, "HMAC", NULL, digest_name, NULL, jwe->cek, jwe->cek_len / 2, msg, msg_len, md, EVP_MAX_MD_SIZE, md_len))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         goto _cjose_jwe_calc_auth_tag_end;
@@ -2310,9 +2311,9 @@ static bool _cjose_jwe_encrypt_dat_aes_cbc(cjose_jwe_t *jwe, const uint8_t *plai
     jwe->enc_ct.raw_len += bytes_encrypted;
 
     // calculate Authentication Tag
-    unsigned int tag_len = 0;
+    size_t tag_len = 0;
     uint8_t tag[EVP_MAX_MD_SIZE];
-    if (_cjose_jwe_calc_auth_tag(enc, jwe, (unsigned char *)&tag, &tag_len, err) == false)
+    if (_cjose_jwe_calc_auth_tag(enc, jwe, tag, &tag_len, err) == false)
     {
         goto _cjose_jwe_encrypt_dat_aes_cbc_fail;
     }
@@ -2463,9 +2464,9 @@ static bool _cjose_jwe_decrypt_dat_aes_cbc(cjose_jwe_t *jwe, cjose_err *err)
     }
 
     // calculate Authentication Tag
-    unsigned int tag_len = 0;
+    size_t tag_len = 0;
     uint8_t tag[EVP_MAX_MD_SIZE];
-    if (_cjose_jwe_calc_auth_tag(enc, jwe, (unsigned char *)&tag, &tag_len, err) == false)
+    if (_cjose_jwe_calc_auth_tag(enc, jwe, tag, &tag_len, err) == false)
     {
         return false;
     }
