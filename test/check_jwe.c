@@ -12,6 +12,7 @@
 #include "include/jwk_int.h"
 #include "include/jwe_int.h"
 #include "include/util_int.h"
+#include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/rand.h>
 #include <cjose/error.h>
@@ -510,7 +511,7 @@ static void _jwe_hdr_flip_tag(json_t *hdr)
 
 // the "iv" and "tag" parameters live with the recipient and are checked
 // before the encrypted key is touched
-static void _decrypt_aes_gcm_kw_expect(const char *compact, const char *key, cjose_errcode expected)
+static void _decrypt_expect(const char *compact, const char *key, cjose_errcode expected)
 {
     cjose_err err;
     memset(&err, 0, sizeof(err));
@@ -559,8 +560,8 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_bad_params)
 
     // ... is refused with the wrong key size, the wrong key type and a
     // tampered, missing, short or non-string parameter
-    _decrypt_aes_gcm_kw_expect(compact, JWK_OCT_32, CJOSE_ERR_INVALID_ARG);
-    _decrypt_aes_gcm_kw_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_OCT_32, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
     struct
     {
         void (*modify)(json_t *);
@@ -573,7 +574,7 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_bad_params)
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
         char *modified = _jwe_with_modified_header(compact, cases[i].modify);
-        _decrypt_aes_gcm_kw_expect(modified, JWK_OCT_16, cases[i].expected);
+        _decrypt_expect(modified, JWK_OCT_16, cases[i].expected);
         free(modified);
     }
 
@@ -586,7 +587,7 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_bad_params)
     memcpy(longer, compact, prefix);
     memcpy(longer + prefix, "AAAAAAAAAAA", 11);
     strcpy(longer + prefix + 11, ek_end);
-    _decrypt_aes_gcm_kw_expect(longer, JWK_OCT_16, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(longer, JWK_OCT_16, CJOSE_ERR_INVALID_ARG);
     free(longer);
 
     cjose_get_dealloc()(compact);
@@ -2664,7 +2665,8 @@ static char *_jwe_with_epk(const char *compact, const char *epk_json)
     return result;
 }
 
-static void _ecdh_decrypt_ok(const char *compact, const char *key, const uint8_t *expected, size_t expected_len)
+// import a compact JWE, decrypt it with the given key and check the plaintext
+static void _decrypt_plain_ok(const char *compact, const char *key, const uint8_t *expected, size_t expected_len)
 {
     cjose_err err;
     memset(&err, 0, sizeof(err));
@@ -2678,22 +2680,6 @@ static void _ecdh_decrypt_ok(const char *compact, const char *key, const uint8_t
     ck_assert_int_eq(expected_len, plain_len);
     ck_assert(0 == memcmp(expected, plain, plain_len));
     cjose_get_dealloc()(plain);
-    cjose_jwe_release(jwe);
-    cjose_jwk_release(jwk);
-}
-
-static void _ecdh_decrypt_expect(const char *compact, const char *key, cjose_errcode expected)
-{
-    cjose_err err;
-    memset(&err, 0, sizeof(err));
-    cjose_jwk_t *jwk = cjose_jwk_import(key, strlen(key), &err);
-    ck_assert(NULL != jwk);
-    cjose_jwe_t *jwe = cjose_jwe_import(compact, strlen(compact), &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed: %s", err.message);
-    size_t plain_len = 0;
-    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
-    ck_assert_msg(NULL == plain, "cjose_jwe_decrypt succeeded unexpectedly");
-    ck_assert_int_eq(expected, err.code);
     cjose_jwe_release(jwe);
     cjose_jwk_release(jwk);
 }
@@ -2719,7 +2705,7 @@ START_TEST(test_cjose_jwe_ecdh_es_private_epk)
     cjose_jwe_release(jwe);
 
     // the public ephemeral key the encryption published still decrypts
-    _ecdh_decrypt_ok(compact, JWK_EC, plain, sizeof(plain) - 1);
+    _decrypt_plain_ok(compact, JWK_EC, plain, sizeof(plain) - 1);
 
     // the same key with its private part in "epk" is refused, and so is one
     // that merely names "d", which the import would otherwise read as a public
@@ -2736,7 +2722,7 @@ START_TEST(test_cjose_jwe_ecdh_es_private_epk)
     for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
     {
         char *modified = _jwe_with_epk(compact, bad_epks[i]);
-        _ecdh_decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
+        _decrypt_expect(modified, JWK_EC, CJOSE_ERR_INVALID_ARG);
         free(modified);
     }
 
@@ -2778,9 +2764,9 @@ START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
     cjose_jwe_release(jwe);
 
     // ... is refused with a key of another type or curve
-    _ecdh_decrypt_expect(compact, JWK_OKP_ED25519, CJOSE_ERR_INVALID_ARG);
-    _ecdh_decrypt_expect(compact, JWK_OKP_X448, CJOSE_ERR_INVALID_ARG);
-    _ecdh_decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_OKP_ED25519, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_OKP_X448, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
 
     // ... and with an ephemeral key of another type or curve, or of the wrong size
     cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
@@ -2803,7 +2789,7 @@ START_TEST(test_cjose_jwe_ecdh_es_okp_bad_params)
     for (size_t i = 0; i < sizeof(epks) / sizeof(epks[0]); i++)
     {
         char *modified = _jwe_with_epk(compact, epks[i]);
-        _ecdh_decrypt_expect(modified, JWK_OKP_X25519, CJOSE_ERR_INVALID_ARG);
+        _decrypt_expect(modified, JWK_OKP_X25519, CJOSE_ERR_INVALID_ARG);
         free(modified);
     }
 
@@ -2956,6 +2942,497 @@ START_TEST(test_cjose_jwe_aes_gcm_kw_interop)
 }
 END_TEST
 
+// PBES2 JWEs produced by python-jwcrypto with the password below over
+// PLAINTEXT_RSA_OAEP_256: three compact serializations with the default 8192
+// iterations, one with 16384, one with 100, and a JSON serialization carrying
+// "p2s" and "p2c" in the per-recipient header; and the RFC 7517 Appendix C example,
+// PBES2-HS256+A128KW with 4096 iterations over the RSA private JWK of C.1
+static const char *JWK_PBES2_PASSWORD
+    = "{\"k\":\"VGh1cyBmcm9tIG15IGxpcHMsIGJ5IHlvdXJzLCBteSBzaW4gaXMgcHVyZ2VkLg\",\"kty\":\"oct\"}";
+static const char *JWE_PBES2_HS256_A128KW_A256GCM
+    = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo4MTkyLCJwMnMiOiI3Mm8tYmpWUUV3bGdX"
+      "TkJxc0ZobU9nIn0.SK1ApQYdfAtVJf7gFMlzmdZl4pHNLOK00mCWC6Fg2S8XAM5HKPlgMQ.MdKrC2kTOHneVK4z.3T--oXJv3aI3"
+      "wikV5f78-CJoILdJHNhujN-rtzPpVsNCzg7JnVYx9GSAQat8OOKCn-TDmHkWDAUaiP7Gkaun.fGKt2Du5GGrTKrn-4Jh_qA";
+static const char *JWE_PBES2_HS384_A192KW_A128CBC_HS256
+    = "eyJhbGciOiJQQkVTMi1IUzM4NCtBMTkyS1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwicDJjIjo4MTkyLCJwMnMiOiJJOVREUzFy"
+      "RXpqUU1WMnVZZFdvYnZnIn0.0741X0bte3gblhHo80l-6yV83FYFTPY5J7JJpT5W-azBIKnfTr3GGA.GtpjTvJVuz9TnPs6HS8iO"
+      "g.QWtA5liUSgd1XhMNou-5mvJSksSmFbC9bZnR3aF28L2QneXuVXqqTzppY71zS_ItK9FzycHiH16MMBGLUWUy4A.b8ornHHUzDK"
+      "_UxtrJ-ApMQ";
+static const char *JWE_PBES2_HS512_A256KW_A256CBC_HS512
+    = "eyJhbGciOiJQQkVTMi1IUzUxMitBMjU2S1ciLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIiwicDJjIjo4MTkyLCJwMnMiOiJuNkkySDVI"
+      "cDJOeFpfeWVTVXBna3RnIn0.UNvZTubwC7KU2iH258Ns16R9r8YSavhX_MmjErNGdu_VYSq-fTFi1mA9QRWcuQyBIHf-_y58voGz"
+      "UpnxyzKFWgwATjqk-zpz.sY2zbplVedfbzjxmhsQOJA.7ETr9EeGH7verx_xFyIekzekJvfzeSDpCRANMY1fooCjdowtYdS7wrWH"
+      "cIyCtpQ3_YI2UtqVIsNXBy4QQOQqFQ.GVOen9xOlxyvQ3S22F69o2jNThV6oiPj89VcAab7il4";
+// jwcrypto again, PBES2-HS256+A128KW over the same plaintext with 100
+// iterations: below the count cjose will write, but a conformant JWE, since
+// RFC 7518 section 4.8.1.2 asks a producer only for a positive count. A build
+// that has raised the floor on what cjose reads is meant to refuse it instead,
+// so the suite asserts one or the other according to that constant.
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS <= 100
+#define CJOSE_TEST_PBES2_LOW_P2C 1
+#endif
+static const char *JWE_PBES2_HS256_A128KW_P2C_100
+    = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMTI4R0NNIiwicDJjIjoxMDAsInAycyI6InRUYTVjcTEyQnBsRzJG"
+      "Z0wtT1VlTGcifQ.plNA0dMSYAcDK1UnldjLDMnn7uSPKnbD.hEglsbLltjNM0Pa-.xnB04pU7R7l5vV5LHuvS2S2PgNkJOiLrE3E"
+      "EZlx6dDHYs2je2jsH9ks6eK0dGFQvSr3JsrL4OLGiTok6-KOC.OIIOrJdGKO7zoE2Ekbofdw";
+static const char *JWE_PBES2_HS256_A128KW_P2C_16384
+    = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMTI4R0NNIiwicDJjIjoxNjM4NCwicDJzIjoiMlk1S2VFVkc4bndM"
+      "N1JDdnNxOENLdyJ9.d1gAkMyEhWAseoRFa5lKx2O6DVqhjOZ5.NynPNuvHlB_eePH2.lKvhnY-JBl_LF8gvE_OkqPGcUDi68n2AF"
+      "ukE1kp_oJiNioNLeRGxiWEyypCVLXG_VBhvPgaCzD-MaSgULlep.gPzMTshApPDC8oseFPeR7A";
+static const char *JWE_JSON_PBES2_HS512_A256KW
+    = "{\"ciphertext\":\"nUKfkeEeNYRPWnMFTTgqT8-rDNNNcnRx37D-_dre53CnLPrnmB8oj-Xd4YaThbUQgWlP5NP-LZLdYvMQlhsq\""
+      ",\"encrypted_key\":\"ZTvrMvHh8ZwYbpof5wF-qRvCk-H6apMQ\",\"header\":{\"p2c\":8192,\"p2s\":\"pV5HLewuOpp8WRyh63qG"
+      "xg\"},\"iv\":\"tkJhuD6INWmXXa2f\",\"protected\":\"eyJhbGciOiAiUEJFUzItSFM1MTIrQTI1NktXIiwgImVuYyI6ICJBMTI4R0"
+      "NNIn0\",\"tag\":\"Wr573gm4ufM-lwhWGtA3yg\"}";
+static const char *JWE_RFC7517_APPENDIX_C
+    = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJwMnMiOiIyV0NUY0paMVJ2ZF9DSnVKcmlwUTF3IiwicDJjIjo0MDk2LCJlbmMi"
+      "OiJBMTI4Q0JDLUhTMjU2IiwiY3R5IjoiandrK2pzb24ifQ.TrqXOwuNUfDV9VPTNbyGvEJ9JMjefAVn-TR1uIxR9p6hsRQh9Tk7B"
+      "A.Ye9j1qs22DmRSAddIh-VnA.AwhB8lxrlKjFn02LGWEqg27H4Tg9fyZAbFv3p5ZicHpj64QyHC44qqlZ3JEmnZTgQowIqZJ13jb"
+      "yHB8LgePiqUJ1hf6M2HPLgzw8L-mEeQ0jvDUTrE07NtOerBk8bwBQyZ6g0kQ3DEOIglfYxV8-FJvNBYwbqN1Bck6d_i7OtjSHV-8"
+      "DIrp-3JcRIe05YKy3Oi34Z_GOiAc1EK21B11c_AE11PII_wvvtRiUiG8YofQXakWd1_O98Kap-UgmyWPfreUJ3lJPnbD4Ve95owE"
+      "fMGLOPflo2MnjaTDCwQokoJ_xplQ2vNPz8iguLcHBoKllyQFJL2mOWBwqhBo9Oj-O800as5mmLsvQMTflIrIEbbTMzHMBZ8EFW9f"
+      "WwwFu0DWQJGkMNhmBZQ-3lvqTc-M6-gWA6D8PDhONfP2Oib2HGizwG1iEaX8GRyUpfLuljCLIe1DkGOewhKuKkZh04DKNM5Nbugf"
+      "2atmU9OP0Ldx5peCUtRG1gMVl7Qup5ZXHTjgPDr5b2N731UooCGAUqHdgGhg0JVJ_ObCTdjsH4CF1SJsdUhrXvYx3HJh2Xd7CwJR"
+      "zU_3Y1GxYU6-s3GFPbirfqqEipJDBTHpcoCmyrwYjYHFgnlqBZRotRrS95g8F95bRXqsaDY7UgQGwBQBwy665d0zpvTasvfXf_c0"
+      "MWAl-neFaKOW_Px6g4EUDjG1GWSXV9cLStLw_0ovdApDIFLHYHePyagyHjouQUuGiq7BsYwYrwaF06tgB8hV8omLNfMEmDPJaZUz"
+      "MuHw6tBDwGkzD-tS_ub9hxrpJ4UsOWnt5rGUyoN2N_c1-TQlXxm5oto14MxnoAyBQBpwIEgSH3Y4ZhwKBhHPjSo0cdwuNdYbGPpb"
+      "-YUvF-2NZzODiQ1OvWQBRHSbPWYz_xbGkgD504LRtqRwCO7CC_CyyURi1sEssPVsMJRX_U4LFEOc82TiDdqjKOjRUfKK5rqLi8nB"
+      "E9soQ0DSaOoFQZiGrBrqxDsNYiAYAmxxkos-i3nX4qtByVx85sCE5U_0MqG7COxZWMOPEFrDaepUV-cOyrvoUIng8i8ljKBKxETY"
+      "2BgPegKBYCxsAUcAkKamSCC9AiBxA0UOHyhTqtlvMksO7AEhNC2-YzPyx1FkhMoS4LLe6E_pFsMlmjA6P1NSge9C5G5tETYXGAn6"
+      "b1xZbHtmwrPScro9LWhVmAaA7_bxYObnFUxgWtK4vzzQBjZJ36UTk4OTB-JvKWgfVWCFsaw5WCHj6Oo4jpO7d2yN7WMfAj2hTEab"
+      "z9wumQ0TMhBduZ-QON3pYObSy7TSC1vVme0NJrwF_cJRehKTFmdlXGVldPxZCplr7ZQqRQhF8JP-l4mEQVnCaWGn9ONHlemczGOS"
+      "-A-wwtnmwjIB1V_vgJRf4FdpV-4hUk4-QLpu3-1lWFxrtZKcggq3tWTduRo5_QebQbUUT_VSCgsFcOmyWKoj56lbxthN19hq1XGW"
+      "bLGfrrR6MWh23vk01zn8FVwi7uFwEnRYSafsnWLa1Z5TpBj9GvAdl2H9NHwzpB5NqHpZNkQ3NMDj13Fn8fzO0JB83Etbm_tnFQfc"
+      "b13X3bJ15Cz-Ww1MGhvIpGGnMBT_ADp9xSIyAM9dQ1yeVXk-AIgWBUlN5uyWSGyCxp0cJwx7HxM38z0UIeBu-MytL-eqndM7Lxyt"
+      "sVzCbjOTSVRmhYEMIzUAnS1gs7uMQAGRdgRIElTJESGMjb_4bZq9s6Ve1LKkSi0_QDsrABaLe55UY0zF4ZSfOV5PMyPtocwV_dcN"
+      "PlxLgNAD1BFX_Z9kAdMZQW6fAmsfFle0zAoMe4l9pMESH0JB4sJGdCKtQXj1cXNydDYozF7l8H00BV_Er7zd6VtIw0MxwkFCTats"
+      "v_R-GsBCH218RgVPsfYhwVuT8R4HarpzsDBufC4r8_c8fc9Z278sQ081jFjOja6L2x0N_ImzFNXU6xwO-Ska-QeuvYZ3X_L31ZOX"
+      "4Llp-7QSfgDoHnOxFv1Xws-D5mDHD3zxOup2b2TppdKTZb9eW2vxUVviM8OI9atBfPKMGAOv9omA-6vv5IxUH0-lWMiHLQ_g8vns"
+      "wp-Jav0c4t6URVUzujNOoNd_CBGGVnHiJTCHl88LQxsqLHHIu4Fz-U2SGnlxGTj0-ihit2ELGRv4vO8E1BosTmf0cx3qgG0Pq0eO"
+      "LBDIHsrdZ_CCAiTc0HVkMbyq1M6qEhM-q5P6y1QCIrwg.0HFmhOzsQ98nNWJjIHkR7A";
+static const char *RFC7517_APPENDIX_C_SHA256 = "37d80dba14e11201a965032b111423db6e476ece95b6674b33e39994eff55bd0";
+
+// a PBES2 round trip; p2c, when not 0, is set in the protected header and
+// must come back as such, otherwise the default iteration count must
+static void _pbes2_round_trip(const char *alg, const char *enc, json_int_t p2c)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_PBES2_PASSWORD, strlen(JWK_PBES2_PASSWORD), &err);
+    ck_assert(NULL != jwk);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, alg, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, enc, &err));
+    if (0 != p2c)
+    {
+        ck_assert(0 == json_object_set_new((json_t *)hdr, CJOSE_HDR_P2C, json_integer(p2c)));
+    }
+    cjose_jwe_t *jwe1 = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe1, "cjose_jwe_encrypt failed for %s: %s", alg, err.message);
+    // the caller's header is left alone, the JWE's protected header has the parameters
+    ck_assert(NULL == cjose_header_get(hdr, CJOSE_HDR_P2S, &err));
+    json_t *protected_header = (json_t *)cjose_jwe_get_protected(jwe1);
+    ck_assert(json_is_string(json_object_get(protected_header, CJOSE_HDR_P2S)));
+    ck_assert(json_is_integer(json_object_get(protected_header, CJOSE_HDR_P2C)));
+    ck_assert_int_eq(0 != p2c ? p2c : CJOSE_JWE_PBES2_DEFAULT_ITERATIONS,
+                     json_integer_value(json_object_get(protected_header, CJOSE_HDR_P2C)));
+    char *compact = cjose_jwe_export(jwe1, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_t *jwe2 = cjose_jwe_import(compact, strlen(compact), &err);
+    ck_assert_msg(NULL != jwe2, "cjose_jwe_import failed for %s: %s", alg, err.message);
+    size_t plain2_len = 0;
+    uint8_t *plain2 = cjose_jwe_decrypt(jwe2, jwk, &plain2_len, &err);
+    ck_assert_msg(NULL != plain2, "cjose_jwe_decrypt failed for %s: %s", alg, err.message);
+    ck_assert_int_eq(sizeof(plain) - 1, plain2_len);
+    ck_assert(0 == memcmp(plain, plain2, plain2_len));
+    cjose_get_dealloc()(plain2);
+    cjose_get_dealloc()(compact);
+    cjose_jwe_release(jwe2);
+    cjose_jwe_release(jwe1);
+    cjose_header_release(hdr);
+    cjose_jwk_release(jwk);
+}
+
+START_TEST(test_cjose_jwe_pbes2_self_encrypt_self_decrypt)
+{
+    // the lowest count cjose will write, so that the round trips stay cheap and
+    // keep working wherever CJOSE_JWE_PBES2_MIN_ITERATIONS is built
+    const json_int_t p2c = CJOSE_JWE_PBES2_MIN_ITERATIONS;
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A128GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A256CBC_HS512, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A192GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A128CBC_HS256, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A256GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A192CBC_HS384, p2c);
+    // the default iteration count
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A256GCM, 0);
+}
+END_TEST
+
+START_TEST(test_cjose_jwe_pbes2_interop)
+{
+    cjose_err err;
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_PBES2_PASSWORD, strlen(JWK_PBES2_PASSWORD), &err);
+    ck_assert(NULL != jwk);
+
+    struct
+    {
+        const char *jwe;
+        const char *alg;
+    } vectors[] = {
+        { JWE_PBES2_HS256_A128KW_A256GCM, CJOSE_HDR_ALG_PBES2_HS256_A128KW },
+        { JWE_PBES2_HS384_A192KW_A128CBC_HS256, CJOSE_HDR_ALG_PBES2_HS384_A192KW },
+        { JWE_PBES2_HS512_A256KW_A256CBC_HS512, CJOSE_HDR_ALG_PBES2_HS512_A256KW },
+        { JWE_PBES2_HS256_A128KW_P2C_16384, CJOSE_HDR_ALG_PBES2_HS256_A128KW },
+#ifdef CJOSE_TEST_PBES2_LOW_P2C
+        { JWE_PBES2_HS256_A128KW_P2C_100, CJOSE_HDR_ALG_PBES2_HS256_A128KW },
+#endif
+    };
+    for (size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++)
+    {
+        cjose_jwe_t *jwe = cjose_jwe_import(vectors[i].jwe, strlen(vectors[i].jwe), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_import failed (%zu): %s", i, err.message);
+        ck_assert_str_eq(vectors[i].alg, cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_ALG, &err));
+        size_t plain_len = 0;
+        uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+        ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(strlen(PLAINTEXT_RSA_OAEP_256), plain_len);
+        ck_assert(0 == memcmp(PLAINTEXT_RSA_OAEP_256, plain, plain_len));
+        cjose_get_dealloc()(plain);
+        cjose_jwe_release(jwe);
+    }
+
+#ifndef CJOSE_TEST_PBES2_LOW_P2C
+    // the other side of the same knob: a build whose accepted floor is above
+    // that vector's count refuses it instead of reading it
+    _decrypt_expect(JWE_PBES2_HS256_A128KW_P2C_100, JWK_PBES2_PASSWORD, CJOSE_ERR_INVALID_ARG);
+#endif
+
+    // the JSON serialization keeps "p2s" and "p2c" in the recipient's header
+    cjose_jwe_t *jwe = cjose_jwe_import_json(JWE_JSON_PBES2_HS512_A256KW, strlen(JWE_JSON_PBES2_HS512_A256KW), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import_json failed: %s", err.message);
+    ck_assert(NULL == cjose_header_get(cjose_jwe_get_protected(jwe), CJOSE_HDR_P2S, &err));
+    size_t plain_len = 0;
+    uint8_t *plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed: %s", err.message);
+    ck_assert_int_eq(strlen(PLAINTEXT_RSA_OAEP_256), plain_len);
+    ck_assert(0 == memcmp(PLAINTEXT_RSA_OAEP_256, plain, plain_len));
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe);
+
+    // RFC 7517 Appendix C: the plaintext is the UTF-8 of the RSA private JWK of C.1
+    jwe = cjose_jwe_import(JWE_RFC7517_APPENDIX_C, strlen(JWE_RFC7517_APPENDIX_C), &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_import failed for the RFC 7517 example: %s", err.message);
+    ck_assert_int_eq(4096, json_integer_value(json_object_get((json_t *)cjose_jwe_get_protected(jwe), CJOSE_HDR_P2C)));
+    plain = cjose_jwe_decrypt(jwe, jwk, &plain_len, &err);
+    ck_assert_msg(NULL != plain, "cjose_jwe_decrypt failed for the RFC 7517 example: %s", err.message);
+    ck_assert_int_eq(1654, plain_len);
+    uint8_t digest[EVP_MAX_MD_SIZE];
+    unsigned int digest_len = 0;
+    ck_assert(1 == EVP_Digest(plain, plain_len, digest, &digest_len, EVP_sha256(), NULL));
+    char hex[2 * EVP_MAX_MD_SIZE + 1];
+    for (unsigned int i = 0; i < digest_len; i++)
+    {
+        snprintf(hex + 2 * i, 3, "%02x", digest[i]);
+    }
+    ck_assert_str_eq(RFC7517_APPENDIX_C_SHA256, hex);
+    cjose_jwk_t *rsa = cjose_jwk_import((const char *)plain, plain_len, &err);
+    ck_assert_msg(NULL != rsa, "the decrypted RFC 7517 example is not a JWK: %s", err.message);
+    ck_assert_int_eq(CJOSE_JWK_KTY_RSA, cjose_jwk_get_kty(rsa, &err));
+    ck_assert_str_eq("juliet@capulet.lit", cjose_jwk_get_kid(rsa, &err));
+    cjose_jwk_release(rsa);
+    cjose_get_dealloc()(plain);
+    cjose_jwe_release(jwe);
+
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+static void _jwe_hdr_p2c_too_large(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer((json_int_t)CJOSE_JWE_PBES2_MAX_ITERATIONS + 1));
+}
+// below the count cjose will write, which is a producer policy, and below the
+// count it will read, which RFC 7518 section 4.8.1.2 puts at "positive"
+static void _jwe_hdr_p2c_below_produced(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS - 1));
+}
+static void _jwe_hdr_p2c_below_accepted(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS - 1));
+}
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS < CJOSE_JWE_PBES2_MIN_ITERATIONS
+static void _jwe_hdr_p2c_at_accepted(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS));
+}
+#endif
+static void _jwe_hdr_p2c_string(json_t *hdr) { json_object_set_new(hdr, CJOSE_HDR_P2C, json_string("4096")); }
+static void _jwe_hdr_drop_p2s(json_t *hdr) { json_object_del(hdr, CJOSE_HDR_P2S); }
+// a salt input of a given size, base64url encoded: n octets take ceil(4n/3)
+// characters, and a string of 'A' decodes to zeros of exactly that length
+static void _jwe_hdr_p2s_of_size(json_t *hdr, size_t octets)
+{
+    const size_t chars = (4 * octets + 2) / 3;
+    char *b64u = malloc(chars + 1);
+    ck_assert(NULL != b64u);
+    memset(b64u, 'A', chars);
+    b64u[chars] = '\0';
+    json_object_set_new(hdr, CJOSE_HDR_P2S, json_string(b64u));
+    free(b64u);
+}
+
+// 5 octets, below the 8 that RFC 7518 section 4.8.1.1 requires
+static void _jwe_hdr_short_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, 5); }
+
+// a salt input that is well formed and of the size cjose itself generates
+static void _jwe_hdr_good_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, CJOSE_JWE_PBES2_SALT_LEN); }
+
+// the two sides of CJOSE_JWE_PBES2_MAX_SALT_LEN, which no producer's output
+// depends on, so these follow the constant wherever it is built
+static void _jwe_hdr_max_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, CJOSE_JWE_PBES2_MAX_SALT_LEN); }
+static void _jwe_hdr_long_p2s(json_t *hdr) { _jwe_hdr_p2s_of_size(hdr, CJOSE_JWE_PBES2_MAX_SALT_LEN + 1); }
+
+START_TEST(test_cjose_jwe_pbes2_bad_params)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *jwk = cjose_jwk_import(JWK_PBES2_PASSWORD, strlen(JWK_PBES2_PASSWORD), &err);
+    ck_assert(NULL != jwk);
+    cjose_header_t *hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+
+    // the password is an oct key
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    ck_assert(NULL == cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // a caller-supplied iteration count must be within bounds, and a
+    // caller-supplied salt input is refused however well formed it is
+    void (*encrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_below_produced, _jwe_hdr_p2c_string,
+                                          _jwe_hdr_short_p2s,     _jwe_hdr_long_p2s,           _jwe_hdr_good_p2s };
+    for (size_t i = 0; i < sizeof(encrypt_cases) / sizeof(encrypt_cases[0]); i++)
+    {
+        cjose_header_t *bad = (cjose_header_t *)json_deep_copy((json_t *)hdr);
+        ck_assert(NULL != bad);
+        encrypt_cases[i]((json_t *)bad);
+        ck_assert_msg(NULL == cjose_jwe_encrypt(jwk, bad, plain, sizeof(plain) - 1, &err), "cjose_jwe_encrypt accepted case %zu",
+                      i);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_header_release(bad);
+    }
+
+    // RFC 7518 section 4.8.1.1: a new salt input for every encryption
+    // operation. Encrypting twice with the same header object, which is what a
+    // caller reusing a header does, must publish two different salt inputs, and
+    // must leave the caller's own header untouched.
+    char salts[2][64];
+    for (size_t i = 0; i < 2; i++)
+    {
+        cjose_jwe_t *fresh = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != fresh, "cjose_jwe_encrypt failed: %s", err.message);
+        const char *p2s = cjose_header_get(cjose_jwe_get_protected(fresh), CJOSE_HDR_P2S, &err);
+        ck_assert(NULL != p2s && strlen(p2s) < sizeof(salts[i]));
+        strcpy(salts[i], p2s);
+        cjose_jwe_release(fresh);
+    }
+    ck_assert_msg(0 != strcmp(salts[0], salts[1]), "two encryptions with one header reused the salt input");
+    ck_assert(NULL == cjose_header_get(hdr, CJOSE_HDR_P2S, &err));
+
+    // and the shape that requirement is really about: a caller that feeds the
+    // header of a JWE it produced back into the next encryption is refused
+    // rather than handed the salt input a second time
+    cjose_jwe_t *first = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != first, "cjose_jwe_encrypt failed: %s", err.message);
+    cjose_header_t *reused = (cjose_header_t *)json_deep_copy((json_t *)cjose_jwe_get_protected(first));
+    ck_assert(NULL != reused);
+    cjose_jwe_release(first);
+    ck_assert(NULL == cjose_jwe_encrypt(jwk, reused, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(reused);
+
+    // the salt input is refused in any of the three header locations, not only
+    // in the protected one. The shared one would also be caught by the
+    // disjointness rule, but only once every recipient's key derivation has
+    // run; the point of refusing it here is that nothing is derived at all.
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(NULL != shared);
+    _jwe_hdr_good_p2s((json_t *)shared);
+    cjose_jwe_recipient_t one[] = { { jwk, NULL } };
+    ck_assert(NULL == cjose_jwe_encrypt_multi(one, 1, hdr, shared, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(shared);
+
+    cjose_header_t *per_recipient = cjose_header_new(&err);
+    ck_assert(NULL != per_recipient);
+    ck_assert(cjose_header_set(per_recipient, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    _jwe_hdr_good_p2s((json_t *)per_recipient);
+    cjose_header_t *plain_recipient = cjose_header_new(&err);
+    ck_assert(NULL != plain_recipient);
+    ck_assert(cjose_header_set(plain_recipient, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    cjose_header_t *enc_only = cjose_header_new(&err);
+    ck_assert(NULL != enc_only);
+    ck_assert(cjose_header_set(enc_only, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_jwe_recipient_t two[] = { { jwk, plain_recipient }, { jwk, per_recipient } };
+    ck_assert(NULL == cjose_jwe_encrypt_multi(two, 2, enc_only, NULL, plain, sizeof(plain) - 1, &err));
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(enc_only);
+    cjose_header_release(plain_recipient);
+    cjose_header_release(per_recipient);
+
+    // the same for the iteration count, where the value matters rather than the
+    // constant: go-jose writes exactly 100000 by default, so a JWE with that
+    // count has to keep working wherever the ceiling still admits it. Asserting
+    // against the constant itself would pin nothing.
+#if CJOSE_JWE_PBES2_MAX_ITERATIONS >= 100000
+    cjose_header_t *at_max_p2c = (cjose_header_t *)json_deep_copy((json_t *)hdr);
+    ck_assert(NULL != at_max_p2c);
+    ck_assert(0 == json_object_set_new((json_t *)at_max_p2c, CJOSE_HDR_P2C, json_integer(100000)));
+    cjose_jwe_t *max_p2c_jwe = cjose_jwe_encrypt(jwk, at_max_p2c, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != max_p2c_jwe, "an iteration count of 100000 was refused: %s", err.message);
+    char *max_p2c_compact = cjose_jwe_export(max_p2c_jwe, &err);
+    ck_assert(NULL != max_p2c_compact);
+    cjose_jwe_release(max_p2c_jwe);
+    _decrypt_plain_ok(max_p2c_compact, JWK_PBES2_PASSWORD, plain, sizeof(plain) - 1);
+    cjose_get_dealloc()(max_p2c_compact);
+    cjose_header_release(at_max_p2c);
+#endif
+
+    // a good JWE ...
+    ck_assert(0 == json_object_set_new((json_t *)hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS)));
+    cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+    char *compact = cjose_jwe_export(jwe, &err);
+    ck_assert(NULL != compact);
+    cjose_jwe_release(jwe);
+
+    // ... is refused with the wrong key type, the wrong password and an
+    // out-of-bounds, missing or non-string parameter, all before the
+    // key derivation runs
+    _decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
+    _decrypt_expect(compact, JWK_OCT_32, CJOSE_ERR_CRYPTO);
+    void (*decrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_below_accepted, _jwe_hdr_p2c_string,
+                                          _jwe_hdr_drop_p2s,      _jwe_hdr_short_p2s,          _jwe_hdr_long_p2s };
+    for (size_t i = 0; i < sizeof(decrypt_cases) / sizeof(decrypt_cases[0]); i++)
+    {
+        char *modified = _jwe_with_modified_header(compact, decrypt_cases[i]);
+        _decrypt_expect(modified, JWK_PBES2_PASSWORD, CJOSE_ERR_INVALID_ARG);
+        free(modified);
+    }
+
+    // the bounds themselves: a salt input of CJOSE_JWE_PBES2_MAX_SALT_LEN and a
+    // count of CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS are within the accepted
+    // range, so where one step beyond either is refused as an invalid argument
+    // these get as far as the cryptography and fail there
+    char *at_max = _jwe_with_modified_header(compact, _jwe_hdr_max_p2s);
+    _decrypt_expect(at_max, JWK_PBES2_PASSWORD, CJOSE_ERR_CRYPTO);
+    free(at_max);
+    // the count case needs the two to differ: where the accepted floor is the
+    // count this JWE already carries, rewriting it changes nothing and there is
+    // no derived key to fail on
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS < CJOSE_JWE_PBES2_MIN_ITERATIONS
+    char *at_min_p2c = _jwe_with_modified_header(compact, _jwe_hdr_p2c_at_accepted);
+    _decrypt_expect(at_min_p2c, JWK_PBES2_PASSWORD, CJOSE_ERR_CRYPTO);
+    free(at_min_p2c);
+#endif
+
+    // an encrypted key of any other length than the CEK plus 8 is refused up front
+    size_t len = strlen(compact);
+    char *longer = malloc(len + 9);
+    ck_assert(NULL != longer);
+    const char *ek_end = strchr(strchr(compact, '.') + 1, '.');
+    size_t prefix = ek_end - compact;
+    memcpy(longer, compact, prefix);
+    memcpy(longer + prefix, "AAAAAAAA", 8);
+    strcpy(longer + prefix + 8, ek_end);
+    _decrypt_expect(longer, JWK_PBES2_PASSWORD, CJOSE_ERR_INVALID_ARG);
+    free(longer);
+
+    cjose_get_dealloc()(compact);
+    cjose_header_release(hdr);
+    cjose_jwk_release(ec);
+    cjose_jwk_release(jwk);
+}
+END_TEST
+
+// with several recipients each gets its own salt and iteration count in its
+// own header
+START_TEST(test_cjose_jwe_pbes2_multiple_recipients)
+{
+    cjose_err err;
+    static const uint8_t plain[] = "Setec Astronomy";
+
+    cjose_jwk_t *pw1 = cjose_jwk_import(JWK_PBES2_PASSWORD, strlen(JWK_PBES2_PASSWORD), &err);
+    cjose_jwk_t *pw2 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != pw1 && NULL != pw2);
+    ck_assert(cjose_jwk_set_kid(pw1, "pw1", 3, &err));
+    ck_assert(cjose_jwk_set_kid(pw2, "pw2", 3, &err));
+
+    cjose_header_t *protected_header = cjose_header_new(&err);
+    ck_assert(cjose_header_set(protected_header, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_header_t *hdr1 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr1, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
+    ck_assert(cjose_header_set(hdr1, CJOSE_HDR_KID, "pw1", &err));
+    ck_assert(0 == json_object_set_new((json_t *)hdr1, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS)));
+    cjose_header_t *hdr2 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(hdr2, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS512_A256KW, &err));
+    ck_assert(cjose_header_set(hdr2, CJOSE_HDR_KID, "pw2", &err));
+    ck_assert(0 == json_object_set_new((json_t *)hdr2, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_DEFAULT_ITERATIONS)));
+    cjose_jwe_recipient_t recipients[] = { { pw1, hdr1 }, { pw2, hdr2 } };
+
+    cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(recipients, 2, protected_header, NULL, plain, sizeof(plain) - 1, &err);
+    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt_multi failed: %s", err.message);
+    ck_assert(NULL == cjose_header_get(hdr1, CJOSE_HDR_P2S, &err));
+    ck_assert(NULL == cjose_header_get(protected_header, CJOSE_HDR_P2S, &err));
+    char *json = cjose_jwe_export_json(jwe, &err);
+    ck_assert_msg(NULL != json, "cjose_jwe_export_json failed: %s", err.message);
+    cjose_jwe_release(jwe);
+
+    json_t *form = json_loads(json, 0, NULL);
+    ck_assert(NULL != form);
+    json_t *recs = json_object_get(form, "recipients");
+    ck_assert(json_is_array(recs) && 2 == json_array_size(recs));
+    const json_int_t expected_p2c[] = { CJOSE_JWE_PBES2_MIN_ITERATIONS, CJOSE_JWE_PBES2_DEFAULT_ITERATIONS };
+    const char *salts[2] = { NULL, NULL };
+    for (size_t i = 0; i < 2; i++)
+    {
+        json_t *header = json_object_get(json_array_get(recs, i), "header");
+        ck_assert(json_is_string(json_object_get(header, CJOSE_HDR_P2S)));
+        salts[i] = json_string_value(json_object_get(header, CJOSE_HDR_P2S));
+        ck_assert_int_eq(expected_p2c[i], json_integer_value(json_object_get(header, CJOSE_HDR_P2C)));
+    }
+    ck_assert_msg(0 != strcmp(salts[0], salts[1]), "the two recipients share a salt input");
+    json_decref(form);
+
+    cjose_jwe_recipient_t rec1[] = { { pw1, NULL }, { NULL, NULL } };
+    cjose_jwe_recipient_t rec2[] = { { pw2, NULL }, { NULL, NULL } };
+    cjose_jwe_recipient_t *locators[] = { rec1, rec2 };
+    for (size_t i = 0; i < 2; i++)
+    {
+        jwe = cjose_jwe_import_json(json, strlen(json), &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_import_json failed: %s", err.message);
+        size_t plain_len = 0;
+        uint8_t *plain2 = cjose_jwe_decrypt_multi(jwe, cjose_multi_key_locator, locators[i], &plain_len, &err);
+        ck_assert_msg(NULL != plain2, "cjose_jwe_decrypt_multi failed (%zu): %s", i, err.message);
+        ck_assert_int_eq(sizeof(plain) - 1, plain_len);
+        ck_assert(0 == memcmp(plain, plain2, plain_len));
+        cjose_get_dealloc()(plain2);
+        cjose_jwe_release(jwe);
+    }
+
+    cjose_get_dealloc()(json);
+    cjose_header_release(hdr1);
+    cjose_header_release(hdr2);
+    cjose_header_release(protected_header);
+    cjose_jwk_release(pw1);
+    cjose_jwk_release(pw2);
+}
+END_TEST
+
 Suite *cjose_jwe_suite(void)
 {
     Suite *suite = suite_create("jwe");
@@ -2983,6 +3460,10 @@ Suite *cjose_jwe_suite(void)
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_interop);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_okp_bad_params);
     tcase_add_test(tc_jwe, test_cjose_jwe_ecdh_es_private_epk);
+    tcase_add_test(tc_jwe, test_cjose_jwe_pbes2_self_encrypt_self_decrypt);
+    tcase_add_test(tc_jwe, test_cjose_jwe_pbes2_interop);
+    tcase_add_test(tc_jwe, test_cjose_jwe_pbes2_bad_params);
+    tcase_add_test(tc_jwe, test_cjose_jwe_pbes2_multiple_recipients);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_gcm);
     tcase_add_test(tc_jwe, test_cjose_jwe_decrypt_aes_kw_oversized_ek);
