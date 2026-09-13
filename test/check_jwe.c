@@ -1821,61 +1821,82 @@ START_TEST(test_cjose_jwe_ecdh_es_private_epk)
 
     cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
     ck_assert(NULL != ec);
-    cjose_header_t *hdr = cjose_header_new(&err);
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
-    ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
-    cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
-    ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
-    char *compact = cjose_jwe_export(jwe, &err);
-    ck_assert(NULL != compact);
-    cjose_jwe_release(jwe);
-
-    // rebuild the protected header with an "epk" that carries a private part
-    const char *dot = strchr(compact, '.');
-    ck_assert(NULL != dot);
-    uint8_t *raw = NULL;
-    size_t raw_len = 0;
-    ck_assert(cjose_base64url_decode(compact, dot - compact, &raw, &raw_len, &err));
-    json_t *header = json_loadb((const char *)raw, raw_len, 0, NULL);
-    ck_assert(NULL != header);
-    const char *bad_epks[] = { JWK_EC, "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":\"\"}",
-                               "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":null}" };
-    for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
+    // both the direct key agreement and the key wrapping variant read "epk"
+    const char *algs[] = { CJOSE_HDR_ALG_ECDH_ES, CJOSE_HDR_ALG_ECDH_ES_A128KW };
+    for (size_t a = 0; a < sizeof(algs) / sizeof(algs[0]); a++)
     {
-        json_t *epk = json_loads(bad_epks[i], 0, NULL);
-        ck_assert(NULL != epk);
-        ck_assert(0 == json_object_set(header, CJOSE_HDR_EPK, epk));
-        json_decref(epk);
-        char *header_str = json_dumps(header, JSON_COMPACT);
-        char *header_b64u = NULL;
-        size_t header_b64u_len = 0;
-        ck_assert(cjose_base64url_encode((const uint8_t *)header_str, strlen(header_str), &header_b64u, &header_b64u_len, &err));
-        char *modified = malloc(header_b64u_len + strlen(dot) + 1);
-        ck_assert(NULL != modified);
-        memcpy(modified, header_b64u, header_b64u_len);
-        strcpy(modified + header_b64u_len, dot);
+        cjose_header_t *hdr = cjose_header_new(&err);
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ALG, algs[a], &err));
+        ck_assert(cjose_header_set(hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+        cjose_jwe_t *jwe = cjose_jwe_encrypt(ec, hdr, plain, sizeof(plain) - 1, &err);
+        ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
+        char *compact = cjose_jwe_export(jwe, &err);
+        ck_assert(NULL != compact);
+        cjose_jwe_release(jwe);
 
-        // the "epk" is read when the key agreement runs, not when the JWE is
-        // parsed, so the refusal has to show on decrypt
-        memset(&err, 0, sizeof(err));
-        cjose_jwe_t *imported = cjose_jwe_import(modified, strlen(modified), &err);
-        ck_assert_msg(NULL != imported, "cjose_jwe_import failed: %s", err.message);
-        size_t plain_len = 0;
-        uint8_t *decrypted = cjose_jwe_decrypt(imported, ec, &plain_len, &err);
-        ck_assert_msg(NULL == decrypted, "an epk with a private member was accepted (%zu)", i);
-        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
-        cjose_get_dealloc()(decrypted);
-        cjose_jwe_release(imported);
+        // rebuild the protected header with an "epk" that carries a private part
+        const char *dot = strchr(compact, '.');
+        ck_assert(NULL != dot);
+        uint8_t *raw = NULL;
+        size_t raw_len = 0;
+        ck_assert(cjose_base64url_decode(compact, dot - compact, &raw, &raw_len, &err));
+        json_t *header = json_loadb((const char *)raw, raw_len, 0, NULL);
+        ck_assert(NULL != header);
+        const char *bad_epks[] = { JWK_EC, "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":\"\"}",
+                                   "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"AA\",\"y\":\"AA\",\"d\":null}" };
+        for (size_t i = 0; i < sizeof(bad_epks) / sizeof(bad_epks[0]); i++)
+        {
+            json_t *epk = json_loads(bad_epks[i], 0, NULL);
+            ck_assert(NULL != epk);
+            ck_assert(0 == json_object_set(header, CJOSE_HDR_EPK, epk));
+            json_decref(epk);
+            char *header_str = json_dumps(header, JSON_COMPACT);
+            char *header_b64u = NULL;
+            size_t header_b64u_len = 0;
+            ck_assert(
+                cjose_base64url_encode((const uint8_t *)header_str, strlen(header_str), &header_b64u, &header_b64u_len, &err));
+            char *modified = malloc(header_b64u_len + strlen(dot) + 1);
+            ck_assert(NULL != modified);
+            memcpy(modified, header_b64u, header_b64u_len);
+            strcpy(modified + header_b64u_len, dot);
 
-        free(modified);
-        cjose_get_dealloc()(header_b64u);
-        cjose_get_dealloc()(header_str);
+            // the "epk" is read when the key agreement runs, not when the JWE is
+            // parsed, so the refusal has to show on decrypt
+            memset(&err, 0, sizeof(err));
+            cjose_jwe_t *imported = cjose_jwe_import(modified, strlen(modified), &err);
+            ck_assert_msg(NULL != imported, "cjose_jwe_import failed: %s", err.message);
+            size_t plain_len = 0;
+            uint8_t *decrypted = cjose_jwe_decrypt(imported, ec, &plain_len, &err);
+            ck_assert_msg(NULL == decrypted, "an epk with a private member was accepted (%zu)", i);
+            ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+            cjose_get_dealloc()(decrypted);
+            cjose_jwe_release(imported);
+
+            free(modified);
+            cjose_get_dealloc()(header_b64u);
+            cjose_get_dealloc()(header_str);
+        }
+
+        json_decref(header);
+        cjose_get_dealloc()(raw);
+        cjose_get_dealloc()(compact);
+        cjose_header_release(hdr);
     }
 
-    json_decref(header);
-    cjose_get_dealloc()(raw);
-    cjose_get_dealloc()(compact);
-    cjose_header_release(hdr);
+    // and supplying an "epk" to an encryption is refused up front, wherever it
+    // sits: the key agreement produces that parameter itself
+    cjose_header_t *own_epk = cjose_header_new(&err);
+    ck_assert(cjose_header_set(own_epk, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES_A128KW, &err));
+    ck_assert(cjose_header_set(own_epk, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128CBC_HS256, &err));
+    json_t *epk_value = json_loads(JWK_EC, 0, NULL);
+    ck_assert(NULL != epk_value);
+    ck_assert(0 == json_object_set_new((json_t *)own_epk, CJOSE_HDR_EPK, epk_value));
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt(ec, own_epk, plain, sizeof(plain) - 1, &err),
+                  "a caller-supplied epk in the protected header was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+    cjose_header_release(own_epk);
+
     cjose_jwk_release(ec);
 }
 END_TEST

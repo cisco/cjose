@@ -290,6 +290,29 @@ static bool _cjose_jwe_build_hdr(cjose_jwe_t *jwe, cjose_err *err)
     return true;
 }
 
+// like _cjose_jwe_get_from_headers, but returns the JSON value, so that a
+// parameter whose value is not a string can be found at all
+static json_t *_cjose_jwe_get_json_from_headers(cjose_header_t *protected_header,
+                                                cjose_header_t *unprotected_header,
+                                                cjose_header_t *personal_header,
+                                                const char *key)
+{
+    cjose_header_t *headers[] = { personal_header, unprotected_header, protected_header };
+    for (int i = 0; i < 3; i++)
+    {
+        if (NULL == headers[i])
+        {
+            continue;
+        }
+        json_t *obj = json_object_get((json_t *)headers[i], key);
+        if (NULL != obj)
+        {
+            return obj;
+        }
+    }
+    return NULL;
+}
+
 static const char *_cjose_jwe_get_from_headers(cjose_header_t *protected_header,
                                                cjose_header_t *unprotected_header,
                                                cjose_header_t *personal_header,
@@ -984,7 +1007,9 @@ static bool _cjose_jwe_decrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_
 // caller set
 static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, const char *name, cjose_err *err)
 {
-    if (NULL != _cjose_jwe_get_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
+    // the value is looked up as JSON: "epk" is an object, and a string-valued
+    // lookup would not see it at all
+    if (NULL != _cjose_jwe_get_json_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
