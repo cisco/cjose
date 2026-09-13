@@ -1712,9 +1712,9 @@ START_TEST(test_cjose_jwk_import_empty_private_member)
 {
     cjose_err err;
     static const char *const members[] = { "d", "p", "q", "dp", "dq", "qi" };
-    // an empty string, a JSON null, and base64url padding that decodes to
-    // nothing at all
-    static const char *const values[] = { "\"\"", "null", "\"==\"", "\"====\"" };
+    // an empty string, a JSON null, base64url padding that decodes to nothing
+    // at all, and values that decode to octets that are all zero
+    static const char *const values[] = { "\"\"", "null", "\"==\"", "\"====\"", "\"AA\"", "\"AAAA\"", "\"AAAAAAAA\"" };
 
     cjose_jwk_t *rsa = cjose_jwk_create_RSA_random(2048, NULL, 0, &err);
     ck_assert_msg(NULL != rsa, "cjose_jwk_create_RSA_random failed: %s", err.message);
@@ -1737,6 +1737,58 @@ START_TEST(test_cjose_jwk_import_empty_private_member)
             free(buf);
         }
     }
+
+    // a value that merely contains a zero octet is a number like any other and
+    // must still import: "AQA" is 0x01 0x00, "AAE" is 0x00 0x01
+    static const char *const usable[] = { "\"AQA\"", "\"AAE\"" };
+    for (size_t v = 0; v < sizeof(usable) / sizeof(usable[0]); v++)
+    {
+        const size_t len = strlen(pub) + 32;
+        char *buf = malloc(len);
+        ck_assert(NULL != buf);
+        snprintf(buf, len, "%.*s,\"d\":%s}", (int)strlen(pub) - 1, pub, usable[v]);
+        memset(&err, 0, sizeof(err));
+        cjose_jwk_t *fine = cjose_jwk_import(buf, strlen(buf), &err);
+        ck_assert_msg(NULL != fine, "a d of %s was refused", usable[v]);
+        cjose_jwk_release(fine);
+        free(buf);
+    }
+
+    // the harm is clearest on a complete private key: zeroing one member used
+    // to leave a key that imports and signs, but whose own export carries the
+    // member back as "" and can no longer be read in
+    char *full = cjose_jwk_to_json(rsa, true, &err);
+    ck_assert(NULL != full);
+    for (size_t m = 0; m < sizeof(members) / sizeof(members[0]); m++)
+    {
+        json_t *obj = json_loads(full, 0, NULL);
+        ck_assert(NULL != obj);
+        if (NULL == json_object_get(obj, members[m]))
+        {
+            json_decref(obj);
+            continue;
+        }
+        json_object_set_new(obj, members[m], json_string("AA"));
+        char *mangled = json_dumps(obj, JSON_COMPACT);
+        ck_assert(NULL != mangled);
+        memset(&err, 0, sizeof(err));
+        cjose_jwk_t *bad = cjose_jwk_import(mangled, strlen(mangled), &err);
+        ck_assert_msg(NULL == bad, "a private key with a zero %s was accepted", members[m]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_jwk_release(bad);
+        free(mangled);
+        json_decref(obj);
+    }
+
+    // whatever is accepted must survive the round trip its own export implies
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *again = cjose_jwk_import(full, strlen(full), &err);
+    ck_assert_msg(NULL != again, "the private serialization must re-import: %s", err.message);
+    char *again_json = cjose_jwk_to_json(again, true, &err);
+    ck_assert(NULL != again_json && 0 == strcmp(full, again_json));
+    cjose_get_dealloc()(again_json);
+    cjose_jwk_release(again);
+    cjose_get_dealloc()(full);
 
     // the key itself still imports, public and private alike
     memset(&err, 0, sizeof(err));
