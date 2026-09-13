@@ -23,7 +23,6 @@
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <openssl/param_build.h>
 
 // internal data structures
@@ -2623,7 +2622,7 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
                     const uint8_t *ikm,
                     size_t ikm_len,
                     uint8_t *okm,
-                    unsigned int okm_len,
+                    size_t okm_len,
                     cjose_err *err)
 {
     // current impl. is very limited: SHA256, 256 bit output, and no info
@@ -2633,18 +2632,25 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
         return false;
     }
 
+    const char *digest_name = EVP_MD_get0_name(md);
+
     // HKDF-Extract, HMAC-SHA256(salt, IKM) -> PRK
-    unsigned int prk_len;
+    size_t prk_len = 0;
     unsigned char prk[EVP_MAX_MD_SIZE];
-    if (NULL == HMAC(md, salt, salt_len, ikm, ikm_len, prk, &prk_len))
+
+    if (NULL == EVP_Q_mac(NULL, "HMAC", NULL, digest_name, NULL, salt, salt_len, ikm, ikm_len, prk, sizeof(prk), &prk_len)
+        || prk_len != EVP_MD_get_size(md))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        _cjose_cleanse(prk, sizeof(prk));
         return false;
     }
 
     // HKDF-Expand, HMAC-SHA256(PRK,0x01) -> OKM
     const unsigned char t[] = { 0x01 };
-    if (NULL == HMAC(md, prk, prk_len, t, sizeof(t), okm, NULL))
+    size_t output_len = 0;
+    if (NULL == EVP_Q_mac(NULL, "HMAC", NULL, digest_name, NULL, prk, prk_len, t, sizeof(t), okm, okm_len, &output_len)
+        || output_len != okm_len)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         _cjose_cleanse(prk, sizeof(prk));

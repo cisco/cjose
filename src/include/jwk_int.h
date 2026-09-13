@@ -88,7 +88,7 @@ bool cjose_jwk_hkdf(const EVP_MD *md,
                     const uint8_t *ikm,
                     size_t ikm_len,
                     uint8_t *okm,
-                    unsigned int okm_len,
+                    size_t okm_len,
                     cjose_err *err);
 
 #endif // SRC_JWK_INT_H
