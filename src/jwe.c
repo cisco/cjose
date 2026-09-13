@@ -1160,11 +1160,12 @@ static bool _cjose_jwe_pbes2_derive_kek(const char *alg,
 
     // the PBKDF2 call below takes the salt, the password, the iteration count
     // and the key length as int: the first two are checked here, the iteration
-    // count is bounded by the callers and again here so the claim holds however
-    // CJOSE_JWE_PBES2_MAX_ITERATIONS is built, and the key length comes from
-    // the algorithm table and is 16, 24 or 32
+    // count is bounded by the callers, which since the floor differs between
+    // them no longer implies a bound here, and again here so that this holds
+    // whatever the constants are built as; the key length comes from the
+    // algorithm table and is 16, 24 or 32
     if (p2s_len < CJOSE_JWE_PBES2_MIN_SALT_LEN || p2s_len > CJOSE_JWE_PBES2_MAX_SALT_LEN || salt_len > INT_MAX
-        || jwk->keysize / 8 > INT_MAX || p2c > INT_MAX)
+        || jwk->keysize / 8 > INT_MAX || p2c < 1 || p2c > INT_MAX)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
@@ -1329,8 +1330,13 @@ static bool _cjose_jwe_decrypt_ek_pbes2(_jwe_int_recipient_t *recipient, cjose_j
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;
     }
+    // RFC 7518 section 4.8.1.2 asks a producer for a positive count and
+    // RECOMMENDS 1000; cjose writes no less than
+    // CJOSE_JWE_PBES2_MIN_ITERATIONS but reads whatever a conformant producer
+    // chose, down to CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS and up to the
+    // ceiling that bounds the work this call can be made to do
     const json_int_t p2c = json_integer_value(p2c_obj);
-    if (p2c < CJOSE_JWE_PBES2_MIN_ITERATIONS || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
+    if (p2c < CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS || p2c > CJOSE_JWE_PBES2_MAX_ITERATIONS)
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         return false;

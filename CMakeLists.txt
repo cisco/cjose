@@ -24,6 +24,39 @@ option(CJOSE_BUILD_TESTS  "Build the cjose unit tests (requires Check)" ${PROJEC
 # with peers that cannot use RSA-OAEP.
 option(CJOSE_ENABLE_RSA1_5 "Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm" OFF)
 
+# PBES2 (RFC 7518 section 4.8) policy bounds. RFC 7518 sets only a minimum salt
+# input length; these are cjose's own limits on the PBKDF2 work it will do and
+# produce, documented with their defaults in src/include/jwe_int.h, which also
+# has the ordering the values must keep. Leave empty for the library's default;
+# a value is compiled into the library and the tests alike.
+set(CJOSE_JWE_PBES2_MIN_ITERATIONS "" CACHE STRING
+    "Lowest PBKDF2 iteration count cjose will produce")
+set(CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS "" CACHE STRING
+    "Lowest PBKDF2 iteration count cjose will accept when decrypting")
+set(CJOSE_JWE_PBES2_MAX_ITERATIONS "" CACHE STRING
+    "Highest PBKDF2 iteration count cjose will produce or accept")
+set(CJOSE_JWE_PBES2_DEFAULT_ITERATIONS "" CACHE STRING
+    "PBKDF2 iteration count used when the caller sets no \"p2c\"")
+set(CJOSE_JWE_PBES2_MAX_SALT_LEN "" CACHE STRING
+    "Largest PBES2 salt input cjose will accept, in octets")
+set(CJOSE_JWE_PBES2_SETTINGS "")
+foreach(_pbes2_setting
+        CJOSE_JWE_PBES2_MIN_ITERATIONS
+        CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS
+        CJOSE_JWE_PBES2_MAX_ITERATIONS
+        CJOSE_JWE_PBES2_DEFAULT_ITERATIONS
+        CJOSE_JWE_PBES2_MAX_SALT_LEN)
+    if(NOT "${${_pbes2_setting}}" STREQUAL "")
+        # no leading zero: the value is passed through as a C literal, where
+        # 0100000 would be octal 32768 rather than the count that was asked for
+        if(NOT "${${_pbes2_setting}}" MATCHES "^[1-9][0-9]*$")
+            message(FATAL_ERROR
+                "${_pbes2_setting} must be a positive integer without a leading zero, got \"${${_pbes2_setting}}\"")
+        endif()
+        list(APPEND CJOSE_JWE_PBES2_SETTINGS "${_pbes2_setting}=${${_pbes2_setting}}")
+    endif()
+endforeach()
+
 # Only meaningful with MSVC; lets the library link against the static CRT (/MT).
 cmake_dependent_option(CJOSE_MSVC_STATIC_RUNTIME
     "Use the static C runtime (/MT) with MSVC" OFF
@@ -116,6 +149,9 @@ set_target_properties(cjose_objects PROPERTIES
 target_compile_definitions(cjose_objects PRIVATE OPENSSL_NO_DEPRECATED)
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+endif()
+if(CJOSE_JWE_PBES2_SETTINGS)
+    target_compile_definitions(cjose_objects PRIVATE ${CJOSE_JWE_PBES2_SETTINGS})
 endif()
 if(MSVC)
     target_compile_options(cjose_objects PRIVATE /W3 /WX /wd4267)
@@ -387,6 +423,9 @@ if(CJOSE_BUILD_TESTS)
         target_compile_definitions(check_cjose PRIVATE OPENSSL_NO_DEPRECATED)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+        endif()
+        if(CJOSE_JWE_PBES2_SETTINGS)
+            target_compile_definitions(check_cjose PRIVATE ${CJOSE_JWE_PBES2_SETTINGS})
         endif()
         if(MSVC)
             target_compile_options(check_cjose PRIVATE /W3 /WX /wd4267)

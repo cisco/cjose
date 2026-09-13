@@ -2944,8 +2944,8 @@ END_TEST
 
 // PBES2 JWEs produced by python-jwcrypto with the password below over
 // PLAINTEXT_RSA_OAEP_256: three compact serializations with the default 8192
-// iterations, one with 16384, and a JSON serialization carrying "p2s" and
-// "p2c" in the per-recipient header; and the RFC 7517 Appendix C example,
+// iterations, one with 16384, one with 100, and a JSON serialization carrying
+// "p2s" and "p2c" in the per-recipient header; and the RFC 7517 Appendix C example,
 // PBES2-HS256+A128KW with 4096 iterations over the RSA private JWK of C.1
 static const char *JWK_PBES2_PASSWORD
     = "{\"k\":\"VGh1cyBmcm9tIG15IGxpcHMsIGJ5IHlvdXJzLCBteSBzaW4gaXMgcHVyZ2VkLg\",\"kty\":\"oct\"}";
@@ -2963,6 +2963,18 @@ static const char *JWE_PBES2_HS512_A256KW_A256CBC_HS512
       "cDJOeFpfeWVTVXBna3RnIn0.UNvZTubwC7KU2iH258Ns16R9r8YSavhX_MmjErNGdu_VYSq-fTFi1mA9QRWcuQyBIHf-_y58voGz"
       "UpnxyzKFWgwATjqk-zpz.sY2zbplVedfbzjxmhsQOJA.7ETr9EeGH7verx_xFyIekzekJvfzeSDpCRANMY1fooCjdowtYdS7wrWH"
       "cIyCtpQ3_YI2UtqVIsNXBy4QQOQqFQ.GVOen9xOlxyvQ3S22F69o2jNThV6oiPj89VcAab7il4";
+// jwcrypto again, PBES2-HS256+A128KW over the same plaintext with 100
+// iterations: below the count cjose will write, but a conformant JWE, since
+// RFC 7518 section 4.8.1.2 asks a producer only for a positive count. A build
+// that has raised the floor on what cjose reads is meant to refuse it instead,
+// so the suite asserts one or the other according to that constant.
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS <= 100
+#define CJOSE_TEST_PBES2_LOW_P2C 1
+#endif
+static const char *JWE_PBES2_HS256_A128KW_P2C_100
+    = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMTI4R0NNIiwicDJjIjoxMDAsInAycyI6InRUYTVjcTEyQnBsRzJG"
+      "Z0wtT1VlTGcifQ.plNA0dMSYAcDK1UnldjLDMnn7uSPKnbD.hEglsbLltjNM0Pa-.xnB04pU7R7l5vV5LHuvS2S2PgNkJOiLrE3E"
+      "EZlx6dDHYs2je2jsH9ks6eK0dGFQvSr3JsrL4OLGiTok6-KOC.OIIOrJdGKO7zoE2Ekbofdw";
 static const char *JWE_PBES2_HS256_A128KW_P2C_16384
     = "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMTI4R0NNIiwicDJjIjoxNjM4NCwicDJzIjoiMlk1S2VFVkc4bndM"
       "N1JDdnNxOENLdyJ9.d1gAkMyEhWAseoRFa5lKx2O6DVqhjOZ5.NynPNuvHlB_eePH2.lKvhnY-JBl_LF8gvE_OkqPGcUDi68n2AF"
@@ -3043,12 +3055,15 @@ static void _pbes2_round_trip(const char *alg, const char *enc, json_int_t p2c)
 
 START_TEST(test_cjose_jwe_pbes2_self_encrypt_self_decrypt)
 {
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A128GCM, 1000);
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A256CBC_HS512, 1000);
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A192GCM, 1000);
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A128CBC_HS256, 1000);
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A256GCM, 1000);
-    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A192CBC_HS384, 1000);
+    // the lowest count cjose will write, so that the round trips stay cheap and
+    // keep working wherever CJOSE_JWE_PBES2_MIN_ITERATIONS is built
+    const json_int_t p2c = CJOSE_JWE_PBES2_MIN_ITERATIONS;
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A128GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A256CBC_HS512, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A192GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS384_A192KW, CJOSE_HDR_ENC_A128CBC_HS256, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A256GCM, p2c);
+    _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS512_A256KW, CJOSE_HDR_ENC_A192CBC_HS384, p2c);
     // the default iteration count
     _pbes2_round_trip(CJOSE_HDR_ALG_PBES2_HS256_A128KW, CJOSE_HDR_ENC_A256GCM, 0);
 }
@@ -3069,6 +3084,9 @@ START_TEST(test_cjose_jwe_pbes2_interop)
         { JWE_PBES2_HS384_A192KW_A128CBC_HS256, CJOSE_HDR_ALG_PBES2_HS384_A192KW },
         { JWE_PBES2_HS512_A256KW_A256CBC_HS512, CJOSE_HDR_ALG_PBES2_HS512_A256KW },
         { JWE_PBES2_HS256_A128KW_P2C_16384, CJOSE_HDR_ALG_PBES2_HS256_A128KW },
+#ifdef CJOSE_TEST_PBES2_LOW_P2C
+        { JWE_PBES2_HS256_A128KW_P2C_100, CJOSE_HDR_ALG_PBES2_HS256_A128KW },
+#endif
     };
     for (size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++)
     {
@@ -3083,6 +3101,12 @@ START_TEST(test_cjose_jwe_pbes2_interop)
         cjose_get_dealloc()(plain);
         cjose_jwe_release(jwe);
     }
+
+#ifndef CJOSE_TEST_PBES2_LOW_P2C
+    // the other side of the same knob: a build whose accepted floor is above
+    // that vector's count refuses it instead of reading it
+    _decrypt_expect(JWE_PBES2_HS256_A128KW_P2C_100, JWK_PBES2_PASSWORD, CJOSE_ERR_INVALID_ARG);
+#endif
 
     // the JSON serialization keeps "p2s" and "p2c" in the recipient's header
     cjose_jwe_t *jwe = cjose_jwe_import_json(JWE_JSON_PBES2_HS512_A256KW, strlen(JWE_JSON_PBES2_HS512_A256KW), &err);
@@ -3126,12 +3150,24 @@ END_TEST
 
 static void _jwe_hdr_p2c_too_large(json_t *hdr)
 {
-    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MAX_ITERATIONS + 1));
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer((json_int_t)CJOSE_JWE_PBES2_MAX_ITERATIONS + 1));
 }
-static void _jwe_hdr_p2c_too_small(json_t *hdr)
+// below the count cjose will write, which is a producer policy, and below the
+// count it will read, which RFC 7518 section 4.8.1.2 puts at "positive"
+static void _jwe_hdr_p2c_below_produced(json_t *hdr)
 {
     json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS - 1));
 }
+static void _jwe_hdr_p2c_below_accepted(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS - 1));
+}
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS < CJOSE_JWE_PBES2_MIN_ITERATIONS
+static void _jwe_hdr_p2c_at_accepted(json_t *hdr)
+{
+    json_object_set_new(hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS));
+}
+#endif
 static void _jwe_hdr_p2c_string(json_t *hdr) { json_object_set_new(hdr, CJOSE_HDR_P2C, json_string("4096")); }
 static void _jwe_hdr_drop_p2s(json_t *hdr) { json_object_del(hdr, CJOSE_HDR_P2S); }
 // a salt input of a given size, base64url encoded: n octets take ceil(4n/3)
@@ -3177,8 +3213,8 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
 
     // a caller-supplied iteration count must be within bounds, and a
     // caller-supplied salt input is refused however well formed it is
-    void (*encrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_too_small, _jwe_hdr_p2c_string,
-                                          _jwe_hdr_short_p2s,     _jwe_hdr_long_p2s,      _jwe_hdr_good_p2s };
+    void (*encrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_below_produced, _jwe_hdr_p2c_string,
+                                          _jwe_hdr_short_p2s,     _jwe_hdr_long_p2s,           _jwe_hdr_good_p2s };
     for (size_t i = 0; i < sizeof(encrypt_cases) / sizeof(encrypt_cases[0]); i++)
     {
         cjose_header_t *bad = (cjose_header_t *)json_deep_copy((json_t *)hdr);
@@ -3250,8 +3286,9 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
 
     // the same for the iteration count, where the value matters rather than the
     // constant: go-jose writes exactly 100000 by default, so a JWE with that
-    // count has to keep working whatever CJOSE_JWE_PBES2_MAX_ITERATIONS is
-    // built as. Asserting against the constant itself would pin nothing.
+    // count has to keep working wherever the ceiling still admits it. Asserting
+    // against the constant itself would pin nothing.
+#if CJOSE_JWE_PBES2_MAX_ITERATIONS >= 100000
     cjose_header_t *at_max_p2c = (cjose_header_t *)json_deep_copy((json_t *)hdr);
     ck_assert(NULL != at_max_p2c);
     ck_assert(0 == json_object_set_new((json_t *)at_max_p2c, CJOSE_HDR_P2C, json_integer(100000)));
@@ -3263,9 +3300,10 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
     _decrypt_plain_ok(max_p2c_compact, JWK_PBES2_PASSWORD, plain, sizeof(plain) - 1);
     cjose_get_dealloc()(max_p2c_compact);
     cjose_header_release(at_max_p2c);
+#endif
 
     // a good JWE ...
-    ck_assert(0 == json_object_set_new((json_t *)hdr, CJOSE_HDR_P2C, json_integer(1000)));
+    ck_assert(0 == json_object_set_new((json_t *)hdr, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS)));
     cjose_jwe_t *jwe = cjose_jwe_encrypt(jwk, hdr, plain, sizeof(plain) - 1, &err);
     ck_assert_msg(NULL != jwe, "cjose_jwe_encrypt failed: %s", err.message);
     char *compact = cjose_jwe_export(jwe, &err);
@@ -3277,8 +3315,8 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
     // key derivation runs
     _decrypt_expect(compact, JWK_EC, CJOSE_ERR_INVALID_ARG);
     _decrypt_expect(compact, JWK_OCT_32, CJOSE_ERR_CRYPTO);
-    void (*decrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_too_small, _jwe_hdr_p2c_string,
-                                          _jwe_hdr_drop_p2s,      _jwe_hdr_short_p2s,     _jwe_hdr_long_p2s };
+    void (*decrypt_cases[])(json_t *) = { _jwe_hdr_p2c_too_large, _jwe_hdr_p2c_below_accepted, _jwe_hdr_p2c_string,
+                                          _jwe_hdr_drop_p2s,      _jwe_hdr_short_p2s,          _jwe_hdr_long_p2s };
     for (size_t i = 0; i < sizeof(decrypt_cases) / sizeof(decrypt_cases[0]); i++)
     {
         char *modified = _jwe_with_modified_header(compact, decrypt_cases[i]);
@@ -3286,12 +3324,21 @@ START_TEST(test_cjose_jwe_pbes2_bad_params)
         free(modified);
     }
 
-    // the bound itself: a salt input of CJOSE_JWE_PBES2_MAX_SALT_LEN is within
-    // the accepted range, so where one octet more is refused as an invalid
-    // argument this one gets as far as the cryptography and fails there
+    // the bounds themselves: a salt input of CJOSE_JWE_PBES2_MAX_SALT_LEN and a
+    // count of CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS are within the accepted
+    // range, so where one step beyond either is refused as an invalid argument
+    // these get as far as the cryptography and fail there
     char *at_max = _jwe_with_modified_header(compact, _jwe_hdr_max_p2s);
     _decrypt_expect(at_max, JWK_PBES2_PASSWORD, CJOSE_ERR_CRYPTO);
     free(at_max);
+    // the count case needs the two to differ: where the accepted floor is the
+    // count this JWE already carries, rewriting it changes nothing and there is
+    // no derived key to fail on
+#if CJOSE_JWE_PBES2_MIN_ACCEPTED_ITERATIONS < CJOSE_JWE_PBES2_MIN_ITERATIONS
+    char *at_min_p2c = _jwe_with_modified_header(compact, _jwe_hdr_p2c_at_accepted);
+    _decrypt_expect(at_min_p2c, JWK_PBES2_PASSWORD, CJOSE_ERR_CRYPTO);
+    free(at_min_p2c);
+#endif
 
     // an encrypted key of any other length than the CEK plus 8 is refused up front
     size_t len = strlen(compact);
@@ -3330,11 +3377,11 @@ START_TEST(test_cjose_jwe_pbes2_multiple_recipients)
     cjose_header_t *hdr1 = cjose_header_new(&err);
     ck_assert(cjose_header_set(hdr1, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS256_A128KW, &err));
     ck_assert(cjose_header_set(hdr1, CJOSE_HDR_KID, "pw1", &err));
-    ck_assert(0 == json_object_set_new((json_t *)hdr1, CJOSE_HDR_P2C, json_integer(1000)));
+    ck_assert(0 == json_object_set_new((json_t *)hdr1, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_MIN_ITERATIONS)));
     cjose_header_t *hdr2 = cjose_header_new(&err);
     ck_assert(cjose_header_set(hdr2, CJOSE_HDR_ALG, CJOSE_HDR_ALG_PBES2_HS512_A256KW, &err));
     ck_assert(cjose_header_set(hdr2, CJOSE_HDR_KID, "pw2", &err));
-    ck_assert(0 == json_object_set_new((json_t *)hdr2, CJOSE_HDR_P2C, json_integer(2000)));
+    ck_assert(0 == json_object_set_new((json_t *)hdr2, CJOSE_HDR_P2C, json_integer(CJOSE_JWE_PBES2_DEFAULT_ITERATIONS)));
     cjose_jwe_recipient_t recipients[] = { { pw1, hdr1 }, { pw2, hdr2 } };
 
     cjose_jwe_t *jwe = cjose_jwe_encrypt_multi(recipients, 2, protected_header, NULL, plain, sizeof(plain) - 1, &err);
@@ -3349,7 +3396,7 @@ START_TEST(test_cjose_jwe_pbes2_multiple_recipients)
     ck_assert(NULL != form);
     json_t *recs = json_object_get(form, "recipients");
     ck_assert(json_is_array(recs) && 2 == json_array_size(recs));
-    const json_int_t expected_p2c[] = { 1000, 2000 };
+    const json_int_t expected_p2c[] = { CJOSE_JWE_PBES2_MIN_ITERATIONS, CJOSE_JWE_PBES2_DEFAULT_ITERATIONS };
     const char *salts[2] = { NULL, NULL };
     for (size_t i = 0; i < 2; i++)
     {
