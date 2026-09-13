@@ -1,7 +1,7 @@
 # Release Notes #
 
-<a name="0.8.1"></a>
-## 0.8.1 (unreleased)
+<a name="unreleased"></a>
+## Unreleased
 
 Maintenance release for the 0.8 line, which keeps the OpenSSL 1.0.1 floor, the
 autotools build and the libcjose.so.0 ABI. Fixes only, backported from the 1.0
@@ -13,12 +13,18 @@ development line.
 * An RSA JWK whose "d", "p", "q", "dp", "dq" or "qi" is present but carries no usable value is refused instead of being read as a public key. That covers an empty string, a JSON null, base64url padding on its own, and a value whose octets are all zero; the last of these imported as a private key whose export cjose could not read back (cisco/cjose#189, #192, #193)
 * An RSA JWK carrying "oth", a multi-prime key, is refused rather than silently used as if it had two primes (cisco/cjose#190)
 * The "epk" header of an ECDH-ES JWE is refused when it carries a private member, as RFC 7518 section 4.6.1.1 allows public key parameters only
+* An EC JWK whose "d" is present but carries no usable value is refused instead of being read as a public key, the same rule the RSA members above follow (RFC 7518 section 6.2.2)
+* Supplying your own "epk" to an ECDH-ES encryption is refused wherever it sits, including the protected header. The check looked the parameter up as a string, and "epk" is a JSON object, so it never saw one there
 * The member names of the JWE protected header, the shared unprotected header and a per-recipient unprotected header must be disjoint, as RFC 7516 section 7.2.1 requires. They were not checked, and a name is resolved per-recipient first, so a JWE that repeated one had the copy that the content encryption does not authenticate win: a protected "alg" could be shadowed by a per-recipient one
 * Out-of-tree autotools builds can compile the test binary again; test/Makefile.am passed only the build directory include path
 
 ### Compatibility
 
-The disjointness rule refuses JOSE input that 0.8.0 accepted, including repetitions of a name that carries no risk, such as "kid". Producing such a JWE is refused as well, and so is supplying an "epk" of your own to an ECDH-ES encryption, which the key agreement overwrote in any case. Nothing else changes for a caller: no API, no ABI, no algorithm, and no build requirement.
+The disjointness rule refuses JOSE input that 0.8.0 accepted, including repetitions of a name that carries no risk, such as "kid". Producing such a JWE is refused as well, and so is supplying an "epk" of your own to an ECDH-ES encryption, which the key agreement overwrote in any case.
+
+Three smaller changes follow from validating the shared unprotected header at encryption time, which 0.8.0 did not do; it validated the per-recipient header twice instead. cjose_jwe_encrypt_multi now refuses a "crit" the shared unprotected header carries and cannot process, which import already refused on 0.8.0; it now accepts an "alg" supplied only in that header, where 0.8.0 required it in the protected or per-recipient one; and a JWK whose EC "d" is present but valueless no longer imports.
+
+Nothing else changes for a caller: no API, no ABI, no algorithm, and no build requirement.
 
 <a name="0.8.0"></a>
 ## [0.8.0](https://github.com/cisco/cjose/0.7.0..0.8.0)  (2026-09-12)

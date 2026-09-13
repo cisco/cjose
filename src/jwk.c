@@ -1990,9 +1990,12 @@ static cjose_jwk_t *_cjose_jwk_import_EC(json_t *jwk_json, cjose_err *err)
 
     // get the decoded value of the private key d
     d_buflen = (size_t)_cjose_jwk_ec_size_for_curve(crv, err);
-    if (!_cjose_jwk_decode_json_object_base64url_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
+    // "d" is REQUIRED for a private key and MUST NOT be present for a public
+    // one (RFC 7518 section 6.2.2), so when the attribute is there it has to
+    // carry a usable value instead of quietly making a public key: the same
+    // rule the RSA import above applies to its private members
+    if (!_cjose_jwk_decode_private_attribute(jwk_json, CJOSE_JWK_D_STR, &d_buffer, &d_buflen, err))
     {
-        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
         goto import_EC_cleanup;
     }
 

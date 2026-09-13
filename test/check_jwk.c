@@ -1659,6 +1659,38 @@ END_TEST
 // RFC 7518 section 6.3.2 gives every private member a base64url value: one that is present
 // but carries no value is a malformed key, and reading it as an absent member
 // turned the key into a public one
+// the same rule for an EC key: RFC 7518 section 6.2.2 makes "d" the private
+// key, so an attribute that is present but carries no usable value must fail
+// the import rather than quietly yield a public key
+START_TEST(test_cjose_jwk_import_ec_empty_private_member)
+{
+    cjose_err err;
+    static const char *const values[] = { "\"\"", "null", "\"==\"", "\"====\"" };
+
+    cjose_jwk_t *ec = cjose_jwk_create_EC_random(CJOSE_JWK_EC_P_256, &err);
+    ck_assert_msg(NULL != ec, "cjose_jwk_create_EC_random failed: %s", err.message);
+    char *pub = cjose_jwk_to_json(ec, false, &err);
+    ck_assert(NULL != pub);
+    ck_assert(NULL == strstr(pub, "\"d\""));
+
+    for (size_t v = 0; v < sizeof(values) / sizeof(values[0]); v++)
+    {
+        char *buf = malloc(strlen(pub) + 32);
+        ck_assert(NULL != buf);
+        sprintf(buf, "%.*s,\"d\":%s}", (int)strlen(pub) - 1, pub, values[v]);
+        memset(&err, 0, sizeof(err));
+        cjose_jwk_t *bad = cjose_jwk_import(buf, strlen(buf), &err);
+        ck_assert_msg(NULL == bad, "an EC d of %s was accepted", values[v]);
+        ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+        cjose_jwk_release(bad);
+        free(buf);
+    }
+
+    cjose_get_dealloc()(pub);
+    cjose_jwk_release(ec);
+}
+END_TEST
+
 START_TEST(test_cjose_jwk_import_empty_private_member)
 {
     cjose_err err;
@@ -2147,6 +2179,7 @@ Suite *cjose_jwk_suite(void)
     tcase_add_test(tc_jwk, test_cjose_jwk_import_invalid);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_unsupported_rsa_oth);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_empty_private_member);
+    tcase_add_test(tc_jwk, test_cjose_jwk_import_ec_empty_private_member);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_underflow_length);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_no_zero_termination);
     tcase_add_test(tc_jwk, test_cjose_jwk_import_with_base64url_padding);
