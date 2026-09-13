@@ -72,6 +72,39 @@ bool _cjose_header_validate_crit(cjose_header_t *header, const char *const *supp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool _cjose_header_validate_disjoint(cjose_header_t *const *headers, size_t headers_len, cjose_err *err)
+{
+    if (NULL == headers)
+    {
+        return true;
+    }
+
+    for (size_t i = 0; i < headers_len; i++)
+    {
+        if (NULL == headers[i])
+        {
+            continue;
+        }
+
+        const char *name = NULL;
+        json_t *value = NULL;
+        json_object_foreach((json_t *)headers[i], name, value)
+        {
+            for (size_t j = i + 1; j < headers_len; j++)
+            {
+                if (NULL != headers[j] && NULL != json_object_get((json_t *)headers[j], name))
+                {
+                    CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 cjose_header_t *cjose_header_new(cjose_err *err)
 {
     cjose_header_t *retval = (cjose_header_t *)json_object();
