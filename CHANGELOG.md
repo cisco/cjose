@@ -1,5 +1,25 @@
 # Release Notes #
 
+<a name="0.8.1"></a>
+## 0.8.1 (unreleased)
+
+Maintenance release for the 0.8 line, which keeps the OpenSSL 1.0.1 floor, the
+autotools build and the libcjose.so.0 ABI. Fixes only, backported from the 1.0
+development line.
+
+### Fix
+
+* cjose_jwe_decrypt and cjose_jwe_decrypt_multi no longer dereference a NULL cjose_err when the JWE uses ECDH-ES+A128KW, ECDH-ES+A192KW or ECDH-ES+A256KW; the trailing err argument is optional throughout the public API and decrypting such a JWE with a NULL one crashed (cisco/cjose#191)
+* An RSA JWK whose "d", "p", "q", "dp", "dq" or "qi" is present but carries no usable value is refused instead of being read as a public key. That covers an empty string, a JSON null, base64url padding on its own, and a value whose octets are all zero; the last of these imported as a private key whose export cjose could not read back (cisco/cjose#189, #192, #193)
+* An RSA JWK carrying "oth", a multi-prime key, is refused rather than silently used as if it had two primes (cisco/cjose#190)
+* The "epk" header of an ECDH-ES JWE is refused when it carries a private member, as RFC 7518 section 4.6.1.1 allows public key parameters only
+* The member names of the JWE protected header, the shared unprotected header and a per-recipient unprotected header must be disjoint, as RFC 7516 section 7.2.1 requires. They were not checked, and a name is resolved per-recipient first, so a JWE that repeated one had the copy that the content encryption does not authenticate win: a protected "alg" could be shadowed by a per-recipient one
+* Out-of-tree autotools builds can compile the test binary again; test/Makefile.am passed only the build directory include path
+
+### Compatibility
+
+The disjointness rule refuses JOSE input that 0.8.0 accepted, including repetitions of a name that carries no risk, such as "kid". Producing such a JWE is refused as well, and so is supplying an "epk" of your own to an ECDH-ES encryption, which the key agreement overwrote in any case. Nothing else changes for a caller: no API, no ABI, no algorithm, and no build requirement.
+
 <a name="0.8.0"></a>
 ## [0.8.0](https://github.com/cisco/cjose/0.7.0..0.8.0)  (2026-09-12)
 

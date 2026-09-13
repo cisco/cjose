@@ -978,6 +978,21 @@ static bool _cjose_jwe_decrypt_ek_rsa1_5(_jwe_int_recipient_t *recipient, cjose_
 #endif // HAVE_RSA_PKCS1_PADDING
 
 ////////////////////////////////////////////////////////////////////////////////
+// a header parameter that the key agreement produces itself must not be
+// supplied by the caller: it would end up in two of the three header locations,
+// which RFC 7516 section 7.2.1 does not allow, or silently replace what the
+// caller set
+static bool _cjose_jwe_reject_generated_param(cjose_jwe_t *jwe, _jwe_int_recipient_t *recipient, const char *name, cjose_err *err)
+{
+    if (NULL != _cjose_jwe_get_from_headers(jwe->hdr, jwe->shared_hdr, (cjose_header_t *)recipient->unprotected, name))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // RFC 7518 section 4.6.1.1: the "epk" header holds the public key parameters of
 // the ephemeral key and nothing else, so a private member is refused on sight,
 // whatever the import would make of its value
@@ -1009,6 +1024,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es(_jwe_int_recipient_t *recipient, cjose
     size_t otherinfo_len = 0;
     uint8_t *derived = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -1194,6 +1215,12 @@ static bool _cjose_jwe_encrypt_ek_ecdh_es_kw(
     size_t otherinfo_len = 0;
     uint8_t *kek = NULL;
     bool result = false;
+
+    // the "epk" parameter is produced here
+    if (!_cjose_jwe_reject_generated_param(jwe, recipient, CJOSE_HDR_EPK, err))
+    {
+        return false;
+    }
 
     // generate and export random EPK
     epk_jwk = cjose_jwk_create_EC_random(cjose_jwk_EC_get_curve(jwk, err), err);
@@ -2143,6 +2170,21 @@ cjose_jwe_t *cjose_jwe_encrypt_multi_iv(const cjose_jwe_recipient_t *recipients,
 
         // build JWE content-encryption key and encrypted key
         if (!jwe->to[i].fns.encrypt_ek(jwe->to + i, jwe, recipients[i].jwk, err))
+        {
+            cjose_jwe_release(jwe);
+            return NULL;
+        }
+    }
+
+    // the algorithms have written the parameters they produce by now, so the
+    // names of the assembled headers are checked once more: what leaves here
+    // has to be a JWE that can be imported again (RFC 7516 section 7.2.1)
+    for (size_t i = 0; i < recipient_count; i++)
+    {
+        cjose_header_t *assembled[]
+            = { (cjose_header_t *)jwe->hdr, (cjose_header_t *)jwe->shared_hdr, (cjose_header_t *)jwe->to[i].unprotected };
+
+        if (!_cjose_header_validate_disjoint(assembled, sizeof(assembled) / sizeof(assembled[0]), err))
         {
             cjose_jwe_release(jwe);
             return NULL;

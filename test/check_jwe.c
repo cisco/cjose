@@ -1715,11 +1715,6 @@ START_TEST(test_cjose_jwe_decrypt_rsa_wrong_cek_length)
 }
 END_TEST
 
-// regression: ECDH-ES key agreement must not dereference a NULL cjose_err.
-// cjose_concatkdf_create_otherinfo() used to memset(err, ...) unconditionally,
-// crashing when the public JWE API was invoked with a NULL err argument.
-// RFC 7518 section 4.6.1.1: the "epk" header carries public key parameters
-// only, so an ephemeral key that names "d" is refused whatever it holds
 // RFC 7516 section 7.2.1: the member names of the protected, shared
 // unprotected and per-recipient headers of a JSON serialization are disjoint.
 // Without that, the per-recipient lookup lets an unprotected copy shadow the
@@ -1761,14 +1756,64 @@ START_TEST(test_cjose_jwe_json_header_disjoint)
                   "a JWE repeating \"alg\" across two header locations was accepted");
     ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
 
-    free(tampered);
+    cjose_get_dealloc()(tampered);
     json_decref(form);
+
+    // the same across the shared and a per-recipient header, on a JWE with two
+    // of them
+    cjose_jwk_t *jwk32 = cjose_jwk_import(JWK_OCT_32, strlen(JWK_OCT_32), &err);
+    ck_assert(NULL != jwk32);
+    cjose_header_t *shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set(shared, CJOSE_HDR_KID, "shared", &err));
+    cjose_header_t *rec_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(rec_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A128KW, &err));
+    ck_assert(cjose_header_set(rec_hdr, CJOSE_HDR_KID, "recipient", &err));
+    cjose_header_t *rec_hdr2 = cjose_header_new(&err);
+    ck_assert(cjose_header_set(rec_hdr2, CJOSE_HDR_ALG, CJOSE_HDR_ALG_A256KW, &err));
+    cjose_header_t *enc_only = cjose_header_new(&err);
+    ck_assert(cjose_header_set(enc_only, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A128GCM, &err));
+    cjose_jwe_recipient_t two[] = { { jwk, rec_hdr }, { jwk32, rec_hdr2 } };
+    memset(&err, 0, sizeof(err));
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(two, 2, enc_only, shared, plain, sizeof(plain) - 1, &err),
+                  "a name repeated across the shared and a recipient header was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    // a parameter the key agreement produces itself may not come from the
+    // caller: it would leave "epk" in two locations, and the JWE that left the
+    // encryption could not be imported again
+    memset(&err, 0, sizeof(err));
+    cjose_jwk_t *ec = cjose_jwk_import(JWK_EC, strlen(JWK_EC), &err);
+    ck_assert(NULL != ec);
+    cjose_header_t *ecdh_hdr = cjose_header_new(&err);
+    ck_assert(cjose_header_set(ecdh_hdr, CJOSE_HDR_ALG, CJOSE_HDR_ALG_ECDH_ES, &err));
+    ck_assert(cjose_header_set(ecdh_hdr, CJOSE_HDR_ENC, CJOSE_HDR_ENC_A256GCM, &err));
+    cjose_header_t *epk_shared = cjose_header_new(&err);
+    ck_assert(cjose_header_set_raw(epk_shared, CJOSE_HDR_EPK,
+                                   "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"DxaAKzwruXJh4IkdieycIJER6w8M1TYMCV3qOa-l9CM\","
+                                   "\"y\":\"_kRI1aD7-PMFwhUpXmcRzw6hALF_xdKwADuKOM-xsak\"}",
+                                   &err));
+    cjose_jwe_recipient_t one_ec[] = { { ec, NULL } };
+    ck_assert_msg(NULL == cjose_jwe_encrypt_multi(one_ec, 1, ecdh_hdr, epk_shared, plain, sizeof(plain) - 1, &err),
+                  "a caller-supplied epk was accepted");
+    ck_assert_int_eq(CJOSE_ERR_INVALID_ARG, err.code);
+
+    cjose_header_release(epk_shared);
+    cjose_header_release(ecdh_hdr);
+    cjose_jwk_release(ec);
+    cjose_header_release(enc_only);
+    cjose_header_release(rec_hdr2);
+    cjose_header_release(rec_hdr);
+    cjose_header_release(shared);
+    cjose_jwk_release(jwk32);
+
     cjose_get_dealloc()(json);
     cjose_header_release(protected_header);
     cjose_jwk_release(jwk);
 }
 END_TEST
 
+// RFC 7518 section 4.6.1.1: the "epk" header carries public key parameters
+// only, so an ephemeral key that names "d" is refused whatever it holds
 START_TEST(test_cjose_jwe_ecdh_es_private_epk)
 {
     cjose_err err;
@@ -1835,6 +1880,9 @@ START_TEST(test_cjose_jwe_ecdh_es_private_epk)
 }
 END_TEST
 
+// regression: ECDH-ES key agreement must not dereference a NULL cjose_err.
+// cjose_concatkdf_create_otherinfo() used to memset(err, ...) unconditionally,
+// crashing when the public JWE API was invoked with a NULL err argument.
 START_TEST(test_cjose_jwe_ecdh_es_null_err)
 {
     // the trailing cjose_err is optional throughout the public API, so every
