@@ -18,9 +18,14 @@ JWS signing algorithms (`alg`):
 | `ES256`, `ES384`, `ES512` | ECDSA with P-256, P-384 and P-521 | |
 | `ES256K` | ECDSA with secp256k1 | OpenSSL built with `secp256k1` |
 | `Ed25519`, `Ed448` | EdDSA (RFC 9864) | |
+| `ML-DSA-44`, `ML-DSA-65`, `ML-DSA-87` | ML-DSA (RFC 9964, US NIST FIPS 204) | build option `CJOSE_ENABLE_ML_DSA`, OpenSSL >= 3.5 |
 
 The polymorphic `EdDSA` identifier of RFC 8037, deprecated by RFC 9864, and
 `none` are not accepted.
+
+The ML-DSA algorithms sign with the `AKP` key type of RFC 9964. They are pure
+ML-DSA over the JWS signing input, with the empty context string RFC 9964
+requires; HashML-DSA is not part of that specification and is not offered.
 
 JWE key management algorithms (`alg`):
 

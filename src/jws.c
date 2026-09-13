@@ -46,13 +46,21 @@ static bool _cjose_jws_verify_sig_ec(cjose_jws_t *jws, const cjose_jwk_t *jwk, c
 
 static bool _cjose_jws_validate_ec_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
 
-static bool _cjose_jws_build_dig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
+static bool _cjose_jws_build_dig_signing_input(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_build_sig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_verify_sig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
 static bool _cjose_jws_validate_okp_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
+
+#ifdef HAVE_ML_DSA
+static bool _cjose_jws_validate_akp_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool _cjose_jws_build_sig_ml_dsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
+
+static bool _cjose_jws_verify_sig_ml_dsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
+#endif // HAVE_ML_DSA
 
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err);
 
@@ -129,10 +137,19 @@ static bool _cjose_jws_validate_hdr(cjose_jws_t *jws, cjose_err *err)
     }
     else if ((strcmp(alg, CJOSE_HDR_ALG_ED25519) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ED448) == 0))
     {
-        jws->fns.digest = _cjose_jws_build_dig_eddsa;
+        jws->fns.digest = _cjose_jws_build_dig_signing_input;
         jws->fns.sign = _cjose_jws_build_sig_eddsa;
         jws->fns.verify = _cjose_jws_verify_sig_eddsa;
     }
+#ifdef HAVE_ML_DSA
+    else if ((strcmp(alg, CJOSE_HDR_ALG_ML_DSA_44) == 0) || (strcmp(alg, CJOSE_HDR_ALG_ML_DSA_65) == 0)
+             || (strcmp(alg, CJOSE_HDR_ALG_ML_DSA_87) == 0))
+    {
+        jws->fns.digest = _cjose_jws_build_dig_signing_input;
+        jws->fns.sign = _cjose_jws_build_sig_ml_dsa;
+        jws->fns.verify = _cjose_jws_verify_sig_ml_dsa;
+    }
+#endif // HAVE_ML_DSA
     else
     {
         CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
@@ -1188,12 +1205,12 @@ static bool _cjose_jws_validate_okp_key(const char *alg, const cjose_jwk_t *jwk,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool _cjose_jws_build_dig_eddsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
+static bool _cjose_jws_build_dig_signing_input(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
-    // PureEdDSA (RFC 8037 section 3.1) signs the message itself without a
-    // pre-hash, and OpenSSL only offers the one-shot EVP_DigestSign and
-    // EVP_DigestVerify for it: the "digest" is the JWS signing input
-    // B64U(HEADER).B64U(DATA) (RFC 7515 section 5.1)
+    // PureEdDSA (RFC 8037 section 3.1) and pure ML-DSA (RFC 9964 section 5)
+    // both sign the message itself without a pre-hash, and OpenSSL offers only
+    // the one-shot EVP_DigestSign and EVP_DigestVerify for them: the "digest"
+    // is the JWS signing input B64U(HEADER).B64U(DATA) (RFC 7515 section 5.1)
     if (NULL != jws->dig)
     {
         _cjose_cleanse_dealloc(jws->dig, jws->dig_len);
@@ -1342,6 +1359,162 @@ _cjose_jws_verify_sig_eddsa_cleanup:
     return retval;
 }
 
+#ifdef HAVE_ML_DSA
+////////////////////////////////////////////////////////////////////////////////
+// ML-DSA (RFC 9964): pure ML-DSA over the JWS signing input, Algorithm 2 of US
+// NIST FIPS 204 with an empty context string, which is what OpenSSL does when
+// no signature parameter is set. Like PureEdDSA there is no pre-hash, so the
+// one-shot EVP_DigestSign and EVP_DigestVerify take the signing input itself
+// and _cjose_jws_build_dig_signing_input builds it.
+
+// binds the "alg" header to the key: an AKP key carries its own algorithm, and
+// RFC 9964 section 7.4 is about what happens when key material and the
+// algorithm it is used under do not agree
+static bool _cjose_jws_validate_akp_key(const char *alg, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    if (jwk->kty != CJOSE_JWK_KTY_AKP || NULL == jwk->keydata)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+    const char *key_alg = _cjose_jwk_akp_name_for_alg(keydata->alg);
+    if (NULL == alg || NULL == key_alg || 0 != strcmp(alg, key_alg))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jws_build_sig_ml_dsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    bool retval = false;
+    EVP_MD_CTX *ctx = NULL;
+    size_t sig_len = 0;
+
+    const char *alg = json_string_value(json_object_get(jws->hdr, CJOSE_HDR_ALG));
+    if (!_cjose_jws_validate_akp_key(alg, jwk, err))
+    {
+        return false;
+    }
+
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+
+    // EVP_DigestSignInit succeeds on a public-only ML-DSA key and only the
+    // signing fails, so the JWK's key material is what decides here
+    if (!keydata->has_private)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    ctx = EVP_MD_CTX_new();
+    if (NULL == ctx)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+
+    // pure ML-DSA takes no digest algorithm
+    if (1 != EVP_DigestSignInit(ctx, NULL, NULL, NULL, keydata->key))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+
+    // the signature has the fixed size of the algorithm, which is what
+    // EVP_PKEY_get_size reports for ML-DSA rather than an upper bound
+    const int size = EVP_PKEY_get_size(keydata->key);
+    if (size <= 0)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+    jws->sig_len = (size_t)size;
+    jws->sig = (uint8_t *)cjose_get_alloc()(jws->sig_len);
+    if (NULL == jws->sig)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+
+    // sign the signing input in one shot
+    sig_len = jws->sig_len;
+    if (1 != EVP_DigestSign(ctx, jws->sig, &sig_len, jws->dig, jws->dig_len) || sig_len != jws->sig_len)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+
+    if (!cjose_base64url_encode((const uint8_t *)jws->sig, jws->sig_len, &jws->sig_b64u, &jws->sig_b64u_len, err))
+    {
+        goto _cjose_jws_build_sig_ml_dsa_cleanup;
+    }
+
+    retval = true;
+
+_cjose_jws_build_sig_ml_dsa_cleanup:
+    EVP_MD_CTX_free(ctx);
+
+    return retval;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool _cjose_jws_verify_sig_ml_dsa(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
+{
+    bool retval = false;
+    EVP_MD_CTX *ctx = NULL;
+
+    const char *alg = json_string_value(json_object_get(jws->hdr, CJOSE_HDR_ALG));
+    if (!_cjose_jws_validate_akp_key(alg, jwk, err))
+    {
+        return false;
+    }
+
+    akp_keydata *keydata = (akp_keydata *)jwk->keydata;
+
+    // the signature has the fixed size of the algorithm; reject any other
+    // length before handing it to OpenSSL
+    const int size = EVP_PKEY_get_size(keydata->key);
+    if (size <= 0 || jws->sig_len != (size_t)size)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_INVALID_ARG);
+        return false;
+    }
+
+    ctx = EVP_MD_CTX_new();
+    if (NULL == ctx)
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ml_dsa_cleanup;
+    }
+
+    // pure ML-DSA takes no digest algorithm
+    if (1 != EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, keydata->key))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ml_dsa_cleanup;
+    }
+
+    if (1 != EVP_DigestVerify(ctx, jws->sig, jws->sig_len, jws->dig, jws->dig_len))
+    {
+        CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
+        goto _cjose_jws_verify_sig_ml_dsa_cleanup;
+    }
+
+    retval = true;
+
+_cjose_jws_verify_sig_ml_dsa_cleanup:
+    EVP_MD_CTX_free(ctx);
+
+    return retval;
+}
+#endif // HAVE_ML_DSA
+
 ////////////////////////////////////////////////////////////////////////////////
 static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *jwk, cjose_err *err)
 {
@@ -1392,6 +1565,17 @@ static bool _cjose_jws_validate_verify_key(cjose_jws_t *jws, const cjose_jwk_t *
             return false;
         }
     }
+
+#ifdef HAVE_ML_DSA
+    if ((0 == strcmp(alg, CJOSE_HDR_ALG_ML_DSA_44)) || (0 == strcmp(alg, CJOSE_HDR_ALG_ML_DSA_65))
+        || (0 == strcmp(alg, CJOSE_HDR_ALG_ML_DSA_87)))
+    {
+        if (!_cjose_jws_validate_akp_key(alg, jwk, err))
+        {
+            return false;
+        }
+    }
+#endif // HAVE_ML_DSA
 
     return true;
 }
