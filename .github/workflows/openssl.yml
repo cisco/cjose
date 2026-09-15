@@ -17,6 +17,9 @@ jobs:
     # The Build and Archs workflows test against the OpenSSL that the platform
     # packages provide, which is a recent release. This workflow builds the
     # supported OpenSSL releases from source and tests against them, plus
+    # ml_dsa is set on the releases that have ML-DSA: RFC 9964 needs the
+    # implementation OpenSSL first shipped in 3.5, and CJOSE_ENABLE_ML_DSA
+    # refuses to configure below that, so the older entries leave it off.
     # 3.0.7: the release RHEL 9 is based on and the last 3.0.x whose EdDSA
     # signing dereferences a missing private key instead of failing (guarded in
     # 3.0.8).
@@ -30,9 +33,9 @@ jobs:
           - { openssl: 3.2.6, tag: openssl-3.2.6, sha256: 89681a9ddaa9ed7cf25ea8ef61338db805200bae47d00510490623547380c148 }
           - { openssl: 3.3.7, tag: openssl-3.3.7, sha256: 4900be54e81c4dfe00bb1a10dad33fd8414833573c40d0e9e3274d4ed32e53a2 }
           - { openssl: 3.4.7, tag: openssl-3.4.7, sha256: 7261c348e6e59bc7b635a30f98072e8817a1c60a7033bb570737394a3a061842 }
-          - { openssl: 3.5.8, tag: openssl-3.5.8, sha256: a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2 }
-          - { openssl: 3.6.4, tag: openssl-3.6.4, sha256: 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef }
-          - { openssl: 4.0.2, tag: openssl-4.0.2, sha256: 736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8 }
+          - { openssl: 3.5.8, tag: openssl-3.5.8, sha256: a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2, ml_dsa: ON }
+          - { openssl: 3.6.4, tag: openssl-3.6.4, sha256: 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef, ml_dsa: ON }
+          - { openssl: 4.0.2, tag: openssl-4.0.2, sha256: 736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8, ml_dsa: ON }
 
     steps:
     - uses: actions/checkout@v5
@@ -59,7 +62,9 @@ jobs:
         make -j"$(nproc)"
         make install_sw
     - name: Configure
-      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DOPENSSL_ROOT_DIR="$OPENSSL_PREFIX"
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DOPENSSL_ROOT_DIR="$OPENSSL_PREFIX" \
+              -DCJOSE_ENABLE_ML_DSA=${{ matrix.ml_dsa || 'OFF' }}
     - name: Build
       run: cmake --build build --parallel
     - name: Check which OpenSSL the tests load

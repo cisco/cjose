@@ -112,6 +112,11 @@ extern "C" {
 #define CJOSE_HDR_ALG_ES384 "ES384"
 #define CJOSE_HDR_ALG_ES512 "ES512"
 
+/** The JWS algorithm attribute values for the ML-DSA signature algorithms of RFC 9964, US NIST FIPS 204. */
+#define CJOSE_HDR_ALG_ML_DSA_44 "ML-DSA-44"
+#define CJOSE_HDR_ALG_ML_DSA_65 "ML-DSA-65"
+#define CJOSE_HDR_ALG_ML_DSA_87 "ML-DSA-87"
+
 /** The JWS algorithm attribute values for the fully-specified EdDSA algorithms Ed25519 and Ed448 (RFC 9864). */
 #define CJOSE_HDR_ALG_ED25519 "Ed25519"
 #define CJOSE_HDR_ALG_ED448 "Ed448"

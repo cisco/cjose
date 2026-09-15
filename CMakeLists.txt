@@ -24,6 +24,12 @@ option(CJOSE_BUILD_TESTS  "Build the cjose unit tests (requires Check)" ${PROJEC
 # with peers that cannot use RSA-OAEP.
 option(CJOSE_ENABLE_RSA1_5 "Enable the RSA1_5 (RSAES-PKCS1-v1_5) key encryption algorithm" OFF)
 
+# ML-DSA (RFC 9964) needs the ML-DSA implementation OpenSSL first shipped in
+# 3.5, well above the 3.0 this project otherwise builds on, and the algorithms
+# are registered as OPTIONAL. Off by default; turning it on requires that
+# OpenSSL, checked at configure time rather than left to a link error.
+option(CJOSE_ENABLE_ML_DSA "Enable the ML-DSA-44/65/87 signature algorithms and the AKP key type (RFC 9964)" OFF)
+
 # PBES2 (RFC 7518 section 4.8) policy bounds. RFC 7518 sets only a minimum salt
 # input length; these are cjose's own limits on the PBKDF2 work it will do and
 # produce, documented with their defaults in src/include/jwe_int.h, which also
@@ -82,6 +88,11 @@ endif()
 # Dependencies
 # ---------------------------------------------------------------------------
 find_package(OpenSSL 3.0.0 REQUIRED)
+
+if(CJOSE_ENABLE_ML_DSA AND OPENSSL_VERSION VERSION_LESS 3.5.0)
+    message(FATAL_ERROR
+        "CJOSE_ENABLE_ML_DSA requires OpenSSL >= 3.5.0 for ML-DSA, found ${OPENSSL_VERSION}")
+endif()
 find_package(Jansson 2.3 REQUIRED)
 
 if(WIN32)
@@ -149,6 +160,9 @@ set_target_properties(cjose_objects PROPERTIES
 target_compile_definitions(cjose_objects PRIVATE OPENSSL_NO_DEPRECATED)
 if(CJOSE_ENABLE_RSA1_5)
     target_compile_definitions(cjose_objects PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+endif()
+if(CJOSE_ENABLE_ML_DSA)
+    target_compile_definitions(cjose_objects PRIVATE HAVE_ML_DSA=1)
 endif()
 if(CJOSE_JWE_PBES2_SETTINGS)
     target_compile_definitions(cjose_objects PRIVATE ${CJOSE_JWE_PBES2_SETTINGS})
@@ -423,6 +437,9 @@ if(CJOSE_BUILD_TESTS)
         target_compile_definitions(check_cjose PRIVATE OPENSSL_NO_DEPRECATED)
         if(CJOSE_ENABLE_RSA1_5)
             target_compile_definitions(check_cjose PRIVATE HAVE_RSA_PKCS1_PADDING=1)
+        endif()
+        if(CJOSE_ENABLE_ML_DSA)
+            target_compile_definitions(check_cjose PRIVATE HAVE_ML_DSA=1)
         endif()
         if(CJOSE_JWE_PBES2_SETTINGS)
             target_compile_definitions(check_cjose PRIVATE ${CJOSE_JWE_PBES2_SETTINGS})
