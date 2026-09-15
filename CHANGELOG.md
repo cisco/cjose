@@ -10,6 +10,57 @@
 * OpenSSL 3.0.0 or newer is required and only non-deprecated OpenSSL APIs are used (#179, #180, #181)
 * The autoconf build is removed; CMake 3.22 or newer is the only build system (#178)
 * The library and the tests are built as strict C17 (#182); the tests need Check 0.12.0 or newer (#176)
+* A JOSE header that carries a "crit" parameter is refused, wherever it appears and whatever it lists: cjose implements no extension to the JOSE specifications, so every name such a list can carry is either unsupported, which RFC 7515 section 4.1.11 requires a recipient to reject, or defined by the specifications or by JWA, which a producer must not list. A JWE or JWS whose header carried "crit" naming only parameters cjose processes was accepted before and now fails with CJOSE_ERR_INVALID_ARG; the API does not change (#188)
+
+### Update
+
+* Add the A128GCMKW, A192GCMKW and A256GCMKW key encryption algorithms of RFC 7518 section 4.7: the content encryption key is encrypted with AES GCM under an oct key of the size the alg names, and the IV and the authentication tag travel as the "iv" and "tag" header parameters. With a single recipient they go into the protected header, so the compact serialization carries them, and with several into each recipient's own header (#188)
+* Add the PBES2-HS256+A128KW, PBES2-HS384+A192KW and PBES2-HS512+A256KW key encryption algorithms of RFC 7518 section 4.8: a key encryption key is derived from the octets of an oct key with PBKDF2 over HMAC SHA-2 and the "p2s" and "p2c" header parameters, and wraps the content encryption key with AES Key Wrap. The salt input is generated for every encryption as section 4.8.1.1 requires; the iteration count bounds and the largest accepted salt input are the CJOSE_JWE_PBES2_* build options (#185)
+* Add X25519 and X448 to the ECDH-ES key agreement of RFC 8037 section 3.2: ECDH-ES and ECDH-ES+A128KW, +A192KW and +A256KW accept OKP keys on those two curves next to EC keys, and cjose_jwk_derive_ecdh_ephemeral_key gains them with it. The Ed25519 and Ed448 signature keys are refused for key agreement (#186)
+* Add the ML-DSA-44, ML-DSA-65 and ML-DSA-87 signature algorithms of RFC 9964 (US NIST FIPS 204) and the Algorithm Key Pair (AKP) key type they sign with: cjose_jwk_create_AKP_random, cjose_jwk_create_AKP_spec, cjose_jwk_AKP_get_alg and JWK import/export, where "priv" is the 32 octet seed and "alg" is required. They are pure ML-DSA with the empty context string the RFC requires; HashML-DSA is not offered. Behind the CJOSE_ENABLE_ML_DSA build option, off by default and requiring OpenSSL >= 3.5; with the option off the three functions fail with CJOSE_ERR_INVALID_ARG, the treatment CJOSE_ENABLE_RSA1_5 already gives RSA1_5 (#198)
+* cjose_jwe_encrypt_multi resolves "alg" from the shared unprotected header as well, where it required the protected or the per-recipient header before; the import path already read it from all three (#188)
+* HMAC operations in HKDF and in the JWE authentication tag use the one-shot EVP_Q_mac of OpenSSL 3 (#196)
+
+### Fix
+
+* Enforce the disjointness of the three JWE header locations that RFC 7516 section 7.2.1 requires: the protected, shared unprotected and per-recipient header member names are checked per recipient, on import and on encryption. A repeated name was accepted and resolved by precedence, so an unauthenticated copy overrode the integrity-protected one, which for "alg" is the shape of an algorithm confusion bug (#188)
+* Validate the headers a JWE leaves the encryption with, after every recipient has been encrypted to, so cjose_jwe_encrypt* cannot return a JWE that cjose_jwe_import* refuses (#188)
+* Refuse a header parameter the algorithm produces itself when the caller supplies it, rather than silently replacing it: "iv" and "tag" for the AES GCM key wrapping algorithms, "epk" for ECDH-ES and "p2s" for PBES2. The parameter is refused wherever it sits, the protected header included; the check read it as a string, and "epk" is a JSON object, so it never saw one there (#185, #188)
+* Refuse an "epk" that names a private member at all, whatever its value: RFC 7518 section 4.6.1.1 gives the header the public key parameters of the ephemeral key and nothing else (#186)
+* Refuse an RSA JWK whose private member "d", "p", "q", "dp", "dq" or "qi" is present but carries no usable value, an empty string, null, base64url padding only or a value that is zero. Such a member was reported the same way an absent one is, so a malformed key imported as a public key (#189, #192, #193)
+* Refuse an EC JWK whose "d" is present but carries no usable value instead of reading it as a public key, the rule the RSA members above follow (RFC 7518 section 6.2.2) (#186)
+* Refuse an RSA JWK that carries "oth": only two-prime keys are supported, and RFC 7518 section 6.3.2.7 requires a consumer that does not support multi-prime keys not to use such a key, which was silently read as a two-prime key (#190)
+* cjose_jwe_decrypt with a NULL cjose_err dereferenced it when decrypting with ECDH-ES+A128KW, ECDH-ES+A192KW or ECDH-ES+A256KW; the trailing cjose_err of the public API may be NULL (#191)
+
+### Compatibility
+
+Beside the "crit" refusal above, three rules refuse JOSE input or calls that 0.8.0 accepted. The disjointness rule refuses a JWE that repeats a member name across two header locations, including a repetition that carries no risk such as "kid", on import and on encryption. Supplying an "epk", "iv", "tag" or "p2s" of your own to an encryption is refused rather than overwritten. An RSA or EC JWK whose private members are present but valueless no longer imports as a public key.
+
+<a name="0.8.1"></a>
+## [0.8.1](https://github.com/cisco/cjose/0.8.0..0.8.1)  (2026-09-14)
+
+Maintenance release for the 0.8 line, which keeps the OpenSSL 1.0.1 floor, the
+autotools build and the libcjose.so.0 ABI. Fixes only, backported from the 1.0
+development line.
+
+### Fix
+
+* cjose_jwe_decrypt and cjose_jwe_decrypt_multi no longer dereference a NULL cjose_err when the JWE uses ECDH-ES+A128KW, ECDH-ES+A192KW or ECDH-ES+A256KW; the trailing err argument is optional throughout the public API and decrypting such a JWE with a NULL one crashed ([37adbd938b917de27654b022efa9a78fa6fbdc2d](https://github.com/cisco/cjose/commit/37adbd938b917de27654b022efa9a78fa6fbdc2d))
+* An RSA JWK whose "d", "p", "q", "dp", "dq" or "qi" is present but carries no usable value is refused instead of being read as a public key. That covers an empty string, a JSON null, base64url padding on its own, and a value whose octets are all zero; the last of these imported as a private key whose export cjose could not read back ([62bfc486e97a81d7481abf1604282de2074690f5](https://github.com/cisco/cjose/commit/62bfc486e97a81d7481abf1604282de2074690f5), [65ea237a0842128b2b6898849691500cb7f4acd6](https://github.com/cisco/cjose/commit/65ea237a0842128b2b6898849691500cb7f4acd6), [58ca7d2990e368d9f593f83bba34ce88dbc1134b](https://github.com/cisco/cjose/commit/58ca7d2990e368d9f593f83bba34ce88dbc1134b))
+* An RSA JWK carrying "oth", a multi-prime key, is refused rather than silently used as if it had two primes ([ee14037f5c58c9cda0ea4080d1052aacce37aa88](https://github.com/cisco/cjose/commit/ee14037f5c58c9cda0ea4080d1052aacce37aa88))
+* The "epk" header of an ECDH-ES JWE is refused when it carries a private member, as RFC 7518 section 4.6.1.1 allows public key parameters only ([4aaa2d5dc565c9a01d4d4a6062068346fd8282b4](https://github.com/cisco/cjose/commit/4aaa2d5dc565c9a01d4d4a6062068346fd8282b4))
+* An EC JWK whose "d" is present but carries no usable value is refused instead of being read as a public key, the same rule the RSA members above follow (RFC 7518 section 6.2.2; [f18ae38f41a132dbd7de863998e0d57419593c49](https://github.com/cisco/cjose/commit/f18ae38f41a132dbd7de863998e0d57419593c49))
+* Supplying your own "epk" to an ECDH-ES encryption is refused wherever it sits, including the protected header. The check looked the parameter up as a string, and "epk" is a JSON object, so it never saw one there ([5e6d8ca1830778b831af3115d375c194ea67b936](https://github.com/cisco/cjose/commit/5e6d8ca1830778b831af3115d375c194ea67b936))
+* The member names of the JWE protected header, the shared unprotected header and a per-recipient unprotected header must be disjoint, as RFC 7516 section 7.2.1 requires. They were not checked, and a name is resolved per-recipient first, so a JWE that repeated one had the copy that the content encryption does not authenticate win: a protected "alg" could be shadowed by a per-recipient one ([4aaa2d5dc565c9a01d4d4a6062068346fd8282b4](https://github.com/cisco/cjose/commit/4aaa2d5dc565c9a01d4d4a6062068346fd8282b4), [874606d203df55bab2583bfbd4e68a797d640623](https://github.com/cisco/cjose/commit/874606d203df55bab2583bfbd4e68a797d640623))
+* Out-of-tree autotools builds can compile the test binary again; test/Makefile.am passed only the build directory include path ([874606d203df55bab2583bfbd4e68a797d640623](https://github.com/cisco/cjose/commit/874606d203df55bab2583bfbd4e68a797d640623))
+
+### Compatibility
+
+The disjointness rule refuses JOSE input that 0.8.0 accepted, including repetitions of a name that carries no risk, such as "kid". Producing such a JWE is refused as well, and so is supplying an "epk" of your own to an ECDH-ES encryption, which the key agreement overwrote in any case.
+
+Three smaller changes follow from validating the shared unprotected header at encryption time, which 0.8.0 did not do; it validated the per-recipient header twice instead. cjose_jwe_encrypt_multi now refuses a "crit" the shared unprotected header carries and cannot process, which import already refused on 0.8.0; it now accepts an "alg" supplied only in that header, where 0.8.0 required it in the protected or per-recipient one; and a JWK whose EC "d" is present but valueless no longer imports.
+
+Nothing else changes for a caller: no API, no ABI, no algorithm, and no build requirement.
 
 <a name="0.8.0"></a>
 ## [0.8.0](https://github.com/cisco/cjose/0.7.0..0.8.0)  (2026-09-12)

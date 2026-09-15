@@ -88,7 +88,7 @@ serialization, with one or more recipients.
 
 ### Libraries ###
 
-* OpenSSL >= 3.0.0
+* OpenSSL >= 3.0.0 (>= 3.5 for the ML-DSA signature algorithms, see the `CJOSE_ENABLE_ML_DSA` build option below)
 * Jansson >= 2.3
 
 ## Getting Started ##
