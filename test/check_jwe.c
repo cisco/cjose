@@ -298,7 +298,7 @@ static void _self_encrypt_self_decrypt_with_key_iv(
     // generate a random IV
     uint8_t *iv = (uint8_t *)malloc(iv_len);
     ck_assert(NULL != iv);
-    ck_assert_msg(RAND_bytes(iv, iv_len) == 1, "RAND_bytes failed");
+    ck_assert_msg(RAND_bytes_ex(NULL, iv, iv_len, 0) == 1, "RAND_bytes failed");
 
     // create the JWE with the supplied IV
     cjose_jwe_t *jwe1 = cjose_jwe_encrypt_iv(jwk, hdr, iv, iv_len, plain1, plain1_len, &err);
@@ -1040,7 +1040,7 @@ START_TEST(test_cjose_jwe_self_encrypt_self_decrypt_many)
     {
         size_t len = (size_t)(rand() % 1024) + 1;
         uint8_t *plain = malloc(len);
-        ck_assert_msg(RAND_bytes(plain, len) == 1, "RAND_bytes failed");
+        ck_assert_msg(RAND_bytes_ex(NULL, plain, len, 0) == 1, "RAND_bytes failed");
         plain[len - 1] = 0;
         _self_encrypt_self_decrypt(plain, len);
         free(plain);

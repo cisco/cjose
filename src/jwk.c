@@ -363,7 +363,7 @@ cjose_jwk_t *cjose_jwk_create_oct_random(size_t keysize, cjose_err *err)
         CJOSE_ERROR(err, CJOSE_ERR_NO_MEMORY);
         goto create_oct_failed;
     }
-    if (1 != RAND_bytes(buffer, buffersize))
+    if (1 != RAND_bytes_ex(NULL, buffer, buffersize, 0))
     {
         goto create_oct_failed;
     }
@@ -2584,7 +2584,7 @@ cjose_jwk_t *cjose_jwk_create_AKP_random(cjose_jwk_akp_alg alg, cjose_err *err)
     // the seed is generated here rather than by EVP_PKEY_generate, so that the
     // key owns it whatever the provider is configured to retain
     uint8_t seed[CJOSE_JWK_AKP_SEED_LEN];
-    if (1 != RAND_bytes(seed, sizeof(seed)))
+    if (1 != RAND_bytes_ex(NULL, seed, sizeof(seed), 0))
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return NULL;
