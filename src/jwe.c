@@ -253,7 +253,7 @@ static bool _cjose_jwe_malloc(size_t bytes, bool random, uint8_t **buffer, cjose
     }
     if (random)
     {
-        if (RAND_bytes((unsigned char *)*buffer, bytes) != 1)
+        if (RAND_bytes_ex(NULL, *buffer, bytes, 0) != 1)
         {
             cjose_get_dealloc()(*buffer);
             CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
@@ -966,7 +966,7 @@ _cjose_jwe_encrypt_ek_aes_gcm_kw(_jwe_int_recipient_t *recipient, cjose_jwe_t *j
         return false;
     }
 
-    if (RAND_bytes(iv, sizeof(iv)) != 1)
+    if (RAND_bytes_ex(NULL, iv, sizeof(iv), 0) != 1)
     {
         CJOSE_ERROR(err, CJOSE_ERR_CRYPTO);
         return false;

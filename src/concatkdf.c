@@ -32,7 +32,7 @@ static uint8_t *_cjose_concatkdf_apply_lendata(const uint8_t *data, const size_t
 {
     uint8_t *ptr = buffer;
 
-    ptr = _cjose_concatkdf_apply_uint32(len, ptr);
+    ptr = _cjose_concatkdf_apply_uint32((const uint32_t)len, ptr);
     if (0 < len)
     {
         memcpy(ptr, data, len);
@@ -89,7 +89,7 @@ bool cjose_concatkdf_create_otherinfo(
     ptr = _cjose_concatkdf_apply_lendata(apu, apuLen, ptr);
     ptr = _cjose_concatkdf_apply_lendata(apv, apvLen, ptr);
     // final write; the returned (end) pointer is intentionally not stored
-    _cjose_concatkdf_apply_uint32(keylen, ptr);
+    _cjose_concatkdf_apply_uint32((const uint32_t)keylen, ptr);
 
     *otherinfoLen = bufferLen;
     *otherinfo = buffer;
