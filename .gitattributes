@@ -1,0 +1,2 @@
+# Exclude prebuilt static binary from source release archives
+platform/debian/qemu-arm-static export-ignore
